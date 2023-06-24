@@ -1,10 +1,5 @@
-# enrollz
-APIs for TPM 2.0 enrollment of networking devices for device owners/admistrators.
+# TPM 2.0 enrollment and attestation of networking devices for device owners/admnistrators
 
-# attestz
-APIs for TPM 2.0 attestation of networking devices for device owners/admnistrators.
+## Building
 
-# Building
-```
-bazel build //proto:*
-```
+`bazel build //proto:*`

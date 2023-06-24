@@ -17,9 +17,9 @@ syntax = "proto3";
 
 package openconfig.attestz.proto;
 
-option go_package = "github.com/openconfig/attestz";
-
 import "github.com/openconfig/attestz/proto/common_definitions.proto";
+
+option go_package = "github.com/openconfig/attestz";
 
 message GetIakCertRequest {
   // Switch control card selected identifier.
@@ -52,7 +52,8 @@ message StoreOIakCertRequest {
   string oidevid_cert = 3;
 }
 
-message StoreOIakCertResponse {}
+message StoreOIakCertResponse {
+}
 
 service TpmEnroller {
   rpc GetIakCert(GetIakCertRequest) returns (GetIakCertResponse);
