@@ -15,7 +15,7 @@
 //
 syntax = "proto3";
 
-package openconfig.attestz.proto;
+package openconfig.attestz;
 
 import "github.com/openconfig/attestz/proto/common_definitions.proto";
 
@@ -55,7 +55,7 @@ message StoreOIakCertRequest {
 message StoreOIakCertResponse {
 }
 
-service TpmEnroller {
+service TpmEnrollzService {
   rpc GetIakCert(GetIakCertRequest) returns (GetIakCertResponse);
 
   rpc StoreOIakCert(StoreOIakCertRequest) returns (StoreOIakCertResponse);

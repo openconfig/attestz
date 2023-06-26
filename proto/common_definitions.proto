@@ -15,7 +15,7 @@
 //
 syntax = "proto3";
 
-package openconfig.attestz.proto;
+package openconfig.attestz;
 
 option go_package = "github.com/openconfig/attestz";
 
