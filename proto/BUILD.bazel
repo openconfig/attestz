@@ -31,3 +31,28 @@ go_library(
     embed = [":tpm_enrollz_go_proto"],
     importpath = "github.com/openconfig/attestz",
 )
+
+proto_library(
+    name = "tpm_attestz_proto",
+    srcs = [
+        "common_definitions.proto",
+        "tpm_attestz.proto",
+    ],
+    import_prefix = "github.com/openconfig/attestz",
+)
+
+go_proto_library(
+    name = "tpm_attestz_go_proto",
+    compilers = [
+        "go_protoc_gen_go",
+        "go_protoc_gen_go_grpc",
+    ],
+    importpath = "github.com/openconfig/attestz",
+    proto = ":tpm_attestz_proto",
+)
+
+go_library(
+    name = "tpm_attestz_go",
+    embed = [":tpm_attestz_go_proto"],
+    importpath = "github.com/openconfig/attestz",
+)
