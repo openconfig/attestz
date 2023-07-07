@@ -1,0 +1,96 @@
+//
+// Copyright 2023 Google Inc. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" B1IS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+syntax = "proto3";
+
+package openconfig.attestz;
+
+import "github.com/openconfig/attestz/proto/common_definitions.proto";
+
+option go_package = "github.com/openconfig/attestz";
+
+// Request for a given control card to return its Initial Attestation Key (IAK)
+// certificate signed by the switch vendor CA.
+message GetIakCertRequest {
+  // Switch control card selected identifier.
+  ControlCardSelection control_card_selection = 1;
+}
+
+// Response from the specified control card containing its Initial Attestation
+// Key (IAK) certificate signed by switch vendor CA.
+message GetIakCertResponse {
+  // Vendor identity fields of the selected control card.
+  ControlCardVendorId control_card_id = 1;
+
+  // PEM-encoded initial attestation key certificate signed by the switch
+  // vendor CA.
+  string iak_cert = 2;
+
+  // [Optional] PEM-encoded initial DevID certificate signed by the switch
+  // vendor CA. This field should only be populated for standby/secondary
+  // control card when no direct communication to that control card is possible.
+  string idevid_cert = 3;
+}
+
+// Request for a given control card to rotate/install an owner Initial
+// Attestation Key (oIAK) certificate signed by the switch owner/administrator
+// CA.
+message RotateOIakCertRequest {
+  // Switch control card selected identifier.
+  ControlCardSelection control_card_selection = 1;
+
+  // PEM-encoded owner initial attestation key certificate signed by the
+  // switch owner/administrator CA.
+  string oiak_cert = 2;
+
+  // PEM-encoded owner initial DevID certificate signed by the
+  // switch owner/administrator CA.
+  string oidevid_cert = 3;
+}
+
+// Response from the specified control card to rotate/install an owner Initial
+// Attestation Key (oIAK) certificate signed by the switch owner/administrator
+// CA.
+message RotateOIakCertResponse {
+  // Leave empty for now to allow the addition of new fields without major
+  // changes.
+}
+
+// The service is responsible for TPM enrollment workflow on the switch
+// owner/administrator side. In this workflow switch owner verifies device's
+// Initial Attestation Key (IAK) and Initial DevID (IDevID) certificates (signed
+// by the switch vendor CA) and installs/rotates owner IAK (oIAK) and owner
+// IDevID (oIDevID) certificates (signed by switch owner CA). oIAK and oIDevID
+// certs are based on the same underlying keys as IAK and IDevID certs
+// respectively and give switch owner the ability to (1) fully control
+// certificate structure, revocation and expiration policies and (2) remove
+// external dependency on switch vendor CA during TPM attestation workflow. The
+// assumption is that before the device is shipped to the switch owner, a switch
+// vendor provisions each control card with an IAK and IDevID certificates
+// following the TCG specification in Section 5.2 and Section 6.2:
+// protolint:disable MAX_LINE_LENGTH
+// https://trustedcomputinggroup.org/wp-content/uploads/TPM-2p0-Keys-for-Device-Identity-and-Attestation_v1_r12_pub10082021.pdf#page=20
+// Please consult Readme for more details on the workflow.
+service TpmEnrollzService {
+  // From a given control card fetch Initial Attestation Key (IAK) certificate
+  // signed by the switch vendor CA.
+  rpc GetIakCert(GetIakCertRequest) returns (GetIakCertResponse);
+
+  // For a given control card rotate owner Initial Attestation Key (oIAK)
+  // certificate signed by the switch owner/administrator CA. If no oIAK cert is
+  // present on the device, then a new one is persisted. Otherwise, a new oIAK
+  // cert should overwrite an existing oIAK cert on the device.
+  rpc RotateOIakCert(RotateOIakCertRequest) returns (RotateOIakCertResponse);
+}

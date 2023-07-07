@@ -1,2 +1,5 @@
-# attestz
-API for TPM attestation and enrollment for certificates
+# TPM enrollment and attestation of networking devices for device owners/admnistrators
+
+## Building
+
+`bazel build //proto:*`
