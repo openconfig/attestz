@@ -261,8 +261,10 @@ Attestation workflow with differences from the proposed approach in **bold**:
 
 ## Switch Owner Prod TLS Cert Issuance
 
-Although this is outside of the scope of this doc, the expectation is that each control card has its own separate prod TLS key pair and cert that it never shares with the other card. Each card can perform CSR-style TLS key pair/cert issuance, where TLS pair key is issued by a control card and the private key never leaves a given control card (never shares the key with another card within the same switch chassis either).
-Switch owner will always attest a given control card before issuing a new or rotating an existing prod TLS cert. In other words, **switch-owner-issued production TLS credentials/certs can only be accessible to control cards that have been TPM enrolled and attested by switch owner**. If a standby control card becomes active/primary, it must use its own TLS cert for all connections with switch owner infra.
+Although this is outside of the scope of this doc, the expectation is that each control card has its own separate prod TLS key pair and cert that it never shares with the other card.
+Each card can perform CSR-style TLS key pair/cert issuance, where TLS pair key is issued by a control card and the private key never leaves a given control card (never shares the key with another card within the same switch chassis either).
+Switch owner will always attest a given control card before issuing a new or rotating an existing prod TLS cert.
+In other words, **switch-owner-issued production TLS credentials/certs can only be accessible to control cards that have been TPM enrolled and attested by switch owner**. If a standby control card becomes active/primary, it must use its own TLS cert for all connections with switch owner infra.
 
 ## RMA Scenario
 
