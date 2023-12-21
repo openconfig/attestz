@@ -261,7 +261,7 @@ Attestation workflow with differences from the proposed approach in **bold**:
 
 ## Switch Owner Prod TLS Cert Issuance
 
-Although this is outside of the scope of this doc, the expectation is that each control card has its own separate prod TLS key pair and cert that it never shares with the other card.
+Although TLS cert/keys issuance workflow/APIs is outside of the scope of this document, attestz and enrollz require the following handling of private TLS keys for TPM-equipped networking devices. Each control card has its own separate prod TLS key pair and cert that it never shares with the other card.
 Each card can perform CSR-style TLS key pair/cert issuance, where TLS pair key is issued by a control card and the private key never leaves a given control card (never shares the key with another card within the same switch chassis either).
 Switch owner will always attest a given control card before issuing a new or rotating an existing prod TLS cert.
 In other words, **switch-owner-issued production TLS credentials/certs can only be accessible to control cards that have been TPM enrolled and attested by switch owner**. If a standby control card becomes active/primary, it must use its own TLS cert for all connections with switch owner infra.
@@ -279,8 +279,6 @@ The newly inserted (standby) card must be TPM enrolled and attested by the switc
    3. Active card verifies nonce signature and IDevID cert.
 4. Active card notifies switch owner infra that a new control card is inserted.
 5. Switch owner initiates enrollz and attestz workflow for the new standby card. Once attestz succeeds, switch owner issues to the standby control card its own TLS credentials/cert.
-
-Although this is highly undesirable, if per-control-card TLS cert is temporary unsupported and instead both control cards must share the same prod TLS key pair and cert, then the primary/active control card can only sync the TLS credentials/cert to the newly inserted standby/secondary card after the standby card have been enrolled and attested by the switch owner.
 
 ## Building
 
