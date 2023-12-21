@@ -1,5 +1,8 @@
 # TPM Enrollment and Attestation of Networking Devices for Device Owners <!-- omit from toc -->
 
+TPM (Trusted Platform Module) enrollment workflow is responsible for cryptographically verifying switches' TPM-rooted identities and provisioning devices with switch owner's attestation certificates.
+TPM attestation workflow ensures the integrity of networking devices throughout the entire boot process. The goal of this repository is to specify TPM enrollment and attestation workflow steps, design/APIs, and suggest a corresponding reference implementation of both switch and switch-owner sides of logic.
+
 ## Table of Contents <!-- omit from toc -->
 
 - [Terminology](#terminology)
@@ -16,18 +19,16 @@
   - [TPM 2.0 Attestation Workflow Steps](#tpm-20-attestation-workflow-steps)
   - [TPM 2.0 Attestation Workflow Diagram](#tpm-20-attestation-workflow-diagram)
   - [TPM 2.0 Attestation Alternatives Considered](#tpm-20-attestation-alternatives-considered)
+- [Switch Owner Prod TLS Cert Issuance](#switch-owner-prod-tls-cert-issuance)
+- [RMA Scenario](#rma-scenario)
 - [Building](#building)
-
-## Building
-
-`bazel build //proto:*`
 
 ## Terminology
 
 - [Bootz](https://github.com/openconfig/bootz) is an evolution of [sZTP](https://www.rfc-editor.org/rfc/rfc8572.html).
 - TPM EnrollZ service (or simply EnrollZ service) is the switch owner's internal infrastructure service responsible for the TPM 2.0 enrollment workflow.
 - TPM AttestZ service (or simply AttestZ service) is switch owner's internal infrastructure service responsible for TPM 2.0 attestation workflow.
-- Switch owner CA is switch owner's internal Certificate Authority service.
+- Switch owner CA is the switch owner's internal Certificate Authority service.
 - Switch chassis consists of one or more *“control cards”* (or *“control cards”*, *“routing engines”*, *“routing processors”*, etc.), each of which is equipped with its own CPU and TPM. The term control card will be used throughout the doc.
 
 **Differences between various certs** *(more details in the [TCG spec](https://trustedcomputinggroup.org/wp-content/uploads/TPM-2p0-Keys-for-Device-Identity-and-Attestation_v1_r12_pub10082021.pdf))*:
@@ -49,8 +50,9 @@ fully control certificate structure, revocation and expiration policies and (2) 
 
 1. On completion of Bootz workflow, device obtains all necessary credentials and configurations to start serving TPM enrollment gRPC API endpoints.
 2. On completion of Bootz, EnrollZ service is notified to enroll a TPM on a specific control card and calls the device's `GetIakCert` API to get back an IAK cert.
-   - *Note: primary/active control card is also responsible for all RPCs directed to the secondary/standby control card. The mechanism of internal communication between the two control cards depends on the switch vendor and is out of scope of this doc.*
-3. EnrollZ service uses the trust bundle/anchor obtained (in advance) from the switch vendor to verify signature over the IAK cert.
+   - During initial bootstrapping, an active control card must use its IDevID cert for securing TLS connection. Once the device is provisioned with switch-owner-issued prod TLS cert, the device must always use that cert for all subsequent enrollz RPCs (such as `RotateOIakCert`).
+   - Primary/active control card is also responsible for all RPCs directed to the secondary/standby control card. The mechanism of internal communication between the two control cards depends on the switch vendor and is out of scope of this doc.
+3. EnrollZ service uses the trust bundle/anchor obtained (in advance) from the switch vendor to verify signature over the IAK and IDevID certs, and ensure that the control card serial number in oIAK cert and oIDevID cert is the same.
    - *Note: EnrollZ service must have access to the up-to-date switch vendor trust bundle/anchor needed to verify the signature over the IAK certificate. The mechanics of this workflow are out of scope of this doc, but the trust bundle could be retrieved from a trusted vendor portal on a scheduled basis.*
 4. EnrollZ service ensures that device identity fields in IAK cert match its expectations.
 5. EnrollZ service asks switch owner CA to issue an oIAK cert based on the IAK pub key and device identity fields.
@@ -228,7 +230,7 @@ Attestation workflow with differences from the proposed approach in **bold**:
    - Primary/active control card is also responsible for all RPCs directed to the secondary/standby control card. The mechanism of internal communication between the two control cards depends on the switch vendor and is out of scope of this doc.
    - Device uses active control card’s IDevID private key and oIDevID cert for securing TLS for the initial attestation RPCs. Once the device successfully completes attestation and is provisioned with switch owner’s prod credentials/certs, the device will rely on those for securing TLS in subsequent attestation workflows.
 2. AttestZ service calls device’s `Attest` endpoint for a given control card (and a random nonce) to get back *(note: the API can borrow ideas from [log-retrieval](https://datatracker.ietf.org/doc/pdf/draft-ietf-rats-yang-tpm-charra-21#page=5) and [tpm20-challenge-response-attestation](https://datatracker.ietf.org/doc/pdf/draft-ietf-rats-yang-tpm-charra-21#page=4) APIs):*
-   - An oIAK cert signed by switch owner’s CA and received by the device during the TPM enrollment workflow.
+   - An oIAK cert signed by the switch owner’s CA and received by the device during the TPM enrollment workflow.
    - Final observed PCR hashes.
    - Quote structure and signature over it signed by IAK private.
    - **Boot log**.
@@ -246,7 +248,7 @@ Attestation workflow with differences from the proposed approach in **bold**:
 **Pros:**
 
 - Switch owners can adapt to changes in PCR measurements (for example, if there is new artifact measured to a given PCR) on the fly.
-- Switch vendors do not need to host an API to give switch owner PCR measurement manifest with every bootloader/OS release.
+- Switch vendors do not need to host an API to give the switch owner PCR measurement manifest with every bootloader/OS release.
   - *Note: this is only valid when attestation of device-specific PCRs is needed.*
 - Aligns with the general TCG specification and IETF ChaRRA draft.
 
@@ -257,3 +259,27 @@ Attestation workflow with differences from the proposed approach in **bold**:
 - PCR recomputation from the boot log happens in AttestZ service on every attestation when the switches already serve prod traffic. For most (if not all) of the PCRs the recomputed values should be the same for all devices which is also inefficient.
 - AttestZ service needs to “know” the measurement events it is looking for in the log or internal DB. This may not scale well if the events are expected to change over time or if they differ between different switch vendors. Most likely this would imply for switch vendors to provide a simpler version of PCR measurement manifest which defeats the purpose of the approach.
 
+## Switch Owner Prod TLS Cert Issuance
+
+Although TLS cert/keys issuance workflow/APIs is outside of the scope of this document, attestz and enrollz require the following handling of private TLS keys for TPM-equipped networking devices. Each control card has its own separate prod TLS key pair and cert that it never shares with the other card.
+Each card can perform CSR-style TLS key pair/cert issuance, where TLS pair key is issued by a control card and the private key never leaves a given control card (never shares the key with another card within the same switch chassis either).
+Switch owner will always attest a given control card before issuing a new or rotating an existing prod TLS cert.
+In other words, **switch-owner-issued production TLS credentials/certs can only be accessible to control cards that have been TPM enrolled and attested by switch owner**. If a standby control card becomes active/primary, it must use its own TLS cert for all connections with switch owner infra.
+
+## RMA Scenario
+
+One benefit of having multiple control cards is a redundancy model where one control card (active) is serving traffic while another card is unavailable. In such a scenario a switch owner would typically want to replace the failed control card, while the active card is still serving traffic (aka hot-swapping).
+The newly inserted (standby) card must be TPM enrolled and attested by the switch owner before the card gets access to switch-owner-issued prod TLS cert. Thus, conceptually the RMA workflow would be the following:
+
+1. During the initial device secure install, switch owner TPM enrolls and attests both control cards. One of the cards acts as primary, serving prod traffic. Each control card has its own switch-owner-issued TLS cert.
+2. One of the cards fails and a new standby card is inserted, while the active card is serving prod traffic.
+3. Active control card conducts an auth handshake with a newly inserted control card.
+   1. Active card sends a nonce to the new standby card.
+   2. Standby card signs the nonce with its IDevID private key and sends it back along with its IDevID cert.
+   3. Active card verifies nonce signature and IDevID cert.
+4. Active card notifies switch owner infra that a new control card is inserted.
+5. Switch owner initiates enrollz and attestz workflow for the new standby card. Once attestz succeeds, switch owner issues to the standby control card its own TLS credentials/cert.
+
+## Building
+
+`bazel build //proto:*`
