@@ -15,6 +15,7 @@ TPM attestation workflow ensures the integrity of networking devices throughout 
     - [3. Switch owner uses EK (or EK cert) to issue LAK cert](#3-switch-owner-uses-ek-or-ek-cert-to-issue-lak-cert)
     - [4. Switch owner issues LAK cert based on IAK cert signed by switch vendor CA](#4-switch-owner-issues-lak-cert-based-on-iak-cert-signed-by-switch-vendor-ca)
 - [TPM 2.0 Attestation for Switch Owners](#tpm-20-attestation-for-switch-owners)
+  - [General Guidelines on What to Attest](#general-guidelines-on-what-to-attest)
   - [Conceptual Flow for *Offline* PCR Precomputation](#conceptual-flow-for-offline-pcr-precomputation)
   - [TPM 2.0 Attestation Workflow Steps](#tpm-20-attestation-workflow-steps)
   - [TPM 2.0 Attestation Workflow Diagram](#tpm-20-attestation-workflow-diagram)
@@ -147,13 +148,19 @@ The workflow would follow the TCG specification documented in [section 5.3](http
 In this workflow switch owner verifies that the device's end-to-end boot state (bootloader, OS, secure boot policy, etc.) matches owner's expectations. This approach assumes that expected final PCR values were precomputed beforehand and are available during the attestation workflow. Thus, on a high level for each control card AttestZ service will (1) fetch final observed PCR values, PCR quote
 (signed with IAK private key) and oIAK cert from the device, (2) verify oIAK cert, (3) verify PCR quote signature with oIAK cert, (4) verify PCRs digest, (5) compare observed PCR final values to the expected ones.
 
-### Conceptual Flow for *Offline* PCR Precomputation
+### General Guidelines on What to Attest
 
-The idea is that before devices are even shipped to a switch owner, switch vendors give switch owners (through an API endpoint) final expected PCR values for those PCRs that are the same across all devices for a given product model and bootloader/OS version (PCRs that do not change between reboots and are not device-specific). Such PCR values can include measurements of BIOS image, bootloader
-image, OS image, security boot policy, etc. A switch owner would simply
-ingest these values and persist them in an internal DB, so that later when AttestZ service actually performs attestation, it can simply compare final expected PCRs to the actual PCRs reported by the device, instead of recomputing these PCRs from the boot log for every attestation.
+This section is out of scope of the broader openconfig initiative and instead serves more as a guideline. The general question one should ask when thinking of what to attest is "does changing X on the device change the fundamental boot posture of the device?".
+If the answer is yes, then attest it, otherwise it is not required. Examples of such software that should be attested are bootloader image, OS image and secure boot policy.
 
-Although the exact PCR allocation may vary across vendors, the expectation is that vendors will follow standardized [TCG guidance](https://trustedcomputinggroup.org/wp-content/uploads/TCG_PCClient_PFP_r1p05_v23_pub.pdf#page=36) (which measurements are measured in which PCRs, who makes those measurements, the order of measurements, etc.) for these measurements:
+Similarly, TCG discourages attesting device-specific configurations/software or things that may change after a reboot. In section [3.3.4.2](https://trustedcomputinggroup.org/wp-content/uploads/TCG_PCClient_PFP_r1p05_v23_pub.pdf#page=40) and 3.3.4.4 for PCR [1] and PCR[3] (both of which measure configuration related data) TCG spec states:
+*"Entities that MUST NOT be measured as part of the above measurements: System-unique information such as asset, serial numbers, etc., as they would prevent sealing to PCR[3] with a common configuration in a fleet of devices"* and *"The event data MUST not vary across boot cycles if the set of potential PCR[1] measurements measured does not vary"*.
+Instead of attesting such configurations, it should be software's (e.g. OS or application layer) responsibility to verify/validate such configs, while the switch owner may attest the underlying software image containing the verification logic.
+
+Attesting secrets is an anti-pattern. Even if one is attesting password *hashes* and even if a hash has strong entropy, it is still a good practice to avoid attesting secrets or potentially-secrets-revealing data.
+This is mainly because all the attestable measurements are considered to be public and are logged in plain into the bootlog, which is intended (although not required) to be publicly shared during attestation.
+
+Finally, although the exact PCR allocation may vary across vendors, the expectation is that switch vendors will follow standardized [TCG guidance](https://trustedcomputinggroup.org/wp-content/uploads/TCG_PCClient_PFP_r1p05_v23_pub.pdf#page=36) (which measurements are measured in which PCRs, who makes those measurements, the order of measurements, etc.) for these measurements:
 
 | **PCR Index** | **PCR Usage** |
 | :--- | :---- |
@@ -168,6 +175,12 @@ Although the exact PCR allocation may vary across vendors, the expectation is th
 | 8-15 | Defined for use by the Static OS |
 | 16 | Debug |
 | 23 | Application Support |
+
+### Conceptual Flow for *Offline* PCR Precomputation
+
+The idea is that before devices are even shipped to a switch owner, switch vendors give switch owners (through an API endpoint) final expected PCR values for those PCRs that are the same across all devices for a given product model and bootloader/OS version (PCRs that do not change between reboots and are not device-specific). Such PCR values can include measurements of BIOS image, bootloader
+image, OS image, security boot policy, etc. A switch owner would simply
+ingest these values and persist them in an internal DB, so that later when AttestZ service actually performs attestation, it can just compare final expected PCRs to the actual PCRs reported by the device, instead of recomputing these PCRs from the boot log for every attestation.
 
 ### TPM 2.0 Attestation Workflow Steps
 
