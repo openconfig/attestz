@@ -38,7 +38,7 @@ message AttestRequest {
   // Random nonce to be used for PCR quotes.
   bytes nonce = 2;
 
-  // Hash algorithm for PCR quotes.
+  // Hash algorithm for PCR selection bank.
   Tpm20HashAlgo hash_algo = 3;
 
   // Indices for selected PCRs to attest.
@@ -56,14 +56,20 @@ message AttestResponse {
   string oiak_cert = 2;
 
   // Final observed unsigned PCR values {pcr_index -> pcr_value}.
-  map<int32, string> pcr_values = 3;
-
-  // TPM PCR quote `TPMS_QUOTE_INFO` structure (output of `TPM2_Quote()`).
   // protolint:disable MAX_LINE_LENGTH
-  // https://www.trustedcomputinggroup.org/wp-content/uploads/TPM-Rev-2.0-Part-2-Structures-01.38.pdf#page=123
-  bytes tpms_quote_info = 4;
+  // PCR bytes are formatted in accordance with section 10.3 of https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part2_Structures_pub.pdf#page=111.
+  map<int32, bytes> pcr_values = 3;
 
-  // PCR quote signature signed with an IAK private key.
+  // TPM PCR quote `TPM2B_ATTEST` structure - quoted part of `TPM2_Quote()`.
+  // protolint:disable MAX_LINE_LENGTH
+  // See section 18.4.2 of https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part3_Commands_pub.pdf#page=167
+  // and section 10.12.13 of https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part2_Structures_pub.pdf#page=135.
+  bytes quoted = 4;
+
+  // PCR quote signature signed with an IAK private key. This is `TPMT_SIGNATURE` signature part of `TPM2_Quote()`.
+  // protolint:disable MAX_LINE_LENGTH
+  // See section 18.4.2 of https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part3_Commands_pub.pdf#page=167
+  // and section 11.3.4 of https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part2_Structures_pub.pdf#page=153.
   bytes quote_signature = 5;
 
   // [Optional] PEM-encoded owner initial DevID certificate signed by the
