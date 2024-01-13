@@ -56,20 +56,23 @@ message AttestResponse {
   string oiak_cert = 2;
 
   // Final observed unsigned PCR values {pcr_index -> pcr_value}.
-  // protolint:disable MAX_LINE_LENGTH
-  // PCR bytes are formatted in accordance with section 10.3 of https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part2_Structures_pub.pdf#page=111.
+  // PCR bytes are formatted in accordance with section 10.3 of
+  // https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part2_Structures_pub.pdf#page=111. protolint:disable:this MAX_LINE_LENGTH
   map<int32, bytes> pcr_values = 3;
 
   // TPM PCR quote `TPM2B_ATTEST` structure - quoted part of `TPM2_Quote()`.
-  // protolint:disable MAX_LINE_LENGTH
-  // See section 18.4.2 of https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part3_Commands_pub.pdf#page=167
-  // and section 10.12.13 of https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part2_Structures_pub.pdf#page=135.
+  // See section 18.4.2 of
+  // https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part3_Commands_pub.pdf#page=167 protolint:disable:this MAX_LINE_LENGTH
+  // and section 10.12.13 of
+  // https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part2_Structures_pub.pdf#page=135. protolint:disable:this MAX_LINE_LENGTH
   bytes quoted = 4;
 
-  // PCR quote signature signed with an IAK private key. This is `TPMT_SIGNATURE` signature part of `TPM2_Quote()`.
-  // protolint:disable MAX_LINE_LENGTH
-  // See section 18.4.2 of https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part3_Commands_pub.pdf#page=167
-  // and section 11.3.4 of https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part2_Structures_pub.pdf#page=153.
+  // PCR quote signature signed with an IAK private key.
+  // This is `TPMT_SIGNATURE` signature part of `TPM2_Quote()`.
+  // See section 18.4.2 of
+  // https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part3_Commands_pub.pdf#page=167 protolint:disable:this MAX_LINE_LENGTH
+  // and section 11.3.4 of
+  // https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part2_Structures_pub.pdf#page=153.  protolint:disable:this MAX_LINE_LENGTH
   bytes quote_signature = 5;
 
   // [Optional] PEM-encoded owner initial DevID certificate signed by the
