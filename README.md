@@ -52,6 +52,8 @@ Switch vendors must use one of the follow modes for generating IAK and IDevID ke
 - ECC P521 (preferred)
 - RSA 4096
 
+[TPM2_Quote()](https://www.trustedcomputinggroup.org/wp-content/uploads/TPM-Rev-2.0-Part-2-Structures-01.38.pdf#page=123) signing scheme is the default signature scheme of the IAK key, and `TPM2_Quote()` signing hash algorithm must be SHA-256.
+
 ### TPM 2.0 Enrollment Workflow Steps
 
 1. On completion of Bootz workflow, device obtains all necessary credentials and configurations to start serving TPM enrollment gRPC API endpoints.
