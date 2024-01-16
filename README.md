@@ -47,6 +47,13 @@ In this workflow switch owner verifies device's Initial Attestation Key (IAK) an
 fully control certificate structure, revocation and expiration policies and (2) remove external dependency on switch vendor CA during TPM attestation workflow. The assumption is that before the device is shipped to the switch owner, a switch vendor provisions each control card with IAK and IDevID certificates following the TCG specification in
 [Section 5.2](https://trustedcomputinggroup.org/wp-content/uploads/TPM-2p0-Keys-for-Device-Identity-and-Attestation_v1_r12_pub10082021.pdf#page=20) and [Section 6.2](https://trustedcomputinggroup.org/wp-content/uploads/TPM-2p0-Keys-for-Device-Identity-and-Attestation_v1_r12_pub10082021.pdf#page=30).
 
+Switch vendors must use one of the follow modes for generating IAK and IDevID keypairs as well as CA signing keys.
+
+- ECC P521 (preferred)
+- RSA 4096
+
+[TPM2_Quote()](https://www.trustedcomputinggroup.org/wp-content/uploads/TPM-Rev-2.0-Part-2-Structures-01.38.pdf#page=123) signing scheme is the default signature scheme of the IAK key, and `TPM2_Quote()` signing hash algorithm must be SHA-256.
+
 ### TPM 2.0 Enrollment Workflow Steps
 
 1. On completion of Bootz workflow, device obtains all necessary credentials and configurations to start serving TPM enrollment gRPC API endpoints.
