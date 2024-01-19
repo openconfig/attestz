@@ -12,7 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@bazel_gazelle//:def.bzl", "gazelle")
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
-# gazelle:prefix github.com/openconfig/attestz
-gazelle(name = "gazelle")
+go_library(
+    name = "enrollz_biz",
+    srcs = ["enrollz_biz.go"],
+    importpath = "github.com/openconfig/attestz/service/biz",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//proto:tpm_enrollz_go",
+        "@com_github_golang_glog//:glog",
+        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
