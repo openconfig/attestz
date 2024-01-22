@@ -1,4 +1,4 @@
-// Copyright 2023 Google LLC
+// Copyright 2024 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import (
 )
 
 func EnrollDevice() {
-	log.Errorf("Enrollz biz logic is not implemented yet!")
+	log.Error("Enrollz biz logic is not implemented yet!")
 	// 1. Fetch Switch Vendor CA trust bundle.
 
 	// 2. Call device's GetIakCert API for Active control card
