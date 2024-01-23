@@ -8,6 +8,7 @@ package attestz
 
 import (
 	context "context"
+	common_definitions "github.com/openconfig/attestz/proto/common_definitions"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -29,7 +30,7 @@ type GetIakCertRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	ControlCardSelection *ControlCardSelection `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
+	ControlCardSelection *common_definitions.ControlCardSelection `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
 }
 
 func (x *GetIakCertRequest) Reset() {
@@ -64,7 +65,7 @@ func (*GetIakCertRequest) Descriptor() ([]byte, []int) {
 	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *GetIakCertRequest) GetControlCardSelection() *ControlCardSelection {
+func (x *GetIakCertRequest) GetControlCardSelection() *common_definitions.ControlCardSelection {
 	if x != nil {
 		return x.ControlCardSelection
 	}
@@ -76,9 +77,9 @@ type GetIakCertResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	ControlCardId *ControlCardVendorId `protobuf:"bytes,1,opt,name=control_card_id,json=controlCardId,proto3" json:"control_card_id,omitempty"`
-	IakCert       string               `protobuf:"bytes,2,opt,name=iak_cert,json=iakCert,proto3" json:"iak_cert,omitempty"`
-	IdevidCert    string               `protobuf:"bytes,3,opt,name=idevid_cert,json=idevidCert,proto3" json:"idevid_cert,omitempty"`
+	ControlCardId *common_definitions.ControlCardVendorId `protobuf:"bytes,1,opt,name=control_card_id,json=controlCardId,proto3" json:"control_card_id,omitempty"`
+	IakCert       string                                  `protobuf:"bytes,2,opt,name=iak_cert,json=iakCert,proto3" json:"iak_cert,omitempty"`
+	IdevidCert    string                                  `protobuf:"bytes,3,opt,name=idevid_cert,json=idevidCert,proto3" json:"idevid_cert,omitempty"`
 }
 
 func (x *GetIakCertResponse) Reset() {
@@ -113,7 +114,7 @@ func (*GetIakCertResponse) Descriptor() ([]byte, []int) {
 	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *GetIakCertResponse) GetControlCardId() *ControlCardVendorId {
+func (x *GetIakCertResponse) GetControlCardId() *common_definitions.ControlCardVendorId {
 	if x != nil {
 		return x.ControlCardId
 	}
@@ -139,9 +140,9 @@ type RotateOIakCertRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	ControlCardSelection *ControlCardSelection `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
-	OiakCert             string                `protobuf:"bytes,2,opt,name=oiak_cert,json=oiakCert,proto3" json:"oiak_cert,omitempty"`
-	OidevidCert          string                `protobuf:"bytes,3,opt,name=oidevid_cert,json=oidevidCert,proto3" json:"oidevid_cert,omitempty"`
+	ControlCardSelection *common_definitions.ControlCardSelection `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
+	OiakCert             string                                   `protobuf:"bytes,2,opt,name=oiak_cert,json=oiakCert,proto3" json:"oiak_cert,omitempty"`
+	OidevidCert          string                                   `protobuf:"bytes,3,opt,name=oidevid_cert,json=oidevidCert,proto3" json:"oidevid_cert,omitempty"`
 }
 
 func (x *RotateOIakCertRequest) Reset() {
@@ -176,7 +177,7 @@ func (*RotateOIakCertRequest) Descriptor() ([]byte, []int) {
 	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *RotateOIakCertRequest) GetControlCardSelection() *ControlCardSelection {
+func (x *RotateOIakCertRequest) GetControlCardSelection() *common_definitions.ControlCardSelection {
 	if x != nil {
 		return x.ControlCardSelection
 	}
@@ -310,12 +311,12 @@ func file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP() []
 
 var file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_goTypes = []interface{}{
-	(*GetIakCertRequest)(nil),      // 0: openconfig.attestz.GetIakCertRequest
-	(*GetIakCertResponse)(nil),     // 1: openconfig.attestz.GetIakCertResponse
-	(*RotateOIakCertRequest)(nil),  // 2: openconfig.attestz.RotateOIakCertRequest
-	(*RotateOIakCertResponse)(nil), // 3: openconfig.attestz.RotateOIakCertResponse
-	(*ControlCardSelection)(nil),   // 4: openconfig.attestz.ControlCardSelection
-	(*ControlCardVendorId)(nil),    // 5: openconfig.attestz.ControlCardVendorId
+	(*GetIakCertRequest)(nil),                       // 0: openconfig.attestz.GetIakCertRequest
+	(*GetIakCertResponse)(nil),                      // 1: openconfig.attestz.GetIakCertResponse
+	(*RotateOIakCertRequest)(nil),                   // 2: openconfig.attestz.RotateOIakCertRequest
+	(*RotateOIakCertResponse)(nil),                  // 3: openconfig.attestz.RotateOIakCertResponse
+	(*common_definitions.ControlCardSelection)(nil), // 4: openconfig.attestz.ControlCardSelection
+	(*common_definitions.ControlCardVendorId)(nil),  // 5: openconfig.attestz.ControlCardVendorId
 }
 var file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_depIdxs = []int32{
 	4, // 0: openconfig.attestz.GetIakCertRequest.control_card_selection:type_name -> openconfig.attestz.ControlCardSelection
@@ -337,7 +338,6 @@ func file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_init() {
 	if File_github_com_openconfig_attestz_proto_tpm_enrollz_proto != nil {
 		return
 	}
-	file_github_com_openconfig_attestz_proto_common_definitions_proto_init()
 	if !protoimpl.UnsafeEnabled {
 		file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetIakCertRequest); i {
