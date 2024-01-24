@@ -3,7 +3,7 @@
 * @jenia-grunin
 
 # Core enrollz and attestz APIs.
-/proto/* @marcushines @morrowc @jenia-grunin
+/proto/*.proto @marcushines @morrowc @jenia-grunin
 
 # Core enrollz and attestz workflows definitions and security requirements.
 README.md @marcushines @morrowc @jenia-grunin
