@@ -1,12 +1,9 @@
 # Definition of code OWNERS for the openconfig/attestz repository.
-# default approvers: @jenia-grunin
-* @jenia-grunin
+# default approvers: @openconfig/attestz-committers team.
+* @openconfig/attestz-committers
 
 # Core enrollz and attestz APIs.
 /proto/*.proto @marcushines @morrowc @jenia-grunin
 
 # Core enrollz and attestz workflows definitions and security requirements.
 README.md @marcushines @morrowc @jenia-grunin
-
-# All Golang files.
-*.go @melzhan @jenia-grunin
