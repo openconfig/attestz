@@ -8,6 +8,7 @@ package attestz
 
 import (
 	context "context"
+	common_definitions "github.com/openconfig/attestz/proto/common_definitions"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -84,10 +85,10 @@ type AttestRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	ControlCardSelection *ControlCardSelection `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
-	Nonce                []byte                `protobuf:"bytes,2,opt,name=nonce,proto3" json:"nonce,omitempty"`
-	HashAlgo             Tpm20HashAlgo         `protobuf:"varint,3,opt,name=hash_algo,json=hashAlgo,proto3,enum=openconfig.attestz.Tpm20HashAlgo" json:"hash_algo,omitempty"`
-	PcrIndices           []int32               `protobuf:"varint,4,rep,packed,name=pcr_indices,json=pcrIndices,proto3" json:"pcr_indices,omitempty"`
+	ControlCardSelection *common_definitions.ControlCardSelection `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
+	Nonce                []byte                                   `protobuf:"bytes,2,opt,name=nonce,proto3" json:"nonce,omitempty"`
+	HashAlgo             Tpm20HashAlgo                            `protobuf:"varint,3,opt,name=hash_algo,json=hashAlgo,proto3,enum=openconfig.attestz.Tpm20HashAlgo" json:"hash_algo,omitempty"`
+	PcrIndices           []int32                                  `protobuf:"varint,4,rep,packed,name=pcr_indices,json=pcrIndices,proto3" json:"pcr_indices,omitempty"`
 }
 
 func (x *AttestRequest) Reset() {
@@ -122,7 +123,7 @@ func (*AttestRequest) Descriptor() ([]byte, []int) {
 	return file_github_com_openconfig_attestz_proto_tpm_attestz_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *AttestRequest) GetControlCardSelection() *ControlCardSelection {
+func (x *AttestRequest) GetControlCardSelection() *common_definitions.ControlCardSelection {
 	if x != nil {
 		return x.ControlCardSelection
 	}
@@ -155,12 +156,12 @@ type AttestResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	ControlCardId  *ControlCardVendorId `protobuf:"bytes,1,opt,name=control_card_id,json=controlCardId,proto3" json:"control_card_id,omitempty"`
-	OiakCert       string               `protobuf:"bytes,2,opt,name=oiak_cert,json=oiakCert,proto3" json:"oiak_cert,omitempty"`
-	PcrValues      map[int32][]byte     `protobuf:"bytes,3,rep,name=pcr_values,json=pcrValues,proto3" json:"pcr_values,omitempty" protobuf_key:"varint,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	Quoted         []byte               `protobuf:"bytes,4,opt,name=quoted,proto3" json:"quoted,omitempty"`
-	QuoteSignature []byte               `protobuf:"bytes,5,opt,name=quote_signature,json=quoteSignature,proto3" json:"quote_signature,omitempty"`
-	OidevidCert    string               `protobuf:"bytes,6,opt,name=oidevid_cert,json=oidevidCert,proto3" json:"oidevid_cert,omitempty"`
+	ControlCardId  *common_definitions.ControlCardVendorId `protobuf:"bytes,1,opt,name=control_card_id,json=controlCardId,proto3" json:"control_card_id,omitempty"`
+	OiakCert       string                                  `protobuf:"bytes,2,opt,name=oiak_cert,json=oiakCert,proto3" json:"oiak_cert,omitempty"`
+	PcrValues      map[int32][]byte                        `protobuf:"bytes,3,rep,name=pcr_values,json=pcrValues,proto3" json:"pcr_values,omitempty" protobuf_key:"varint,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Quoted         []byte                                  `protobuf:"bytes,4,opt,name=quoted,proto3" json:"quoted,omitempty"`
+	QuoteSignature []byte                                  `protobuf:"bytes,5,opt,name=quote_signature,json=quoteSignature,proto3" json:"quote_signature,omitempty"`
+	OidevidCert    string                                  `protobuf:"bytes,6,opt,name=oidevid_cert,json=oidevidCert,proto3" json:"oidevid_cert,omitempty"`
 }
 
 func (x *AttestResponse) Reset() {
@@ -195,7 +196,7 @@ func (*AttestResponse) Descriptor() ([]byte, []int) {
 	return file_github_com_openconfig_attestz_proto_tpm_attestz_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *AttestResponse) GetControlCardId() *ControlCardVendorId {
+func (x *AttestResponse) GetControlCardId() *common_definitions.ControlCardVendorId {
 	if x != nil {
 		return x.ControlCardId
 	}
@@ -323,12 +324,12 @@ func file_github_com_openconfig_attestz_proto_tpm_attestz_proto_rawDescGZIP() []
 var file_github_com_openconfig_attestz_proto_tpm_attestz_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_github_com_openconfig_attestz_proto_tpm_attestz_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_github_com_openconfig_attestz_proto_tpm_attestz_proto_goTypes = []interface{}{
-	(Tpm20HashAlgo)(0),           // 0: openconfig.attestz.Tpm20HashAlgo
-	(*AttestRequest)(nil),        // 1: openconfig.attestz.AttestRequest
-	(*AttestResponse)(nil),       // 2: openconfig.attestz.AttestResponse
-	nil,                          // 3: openconfig.attestz.AttestResponse.PcrValuesEntry
-	(*ControlCardSelection)(nil), // 4: openconfig.attestz.ControlCardSelection
-	(*ControlCardVendorId)(nil),  // 5: openconfig.attestz.ControlCardVendorId
+	(Tpm20HashAlgo)(0),     // 0: openconfig.attestz.Tpm20HashAlgo
+	(*AttestRequest)(nil),  // 1: openconfig.attestz.AttestRequest
+	(*AttestResponse)(nil), // 2: openconfig.attestz.AttestResponse
+	nil,                    // 3: openconfig.attestz.AttestResponse.PcrValuesEntry
+	(*common_definitions.ControlCardSelection)(nil), // 4: openconfig.attestz.ControlCardSelection
+	(*common_definitions.ControlCardVendorId)(nil),  // 5: openconfig.attestz.ControlCardVendorId
 }
 var file_github_com_openconfig_attestz_proto_tpm_attestz_proto_depIdxs = []int32{
 	4, // 0: openconfig.attestz.AttestRequest.control_card_selection:type_name -> openconfig.attestz.ControlCardSelection
@@ -349,7 +350,6 @@ func file_github_com_openconfig_attestz_proto_tpm_attestz_proto_init() {
 	if File_github_com_openconfig_attestz_proto_tpm_attestz_proto != nil {
 		return
 	}
-	file_github_com_openconfig_attestz_proto_common_definitions_proto_init()
 	if !protoimpl.UnsafeEnabled {
 		file_github_com_openconfig_attestz_proto_tpm_attestz_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*AttestRequest); i {
