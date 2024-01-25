@@ -47,12 +47,13 @@ In this workflow switch owner verifies device's Initial Attestation Key (IAK) an
 fully control certificate structure, revocation and expiration policies and (2) remove external dependency on switch vendor CA during TPM attestation workflow. The assumption is that before the device is shipped to the switch owner, a switch vendor provisions each control card with IAK and IDevID certificates following the TCG specification in
 [Section 5.2](https://trustedcomputinggroup.org/wp-content/uploads/TPM-2p0-Keys-for-Device-Identity-and-Attestation_v1_r12_pub10082021.pdf#page=20) and [Section 6.2](https://trustedcomputinggroup.org/wp-content/uploads/TPM-2p0-Keys-for-Device-Identity-and-Attestation_v1_r12_pub10082021.pdf#page=30).
 
-Switch vendors must use one of the follow modes for generating IAK and IDevID keypairs as well as CA signing keys.
+The latest [TCG spec](https://trustedcomputinggroup.org/wp-content/uploads/PC-Client-Specific-Platform-TPM-Profile-for-TPM-2p0-v1p05p_r14_pub.pdf) makes it mandatory to support ECC P384, RSA 3072 and SHA 384, while ECC P521, RSA 4096 and SHA 512 are optional.
+Even though it is strongly preferred to rely on ECC P521 and SHA-512 where possible, switch vendors must at the very least support:
 
-- ECC P521 (preferred)
-- RSA 4096
-
-[TPM2_Quote()](https://www.trustedcomputinggroup.org/wp-content/uploads/TPM-Rev-2.0-Part-2-Structures-01.38.pdf#page=123) signing scheme is the default signature scheme of the IAK key, and `TPM2_Quote()` signing hash algorithm must be SHA-256.
+1. ECC P384 for EK, IAK and IDevID key pairs.
+2. SHA 384 for PCR hash bank (specified as `hash_algo` in `AttestRequest`).
+3. SHA 384 for PCR quote digest (part of signature scheme of the IAK key used in [TPM2_Quote()](https://www.trustedcomputinggroup.org/wp-content/uploads/TPM-Rev-2.0-Part-2-Structures-01.38.pdf#page=123)).
+4. ECC P384 for switch vendor CA (IAK and IDevID) certificate-signing keys.
 
 ### TPM 2.0 Enrollment Workflow Steps
 
