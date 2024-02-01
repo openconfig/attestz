@@ -12,32 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ---
-name: Lint Code Base
-
+name: Check Typos
 on:
   push:
     branches: [main]
-    # Remove the line above to run when pushing to master
   pull_request:
     branches: [main]
 
 jobs:
-  build:
-    name: Lint Code Base
+  run:
+    name: Spell Check with Typos
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-      - name: Lint Code Base
-        uses: github/super-linter/slim@v5
-        env:
-          VALIDATE_ALL_CODEBASE: false
-          VALIDATE_HTML: false
-          VALIDATE_JSCPD: false
-          VALIDATE_GO: false
-          IGNORE_GENERATED_FILES: true
-          DEFAULT_BRANCH: main
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Checkout Code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Check spelling of Codebase
+      uses: crate-ci/typos@master
