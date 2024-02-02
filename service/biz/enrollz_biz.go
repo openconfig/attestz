@@ -16,6 +16,8 @@
 package biz
 
 import (
+	"fmt"
+
 	log "github.com/golang/glog"
 
 	cpb "github.com/openconfig/attestz/proto/common_definitions"
@@ -33,7 +35,7 @@ type SwitchOwnerCaClient interface {
 	IssueOwnerIDevIdCert(cardId *cpb.ControlCardVendorId, iDevIdPubPem string) (string, error)
 }
 
-// Wrapper around gRPC `TpmEnrollzServiceClient` to allow callers specify `context.Context`
+// Wrapper around gRPC `TpmEnrollzServiceClient` to allow callers to specify `context.Context`
 // and `grpc.CallOption`s.
 type EnrollzDeviceClient interface {
 	// Returns `TpmEnrollzServiceClient.GetIakCert()` response.
@@ -77,9 +79,8 @@ func EnrollControlCard(controlCardSelection *cpb.ControlCardSelection, deps Enro
 	getIakCertReq := &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection}
 	getIakCertResp, err := deps.GetIakCert(getIakCertReq)
 	if err != nil {
-		log.Errorf("Error retrieving IAK cert from the device with req=%s: %v",
+		return fmt.Errorf("failed to retrieve IAK cert from the device with req=%s: %w",
 			prototext.Format(getIakCertReq), err)
-		return err
 	}
 	log.Infof("Successfully received from device GetIakCert() resp=%s for req=%s",
 		prototext.Format(getIakCertResp), prototext.Format(getIakCertReq))
@@ -97,24 +98,22 @@ func EnrollControlCard(controlCardSelection *cpb.ControlCardSelection, deps Enro
 
 	// 8. Call Switch Owner CA to issue oIAK and oIDevID certs.
 
-	// Pass IAK cert PEM as is for now, but use IAK pub key PEM instead once x509 cert parser
+	// TODO(jenia-grunin): Pass IAK cert PEM as is for now, but use IAK pub key PEM instead once x509 cert parser
 	// logic is implemented.
 	oIakCertPem, err := deps.IssueOwnerIakCert(getIakCertResp.ControlCardId, getIakCertResp.IakCert)
 	if err != nil {
-		log.Errorf("Error executing Switch Owner CA IssueOwnerIakCert() with control_card_id=%s IAK_pub_pem=%s: %v",
+		return fmt.Errorf("failed to execute Switch Owner CA IssueOwnerIakCert() with control_card_id=%s IAK_pub_pem=%s: %w",
 			prototext.Format(getIakCertResp.ControlCardId), getIakCertResp.IakCert, err)
-		return err
 	}
 	log.Infof("Successfully received Switch Owner CA IssueOwnerIakCert() resp=%s for control_card_id=%s IAK_pub_pem=%s",
 		oIakCertPem, prototext.Format(getIakCertResp.ControlCardId), getIakCertResp.IakCert)
 
-	// Pass IDevID cert PEM as is for now, but use IDevID pub key PEM instead once x509 cert parser
+	// TODO(jenia-grunin): Pass IDevID cert PEM as is for now, but use IDevID pub key PEM instead once x509 cert parser
 	// logic is implemented.
 	oIDevIdCertPem, err := deps.IssueOwnerIDevIdCert(getIakCertResp.ControlCardId, getIakCertResp.IdevidCert)
 	if err != nil {
-		log.Errorf("Error executing Switch Owner CA IssueOwnerIDevIdCert() with control_card_id=%s IDevID_pub_pem=%s: %v",
+		return fmt.Errorf("failed to execute Switch Owner CA IssueOwnerIDevIdCert() with control_card_id=%s IDevID_pub_pem=%s: %w",
 			prototext.Format(getIakCertResp.ControlCardId), getIakCertResp.IdevidCert, err)
-		return err
 	}
 	log.Infof("Successfully received Switch Owner CA IssueOwnerIDevIdCert() resp=%s for control_card_id=%s IDevID_pub_pem=%s",
 		oIDevIdCertPem, prototext.Format(getIakCertResp.ControlCardId), getIakCertResp.IdevidCert)
@@ -127,9 +126,8 @@ func EnrollControlCard(controlCardSelection *cpb.ControlCardSelection, deps Enro
 	}
 	rotateOIakCertResp, err := deps.RotateOIakCert(rotateOIakCertReq)
 	if err != nil {
-		log.Errorf("Error rotating oIAK and oIDevID certs from the device with req=%s: %v",
+		return fmt.Errorf("failed to rotate oIAK and oIDevID certs from the device with req=%s: %w",
 			prototext.Format(rotateOIakCertReq), err)
-		return err
 	}
 	log.Infof("Successfully received from device RotateOIakCert() resp=%s for req=%s",
 		prototext.Format(rotateOIakCertResp), prototext.Format(rotateOIakCertReq))

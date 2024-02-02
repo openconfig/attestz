@@ -62,12 +62,11 @@ func (s *stubEnrollzInfraDeps) IssueOwnerIakCert(cardId *cpb.ControlCardVendorId
 	}
 	s.iakPubPemReq = iakPubPem
 
-	// If the response is set, then return it, otherwise return error.
+	// If a stubbed response is not set, then return error, otherwise return the response.
 	if s.oIakCertResp == "" {
 		return "", s.errorResp
-	} else {
-		return s.oIakCertResp, nil
 	}
+	return s.oIakCertResp, nil
 }
 
 func (s *stubEnrollzInfraDeps) IssueOwnerIDevIdCert(cardId *cpb.ControlCardVendorId, iDevIdPubPem string) (string, error) {
@@ -82,12 +81,11 @@ func (s *stubEnrollzInfraDeps) IssueOwnerIDevIdCert(cardId *cpb.ControlCardVendo
 	}
 	s.iDevIdPubPemReq = iDevIdPubPem
 
-	// If the response is set, then return it, otherwise return error.
+	// If a stubbed response is not set, then return error, otherwise return the response.
 	if s.oIDevIdCertPemResp == "" {
 		return "", s.errorResp
-	} else {
-		return s.oIDevIdCertPemResp, nil
 	}
+	return s.oIDevIdCertPemResp, nil
 }
 
 func (s *stubEnrollzInfraDeps) GetIakCert(req *epb.GetIakCertRequest) (*epb.GetIakCertResponse, error) {
@@ -97,12 +95,11 @@ func (s *stubEnrollzInfraDeps) GetIakCert(req *epb.GetIakCertRequest) (*epb.GetI
 	}
 	s.getIakCertReq = req
 
-	// If the response is set, then return it, otherwise return error.
+	// If a stubbed response is not set, then return error, otherwise return the response.
 	if s.getIakCertResp == nil {
 		return nil, s.errorResp
-	} else {
-		return s.getIakCertResp, nil
 	}
+	return s.getIakCertResp, nil
 }
 
 func (s *stubEnrollzInfraDeps) RotateOIakCert(req *epb.RotateOIakCertRequest) (*epb.RotateOIakCertResponse, error) {
@@ -112,12 +109,11 @@ func (s *stubEnrollzInfraDeps) RotateOIakCert(req *epb.RotateOIakCertRequest) (*
 	}
 	s.rotateOIakCertReq = req
 
-	// If the response is set, then return it, otherwise return error.
+	// If a stubbed response is not set, then return error, otherwise return the response.
 	if s.rotateOIakCertResp == nil {
 		return nil, s.errorResp
-	} else {
-		return s.rotateOIakCertResp, nil
 	}
+	return s.rotateOIakCertResp, nil
 }
 
 func TestEnrollControlCard(t *testing.T) {
@@ -253,8 +249,10 @@ func TestEnrollControlCard(t *testing.T) {
 			got := EnrollControlCard(controlCardSelection, stub)
 
 			// Verify that EnrollControlCard returned expected error/no-error response.
-			if test.wantErrResp != got {
-				t.Errorf("Expected error response %v, but got error response %v", test.wantErrResp, got)
+			if test.wantErrResp != nil && test.wantErrResp != errors.Unwrap(got) {
+				t.Errorf("Expected error response %v, but got error response %v", test.wantErrResp, errors.Unwrap(got))
+			} else if test.wantErrResp == nil && got != nil {
+				t.Errorf("Expected no-error response %v, but got error response %v", test.wantErrResp, got)
 			}
 
 			// Verify that all stubbed dependencies were called with the right params.
