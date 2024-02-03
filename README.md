@@ -1,6 +1,6 @@
 # TPM Enrollment and Attestation of Networking Devices for Device Owners <!-- omit from toc -->
 
-TPM (Trusted Platform Module) enrollment workflow is responsible for cryptographically verifying switches' TPM-rooted identities and provisioning devices with switch owner's attestation certificates.
+TPM (Trusted Platform Module) enrollment workflow is responsible for cryptographically verifying switches' TPM-rooted identities and provisioning devices with switch owner's attestation and TLS certificates.
 TPM attestation workflow ensures the integrity of networking devices throughout the entire boot process. The goal of this repository is to specify TPM enrollment and attestation workflow steps, design/APIs, and suggest a corresponding reference implementation of both switch and switch-owner sides of logic.
 
 ## Table of Contents <!-- omit from toc -->
@@ -39,6 +39,9 @@ TPM attestation workflow ensures the integrity of networking devices throughout 
 | Initial Attestation Key (IAK) | IAK pub | No | Switch Vendor |
 | Local Attestation Key (LAK) | LAK pub | Yes| Switch Owner |
 | Owner IAK (oIAK) | IAK pub | No | Switch Owner |
+| Initial Device Identity (IDevID) | IDevID pub | No | Switch Vendor |
+| Local Device Identity (LDevID) | LDevID pub | Yes| Switch Owner |
+| Owner Device Identity (oIDevID) | oIDevID pub | No | Switch Owner |
 | Endorsement Key (EK) | EK pub | No | TPM Vendor |
 
 ## TPM 2.0 Enrollment for Switch Owners
@@ -58,23 +61,27 @@ Even though it is strongly preferred to rely on ECC P521 and SHA-512 where possi
 ### TPM 2.0 Enrollment Workflow Steps
 
 1. On completion of Bootz workflow, device obtains all necessary credentials and configurations to start serving TPM enrollment gRPC API endpoints.
-2. On completion of Bootz, EnrollZ service is notified to enroll a TPM on a specific control card and calls the device's `GetIakCert` API to get back an IAK cert.
-   - During initial bootstrapping, an active control card must use its IDevID cert for securing TLS connection. Once the device is provisioned with switch-owner-issued prod TLS cert, the device must always use that cert for all subsequent enrollz RPCs (such as `RotateOIakCert`).
+   - *Note: A device is shipped to the switch owner with a default SSL profile configured to rely on the IDevID key pair and IDevID TLS cert (signed by the switch vendor CA) for all RPCs.*
+2. On completion of Bootz, EnrollZ service is notified to enroll a TPM on a specific control card and calls the device's `GetIakCert` API to get back an IAK and IDevID certs.
+   - During initial bootstrapping, an active control card must use its IDevID cert (part of switch's default SSL profile) for securing TLS connection. Once the device is provisioned with switch-owner-issued prod TLS cert in `certz` workflow, the device must always use that cert for all subsequent enrollz RPCs (such as `RotateOIakCert`).
    - Primary/active control card is also responsible for all RPCs directed to the secondary/standby control card. The mechanism of internal communication between the two control cards depends on the switch vendor and is out of scope of this doc.
-3. EnrollZ service uses the trust bundle/anchor obtained (in advance) from the switch vendor to verify signature over the IAK and IDevID certs, and ensure that the control card serial number in oIAK cert and oIDevID cert is the same.
-   - *Note: EnrollZ service must have access to the up-to-date switch vendor trust bundle/anchor needed to verify the signature over the IAK certificate. The mechanics of this workflow are out of scope of this doc, but the trust bundle could be retrieved from a trusted vendor portal on a scheduled basis.*
-4. EnrollZ service ensures that device identity fields in IAK cert match its expectations.
-5. EnrollZ service asks switch owner CA to issue an oIAK cert based on the IAK pub key and device identity fields.
-6. EnrollZ service obtains the oIAK cert from the CA and calls the device's `RotateOIakCert` API to persist the oIAK cert on the control card.
-7. The switch verifies that the IAK pub key in oIAK cert matches the one in IAK cert.
-8. The switch stores the oIAK cert in non-volatile memory and will present it in the TPM attestation workflow.
-9. EnrollZ service repeats the workflow for the second control card if one is available.
+   Since the switch owner cannot directly TLS authenticate standby card, it is the responsibility of an active card to do an auth handshake with the standby card based on the IDevID key pair/cert as described in [RMA Scenario](#rma-scenario).
+3. EnrollZ service uses the trust bundle/anchor obtained (in advance) from the switch vendor to verify signature over the IAK cert, and ensure that the control card serial number in IAK cert and IDevID cert is the same.
+   - *Note: EnrollZ service must have access to the up-to-date switch vendor trust bundle/anchor needed to verify the signature over the IAK and IDevID certificates. The mechanics of this workflow are out of scope of this doc, but the trust bundle could be retrieved from a trusted vendor portal on a scheduled basis.*
+4. EnrollZ service ensures that device identity fields in IAK and IDevID certs match its expectations.
+5. EnrollZ service asks switch owner CA to issue an oIAK and oIDevID certs based on the IAK and IDevID pub keys, respectively.
+6. EnrollZ service obtains the oIAK and oIDevID certs from the CA and calls the device's `RotateOIakCert` API to persist the oIAK and oIDevID certs on the control card.
+7. The switch verifies that the IAK pub key in oIAK cert matches the one in IAK cert and that IDevID pub key in oIDevID cert matches the one in IDevID cert.
+8. The switch stores oIAK and oIDevID certs in non-volatile memory and will present them in the TPM attestation `attestz` workflow.
+9. The switch must update its default SSL profile to rely on the owner IDevID cert instead of IDevID cert.
+   - *Note: This implies that after successful enrollment the switch must force all its gRPC servers/services (such as `attestz` and `certz`) to respect the updated SSL profile relying on oIDevID cert.*
+10. EnrollZ service repeats the workflow for the second control card if one is available.
 
 **Pros:**
 
 - The approach effectively delegates much of the TPM enrollment workflow to the switch vendor which aligns with the TCG guidance/intention.
 - Simplicity of TPM enrollment workflow on switch owner side which should streamline the implementation of the workflow for both switch owner and switch vendors and thus make it easier to onboard new and scale across vendors.
-- Using oIAK cert gives switch owner more flexibility and control over the cert structure, management (e.g. revocation) and lifecycle.
+- Using oIAK and oIDevID certs gives switch owners more flexibility and control over the cert structure, management (e.g. revocation) and lifecycle.
 - AttestZ service does not have an external dependency on switch vendor CA on every switch attestation.
 - Switch vendors do not need to support issuance of LAKs.
 
@@ -194,9 +201,8 @@ ingest these values and persist them in an internal DB, so that later when Attes
 
 1. Device serves gRPC TPM 2.0 attestation APIs. At this point the device must be booted with the correct OS image and with correct configurations/credentials applied.
    - Primary/active control card is also responsible for all RPCs directed to the secondary/standby control card. The mechanism of internal communication between the two control cards depends on the switch vendor and is out of scope of this doc.
+   Since the switch owner cannot directly TLS authenticate standby card, it is the responsibility of an active card to do an auth handshake with the standby card based on the IDevID key pair/cert as described in [RMA Scenario](#rma-scenario).
    - Device uses active control card’s IDevID private key and oIDevID cert for securing TLS for the **initial** attestation RPCs. On successful completion of initial attestation, the device will be provisioned with switch owner’s prod credentials/certs and will rely on those for securing TLS in subsequent attestation workflows.
-     - *Note: Although this is something that will be assessed on a case by case basis with each switch vendor individually, it may be acceptable to temporarily rely on TLS certs issued by switch owner during Bootz instead of a DevID cert. The preferred temporary approach is for underlying credentials to be issued by the device using a CSR-style request.
-     Alternatively (less preferred), Bootz service may generate both the asymmetric key pair and the TLS cert, and deliver them to the device during Bootz. In either case the TLS cert must be short-lived and limited-power (can only be used for TPM enrollment and initial attestation).*
 2. AttestZ service calls device’s `Attest` endpoint for a given control card (and a random nonce) to get back:
    - An oIAK cert (received by the device during the TPM enrollment workflow) signed by the switch owner’s CA.
    - Final observed PCR hashes/values.
@@ -204,7 +210,7 @@ ingest these values and persist them in an internal DB, so that later when Attes
    - (Optional - only when the call is intended for the standby control card) oIDevID cert of the standby control card.
 3. AttestZ service uses the trust bundle/anchor from switch owner CA to verify oIAK cert and its validity/revocations status.
 4. AttestZ service verifies that the control card serial number in oIAK cert and oIDevID cert is the same.
-5. AttestZ service uses oIAK cert to verify signature over device’s PCR quotes.
+5. AttestZ service uses oIAK cert to verify signature over device’s PCR quote.
 6. AttestZ service recomputes PCR digest and matches it against the one used in PCR quote.
 7. AttestZ service fetches expected final PCR values from its DB and compares those to the observed ones reported by the device.
 8. AttestZ service records a successful attestation status for a given control card and repeats the workflow for the secondary/standby control card if one is available.
