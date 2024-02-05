@@ -17,15 +17,26 @@ package main
 import (
 	"flag"
 
-	"github.com/openconfig/attestz/service/biz"
-
 	log "github.com/golang/glog"
 )
 
 func main() {
 	flag.Parse()
 
-	log.Infof("Initializing Enrollz Service!")
+	log.Info("Initializing Enrollz Service!")
 
-	biz.EnrollDevice()
+	// Build all infra-specific clients to communicate with the switch owner
+	// dependency services and wire them to enrollz service biz logic library.
+	//
+	// For simplicity do this in main() for now - later we can add gRPC layer
+	// and do this inside an RPC handler.
+
+	// 1. Build an enrollz client to communicate with the device.
+
+	// 2. Build a client to fetch switch vendor CA trust bundle.
+
+	// 3. Build a client to communicate with the switch owner CA.
+
+	// 4. Call enrollz biz logic module `EnrollControlCard()` for active and
+	// standby control cards
 }
