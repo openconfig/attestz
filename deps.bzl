@@ -33,3 +33,9 @@ def go_dependencies():
         sum = "h1:g0LDEJHgrBl9N9r17Ru3sqWhkIx2NB67okBHPwC7hs8=",
         version = "v1.31.0",
     )
+    go_repository(
+        name = "com_github_google_go_cmp",
+        importpath = "github.com/google/go-cmp",
+        sum = "h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=",
+        version = "v0.6.0",
+    )
