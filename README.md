@@ -41,7 +41,7 @@ TPM attestation workflow ensures the integrity of networking devices throughout 
 | Owner IAK (oIAK) | IAK pub | No | Switch Owner |
 | Initial Device Identity (IDevID) | IDevID pub | No | Switch Vendor |
 | Local Device Identity (LDevID) | LDevID pub | Yes| Switch Owner |
-| Owner Device Identity (oIDevID) | oIDevID pub | No | Switch Owner |
+| Owner Device Identity (oIDevID) | IDevID pub | No | Switch Owner |
 | Endorsement Key (EK) | EK pub | No | TPM Vendor |
 
 ## TPM 2.0 Enrollment for Switch Owners
