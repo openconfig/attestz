@@ -1,0 +1,3 @@
+[type.svg]
+extend-glob = ["*.svg"]
+check-file = false
