@@ -65,6 +65,9 @@ type EnrollzInfraDeps interface {
 
 	// Client to communicate with the switch's enrollz endpoints.
 	EnrollzDeviceClient
+
+	// Parser and verifier of IAK and IDevID certs.
+	TpmCertVerifier
 }
 
 // This is a "client"/switch-owner side implementation of Enrollz service. This client-side logic
@@ -85,40 +88,37 @@ func EnrollControlCard(controlCardSelection *cpb.ControlCardSelection, deps Enro
 	log.Infof("Successfully received from device GetIakCert() resp=%s for req=%s",
 		prototext.Format(getIakCertResp), prototext.Format(getIakCertReq))
 
-	// 3. Validate IDevID TLS cert if control card is standby (for active card IDevID would
-	// be validated during the TLS handshake).
+	// 3. Validate and parse IDevID and IAK certs.
+	tpmCertVerifierReq := &TpmCertVerifierReq{
+		iakCertPem:    getIakCertResp.IakCert,
+		iDevIdCertPem: getIakCertResp.IdevidCert,
+	}
+	tpmCertVerifierResp, err := deps.VerifyAndParseIakAndIDevIdCerts(tpmCertVerifierReq)
+	if err != nil {
+		return fmt.Errorf("failed to verify IAK_cert_pem=%s and IDevID_cert_pem=%s: %w",
+			tpmCertVerifierReq.iakCertPem, tpmCertVerifierReq.iDevIdCertPem, err)
+	}
+	log.Infof("Successfully verified IAK and IDevID certs and parsed IAK_pub_pem=%s and IDevID_pub_pem=%s",
+		tpmCertVerifierResp.iakPubPem, tpmCertVerifierResp.iDevIdPubPem)
 
-	// 4. Validate IAK cert.
-
-	// 5. Make sure IAK and IDevID serials match.
-
-	// 6. Extract IAK pub from IAK cert and validate it (accepted crypto algo and key length).
-
-	// 7. Extract IDevID pub from IDevID cert and validate it (accepted crypto algo and key length).
-
-	// 8. Call Switch Owner CA to issue oIAK and oIDevID certs.
-
-	// TODO(jenia-grunin): Pass IAK cert PEM as is for now, but use IAK pub key PEM instead once x509 cert parser
-	// logic is implemented.
-	oIakCertPem, err := deps.IssueOwnerIakCert(getIakCertResp.ControlCardId, getIakCertResp.IakCert)
+	// 4. Call Switch Owner CA to issue oIAK and oIDevID certs.
+	oIakCertPem, err := deps.IssueOwnerIakCert(getIakCertResp.ControlCardId, tpmCertVerifierResp.iakPubPem)
 	if err != nil {
 		return fmt.Errorf("failed to execute Switch Owner CA IssueOwnerIakCert() with control_card_id=%s IAK_pub_pem=%s: %w",
-			prototext.Format(getIakCertResp.ControlCardId), getIakCertResp.IakCert, err)
+			prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.iakPubPem, err)
 	}
 	log.Infof("Successfully received Switch Owner CA IssueOwnerIakCert() resp=%s for control_card_id=%s IAK_pub_pem=%s",
-		oIakCertPem, prototext.Format(getIakCertResp.ControlCardId), getIakCertResp.IakCert)
+		oIakCertPem, prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.iakPubPem)
 
-	// TODO(jenia-grunin): Pass IDevID cert PEM as is for now, but use IDevID pub key PEM instead once x509 cert parser
-	// logic is implemented.
-	oIDevIdCertPem, err := deps.IssueOwnerIDevIdCert(getIakCertResp.ControlCardId, getIakCertResp.IdevidCert)
+	oIDevIdCertPem, err := deps.IssueOwnerIDevIdCert(getIakCertResp.ControlCardId, tpmCertVerifierResp.iDevIdPubPem)
 	if err != nil {
 		return fmt.Errorf("failed to execute Switch Owner CA IssueOwnerIDevIdCert() with control_card_id=%s IDevID_pub_pem=%s: %w",
-			prototext.Format(getIakCertResp.ControlCardId), getIakCertResp.IdevidCert, err)
+			prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.iDevIdPubPem, err)
 	}
 	log.Infof("Successfully received Switch Owner CA IssueOwnerIDevIdCert() resp=%s for control_card_id=%s IDevID_pub_pem=%s",
-		oIDevIdCertPem, prototext.Format(getIakCertResp.ControlCardId), getIakCertResp.IdevidCert)
+		oIDevIdCertPem, prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.iDevIdPubPem)
 
-	// 9. Call device's RotateOIakCert for the specified card card to persist oIAK and oIDevID certs.
+	// 5. Call device's RotateOIakCert for the specified card card to persist oIAK and oIDevID certs.
 	rotateOIakCertReq := &epb.RotateOIakCertRequest{
 		ControlCardSelection: controlCardSelection,
 		OiakCert:             oIakCertPem,
