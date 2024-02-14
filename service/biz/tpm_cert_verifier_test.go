@@ -65,10 +65,13 @@ func generateCaCert() (*CaCert, error) {
 
 	// PEM encode the cert.
 	certPem := new(bytes.Buffer)
-	pem.Encode(certPem, &pem.Block{
+	err = pem.Encode(certPem, &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: certBytes,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode DER cert to PEM: %v", err)
+	}
 
 	return &CaCert{
 		certX509: certX509,
@@ -160,10 +163,14 @@ func generateSignedCert(params *CertCreationParams) (*SignedTpmCert, error) {
 	}
 	// PEM encode the cert.
 	certPem := new(bytes.Buffer)
-	pem.Encode(certPem, &pem.Block{
+	err = pem.Encode(certPem, &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: certBytes,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode DER cert to PEM: %v", err)
+	}
+
 	// Marshal pub key to DER.
 	derPub, err := x509.MarshalPKIXPublicKey(certPubKey)
 	if err != nil {
