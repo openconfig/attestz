@@ -15,17 +15,181 @@
 package biz
 
 import (
+	"bytes"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"fmt"
+	"math/big"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 )
 
+type CaCert struct {
+	certX509 *x509.Certificate
+	certPem  string
+	privKey  any
+}
+
+// Simulates simplified switch vendor CA cert.
+func generateCaCert() (*CaCert, error) {
+	certSerial, err := rand.Int(rand.Reader, big.NewInt(100000))
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate rand int for cert serial: %v", err)
+	}
+	certX509 := &x509.Certificate{
+		SerialNumber:          certSerial,
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().AddDate(10, 0, 0),
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+	}
+
+	privKey, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate a ECC P384 priv key for CA cert: %v", err)
+	}
+
+	// CA cert is self-signed, so pass caCert twice.
+	certBytes, err := x509.CreateCertificate(rand.Reader, certX509, certX509, &privKey.PublicKey, privKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create x509 self-signed CA cert: %v", err)
+	}
+
+	// PEM encode the cert.
+	certPem := new(bytes.Buffer)
+	pem.Encode(certPem, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: certBytes,
+	})
+
+	return &CaCert{
+		certX509: certX509,
+		certPem:  certPem.String(),
+		privKey:  privKey,
+	}, nil
+}
+
+type SignedTpmCert struct {
+	certPem   string
+	pubKeyPem string
+}
+
+type AsymAlgo int
+
+const (
+	RSA_4096 AsymAlgo = iota
+	RSA_2048
+	RSA_1024
+	ECC_P384
+	ECC_P256
+	ED_25519
+)
+
+type CertCreationParams struct {
+	asymAlgo          AsymAlgo
+	certSubjectSerial string
+	signingCert       *x509.Certificate
+	signingPrivKey    any
+	notBefore         time.Time
+	notAfter          time.Time
+}
+
+// Simulates simplified switch's IAK or IDevID certs.
+func generateSignedCert(params *CertCreationParams) (*SignedTpmCert, error) {
+	// Cert serial (different form cert *subject* serial number).
+	certSerial, err := rand.Int(rand.Reader, big.NewInt(100000))
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate rand int for cert serial: %v", err)
+	}
+	cert := &x509.Certificate{
+		SerialNumber: certSerial,
+		Subject: pkix.Name{
+			SerialNumber: params.certSubjectSerial,
+		},
+		NotBefore: params.notBefore,
+		NotAfter:  params.notAfter,
+	}
+
+	var certPubKey any
+	switch params.asymAlgo {
+	case RSA_4096:
+		certPrivKey, err := rsa.GenerateKey(rand.Reader, 4096)
+		if err == nil {
+			certPubKey = &certPrivKey.PublicKey
+		}
+	case RSA_2048:
+		certPrivKey, err := rsa.GenerateKey(rand.Reader, 2048)
+		if err == nil {
+			certPubKey = &certPrivKey.PublicKey
+		}
+	case RSA_1024:
+		certPrivKey, err := rsa.GenerateKey(rand.Reader, 1024)
+		if err == nil {
+			certPubKey = &certPrivKey.PublicKey
+		}
+	case ECC_P256:
+		certPrivKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		if err == nil {
+			certPubKey = &certPrivKey.PublicKey
+		}
+	case ECC_P384:
+		certPrivKey, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+		if err == nil {
+			certPubKey = &certPrivKey.PublicKey
+		}
+	case ED_25519:
+		certPubKey, _, err = ed25519.GenerateKey(rand.Reader)
+	default:
+		return nil, fmt.Errorf("unrecognized asymmetric algo: %d", params.asymAlgo)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate asym key pair from asymmetric algo %d: %v", params.asymAlgo, err)
+	}
+
+	certBytes, err := x509.CreateCertificate(rand.Reader, cert, params.signingCert, certPubKey, params.signingPrivKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create a signed x509 cert: %v", err)
+	}
+	// PEM encode the cert.
+	certPem := new(bytes.Buffer)
+	pem.Encode(certPem, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: certBytes,
+	})
+	// Marshal pub key to DER.
+	derPub, err := x509.MarshalPKIXPublicKey(certPubKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal pub key to DER: %v", err)
+	}
+	// Convert DER pub key to PEM.
+	pubKeyBlock := &pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: derPub,
+	}
+	pubKeyPem := new(bytes.Buffer)
+	if err = pem.Encode(pubKeyPem, pubKeyBlock); err != nil {
+		return nil, fmt.Errorf("failed to encode pub key DER to PEM: %v", err)
+	}
+
+	return &SignedTpmCert{
+		certPem:   certPem.String(),
+		pubKeyPem: pubKeyPem.String(),
+	}, nil
+}
+
 func TestVerifyAndParseIakAndIDevIdCerts(t *testing.T) {
 	/*
 		TODO(jenia-grunin):
-		* Generate certs/keys on the fly.
 		* Tests to add:
-			- Unsupported algo such as DSA.
+			- Unsupported algo such as ED25519.
 			- Bad pub key length for RSA.
 			- Bad pub key length for ECC.
 			- IAK and IDevID cert serials don't match.
@@ -33,58 +197,50 @@ func TestVerifyAndParseIakAndIDevIdCerts(t *testing.T) {
 			- Good pem cert header, but bad x509 structure.
 			- Repeat above for both IAK and IDevID certs.
 	*/
-	iakCertPemRsa2048 := `-----BEGIN CERTIFICATE-----
-MIIDFzCCAf+gAwIBAgIUfUNGVC/ZruAQ/cq3fLBEyQUKRgIwDQYJKoZIhvcNAQEL
-BQAwGzEZMBcGA1UEBRMQUzBNM1MzUjFBTE5VTUIzUjAeFw0yNDAyMTMyMTE3MTRa
-Fw0yNTAyMTIyMTE3MTRaMBsxGTAXBgNVBAUTEFMwTTNTM1IxQUxOVU1CM1IwggEi
-MA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC7nNplof1PdnR64cEt3kPvuelS
-Lf7SinAwFfCCekFCH/G8QFzlynf80RRCgp2Lqku8x6pPTQ9R62X7WXric26L47tt
-WHnBLsb4nutnmtrz+hsVdoKw8SQRxm0ptR7LIBxyy9mcqwGKN6ROB1S/wr9gJFBD
-fW/3rVpV3vOyP7crVq7l05S0fYmc7f2r1ikrNnl9jngQiSoAmMGBb8sKNDJ6ogNb
-IbS/t7RqdzklCEPcbhXmIHkssWHO4MmWptzZTr6yCDGfXXDoB+OrfyvszwYeY6z2
-/++H2QuM22U86khEkyRy2hvTJRdEnfBW1nrMH6x9eyXDwDJRl5yFH0rf+I3DAgMB
-AAGjUzBRMB0GA1UdDgQWBBSO+5dAexztMj1Q2Sqdvjhhr0rpeTAfBgNVHSMEGDAW
-gBSO+5dAexztMj1Q2Sqdvjhhr0rpeTAPBgNVHRMBAf8EBTADAQH/MA0GCSqGSIb3
-DQEBCwUAA4IBAQCB6bzFeszPzNHD2X1UxIXvvvdXHu1rkUybvb3jpa1nW3jNgoG1
-+DgRcNew1dX+k2QYhDJkz+zvnZRlaclv+pAqgeN4tdrjBw3UHCkIzSJl+fMh38+S
-UkBGC4PnnFhxZsk1gf4NmPqvv8pjwqgy/IGS/CIuQOQnYRUnXrbhBqAQYrwuluxe
-bundQKLNTN1ZEtfGZS51Ebcq9zipiBFNzOx5KlmWE7WqzM7y+tq+Avqj47dgtF4Y
-WDhEbBEryEh8y2nreLi4UPdiZ3NCdwjnQvri/GQLW6NXGu1Ofgd2OEGxaS9L9ziz
-Rn5w8rtwirOLSVfWoK2LUxqR41Eo8xyGQUtA
------END CERTIFICATE-----
-`
 
-	iDevIdCertPemEcc384 := `-----BEGIN CERTIFICATE-----
-MIIByDCCAU6gAwIBAgIUNjjwIU22SPnoTQSEf1XJZvIorBkwCgYIKoZIzj0EAwIw
-GzEZMBcGA1UEBRMQUzBNM1MzUjFBTE5VTUIzUjAeFw0yNDAyMTMyMTEzNDlaFw0y
-NTAyMDcyMTEzNDlaMBsxGTAXBgNVBAUTEFMwTTNTM1IxQUxOVU1CM1IwdjAQBgcq
-hkjOPQIBBgUrgQQAIgNiAARYOauAEC4OpH+4H/0RiLDRqIsqDC/YL7NEPZ1bWSM2
-MoV5nQePwDpbSKIQA0LvmFtNWyi+KBd/8ZAZkocu1jB+z5uxLtzwCgHo0OGWSo/3
-R9dNlSmFL/R8oO13VJJkF+2jUzBRMB0GA1UdDgQWBBRu1oJXErO4dLAOgcHAwIQC
-BgrT0TAfBgNVHSMEGDAWgBRu1oJXErO4dLAOgcHAwIQCBgrT0TAPBgNVHRMBAf8E
-BTADAQH/MAoGCCqGSM49BAMCA2gAMGUCMQDMY+Bj5VdGibkv7rCc0fa8h1DaIarX
-1s4zOn4SPNTL3fPDRibWFsyDGshWilUZJs8CMBabnxNdDp7muR1f6+wsQ8iQRC2F
-Vd4VhhdrXWRI82nVHofgP0EhHHHE70fKMVIxBA==
------END CERTIFICATE-----
-`
+	iakCaCert, err := generateCaCert()
+	if err != nil {
+		t.Fatalf("Test setup failed! Unable to generate IAK CA signing cert: %v", err)
+	}
 
-	wantIakPubPem := `-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu5zaZaH9T3Z0euHBLd5D
-77npUi3+0opwMBXwgnpBQh/xvEBc5cp3/NEUQoKdi6pLvMeqT00PUetl+1l64nNu
-i+O7bVh5wS7G+J7rZ5ra8/obFXaCsPEkEcZtKbUeyyAccsvZnKsBijekTgdUv8K/
-YCRQQ31v961aVd7zsj+3K1au5dOUtH2JnO39q9YpKzZ5fY54EIkqAJjBgW/LCjQy
-eqIDWyG0v7e0anc5JQhD3G4V5iB5LLFhzuDJlqbc2U6+sggxn11w6Afjq38r7M8G
-HmOs9v/vh9kLjNtlPOpIRJMkctob0yUXRJ3wVtZ6zB+sfXslw8AyUZechR9K3/iN
-wwIDAQAB
------END PUBLIC KEY-----
-`
+	iakCert, err := generateSignedCert(
+		&CertCreationParams{
+			asymAlgo:          RSA_4096,
+			certSubjectSerial: "S0M3S3R1ALNUMB3R",
+			signingCert:       iakCaCert.certX509,
+			signingPrivKey:    iakCaCert.privKey,
+			notBefore:         time.Now(),
+			notAfter:          time.Now().AddDate(0, 0, 10),
+		},
+	)
+	if err != nil {
+		t.Fatalf("Test setup failed! Unable to generate an IAK cert: %v", err)
+	}
 
-	wantIDevIdPubPem := `-----BEGIN PUBLIC KEY-----
-MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEWDmrgBAuDqR/uB/9EYiw0aiLKgwv2C+z
-RD2dW1kjNjKFeZ0Hj8A6W0iiEANC75hbTVsovigXf/GQGZKHLtYwfs+bsS7c8AoB
-6NDhlkqP90fXTZUphS/0fKDtd1SSZBft
------END PUBLIC KEY-----
-`
+	iDevIdCaCert, err := generateCaCert()
+	if err != nil {
+		t.Fatalf("Test setup failed! Unable to generate IDevID CA signing cert: %v", err)
+	}
+
+	iDevIdCert, err := generateSignedCert(
+		&CertCreationParams{
+			asymAlgo:          ECC_P384,
+			certSubjectSerial: "S0M3S3R1ALNUMB3R",
+			signingCert:       iDevIdCaCert.certX509,
+			signingPrivKey:    iDevIdCaCert.privKey,
+			notBefore:         time.Now(),
+			notAfter:          time.Now().AddDate(0, 0, 10),
+		},
+	)
+	if err != nil {
+		t.Fatalf("Test setup failed! Unable to generate an IDevID cert: %v", err)
+	}
+
+	iakCertPemRsa2048 := iakCert.certPem
+	wantIakPubPem := iakCert.pubKeyPem
+
+	iDevIdCertPemEcc384 := iDevIdCert.certPem
+	wantIDevIdPubPem := iDevIdCert.pubKeyPem
 
 	req := &TpmCertVerifierReq{
 		iakCertPem:    iakCertPemRsa2048,
@@ -93,7 +249,7 @@ RD2dW1kjNjKFeZ0Hj8A6W0iiEANC75hbTVsovigXf/GQGZKHLtYwfs+bsS7c8AoB
 	resp, err := VerifyAndParseIakAndIDevIdCerts(req)
 
 	if err != nil {
-		t.Errorf("Unexpected error response %v", err)
+		t.Fatalf("Unexpected error response %v", err)
 	}
 
 	if diff := cmp.Diff(resp.iakPubPem, wantIakPubPem); diff != "" {
