@@ -15,6 +15,7 @@
 package biz
 
 import (
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"testing"
@@ -140,6 +141,9 @@ func TestEnrollControlCard(t *testing.T) {
 			Role: cpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE,
 		},
 	}
+	certVerificationOpts := x509.VerifyOptions{
+		DNSName: "Some DNS name",
+	}
 	vendorId := &cpb.ControlCardVendorId{
 		ControlCardRole:     controlCardSelection.GetRole(),
 		ControlCardSerial:   "Some card serial",
@@ -199,8 +203,9 @@ func TestEnrollControlCard(t *testing.T) {
 			// Expected params to all deps functions calls.
 			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantTpmCertVerifierReq: &TpmCertVerifierReq{
-				iakCertPem:    iakCert,
-				iDevIdCertPem: iDevIdCert,
+				iakCertPem:           iakCert,
+				iDevIdCertPem:        iDevIdCert,
+				certVerificationOpts: certVerificationOpts,
 			},
 			wantCardIdIssueIakReq:    vendorId,
 			wantIakPubPemReq:         iakPub,
@@ -232,8 +237,9 @@ func TestEnrollControlCard(t *testing.T) {
 			},
 			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantTpmCertVerifierReq: &TpmCertVerifierReq{
-				iakCertPem:    iakCert,
-				iDevIdCertPem: iDevIdCert,
+				iakCertPem:           iakCert,
+				iDevIdCertPem:        iDevIdCert,
+				certVerificationOpts: certVerificationOpts,
 			},
 		},
 		{
@@ -254,8 +260,9 @@ func TestEnrollControlCard(t *testing.T) {
 			},
 			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantTpmCertVerifierReq: &TpmCertVerifierReq{
-				iakCertPem:    iakCert,
-				iDevIdCertPem: iDevIdCert,
+				iakCertPem:           iakCert,
+				iDevIdCertPem:        iDevIdCert,
+				certVerificationOpts: certVerificationOpts,
 			},
 			wantCardIdIssueIakReq: vendorId,
 			wantIakPubPemReq:      iakPub,
@@ -280,8 +287,9 @@ func TestEnrollControlCard(t *testing.T) {
 			oIakCertResp:      oIakCert,
 			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantTpmCertVerifierReq: &TpmCertVerifierReq{
-				iakCertPem:    iakCert,
-				iDevIdCertPem: iDevIdCert,
+				iakCertPem:           iakCert,
+				iDevIdCertPem:        iDevIdCert,
+				certVerificationOpts: certVerificationOpts,
 			},
 			wantCardIdIssueIakReq:    vendorId,
 			wantIakPubPemReq:         iakPub,
@@ -310,8 +318,9 @@ func TestEnrollControlCard(t *testing.T) {
 			oIDevIdCertPemResp: oIdevIdCert,
 			wantGetIakCertReq:  &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantTpmCertVerifierReq: &TpmCertVerifierReq{
-				iakCertPem:    iakCert,
-				iDevIdCertPem: iDevIdCert,
+				iakCertPem:           iakCert,
+				iDevIdCertPem:        iDevIdCert,
+				certVerificationOpts: certVerificationOpts,
 			},
 			wantCardIdIssueIakReq:    vendorId,
 			wantIakPubPemReq:         iakPub,
@@ -335,7 +344,12 @@ func TestEnrollControlCard(t *testing.T) {
 				rotateOIakCertResp:  test.rotateOIakCertResp,
 				errorResp:           test.wantErrResp,
 			}
-			got := EnrollControlCard(controlCardSelection, stub)
+			req := &EnrollControlCardReq{
+				controlCardSelection: controlCardSelection,
+				certVerificationOpts: certVerificationOpts,
+				deps:                 stub,
+			}
+			got := EnrollControlCard(req)
 
 			// Verify that EnrollControlCard returned expected error/no-error response.
 			if test.wantErrResp != nil && test.wantErrResp != errors.Unwrap(got) {

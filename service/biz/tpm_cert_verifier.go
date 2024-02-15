@@ -27,14 +27,21 @@ import (
 	log "github.com/golang/glog"
 )
 
+// Request to VerifyAndParseIakAndIDevIdCerts().
 type TpmCertVerifierReq struct {
-	// TODO(jenia-grunin): add IAK and IDevID certs trust anchors.
-	iakCertPem    string
+	// Verification options for IAK and IDevID certs.
+	certVerificationOpts x509.VerifyOptions
+	// PEM-encoded IAK x509 attestation cert.
+	iakCertPem string
+	// PEM-encoded IDevID x509 TLS cert.
 	iDevIdCertPem string
 }
 
+// Response from VerifyAndParseIakAndIDevIdCerts().
 type TpmCertVerifierResp struct {
-	iakPubPem    string
+	// PEM-encoded IAK public key.
+	iakPubPem string
+	// PEM-encoded IDevID public key.
 	iDevIdPubPem string
 }
 
@@ -51,13 +58,13 @@ type TpmCertVerifier interface {
 
 // Default/reference implementation of TpmCertVerifier.VerifyAndParseIakAndIDevIdCerts()
 func VerifyAndParseIakAndIDevIdCerts(req *TpmCertVerifierReq) (*TpmCertVerifierResp, error) {
-	iakX509, err := VerifyAndParsePemCert(req.iakCertPem)
+	iakX509, err := VerifyAndParsePemCert(req.iakCertPem, req.certVerificationOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify and parse IAK cert: %v", err)
 	}
 	log.Info("Successfully verified and parsed IAK cert")
 
-	iDevIdX509, err := VerifyAndParsePemCert(req.iDevIdCertPem)
+	iDevIdX509, err := VerifyAndParsePemCert(req.iDevIdCertPem, req.certVerificationOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify and parse IDevID cert: %v", err)
 	}
@@ -89,7 +96,7 @@ func VerifyAndParseIakAndIDevIdCerts(req *TpmCertVerifierReq) (*TpmCertVerifierR
 }
 
 // Parses PEM (IAK or IDevID) cert, verifies it and returns the parsed x509 structure.
-func VerifyAndParsePemCert(certPem string) (*x509.Certificate, error) {
+func VerifyAndParsePemCert(certPem string, certVerificationOpts x509.VerifyOptions) (*x509.Certificate, error) {
 	// Convert PEM to DER.
 	certDer, _ := pem.Decode([]byte(certPem))
 	if certDer == nil {
@@ -103,7 +110,11 @@ func VerifyAndParsePemCert(certPem string) (*x509.Certificate, error) {
 			certPem, err)
 	}
 
-	// TODO(jenia-grunin): validate cert expiration and verify signature.
+	// Validate cert expiration and verify signature using provided options.
+	if _, err := x509CertParsed.Verify(certVerificationOpts); err != nil {
+		return nil, fmt.Errorf("failed to verify certificate_pem=%s: %v",
+			certPem, err)
+	}
 
 	return x509CertParsed, nil
 }

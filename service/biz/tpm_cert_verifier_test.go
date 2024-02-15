@@ -199,6 +199,12 @@ func generateSignedCert(params *CertCreationParams) (*SignedTpmCert, error) {
 }
 
 func TestVerifyAndParseIakAndIDevIdCerts(t *testing.T) {
+	// Handy to simulate IAK/IDevID cert signature validation failure.
+	unknownCaCert, err := generateCaCert()
+	if err != nil {
+		t.Fatalf("Test setup failed! Unable to generate CA signing cert: %v", err)
+	}
+
 	tests := []struct {
 		// Test description.
 		desc string
@@ -218,6 +224,10 @@ func TestVerifyAndParseIakAndIDevIdCerts(t *testing.T) {
 		// To test against malformed PEM certs.
 		customIakCertPem    string
 		customIDevIdCertPem string
+
+		// To simulate cert signature validation failure.
+		customIakCaRootPem    string
+		customIDevIdCaRootPem string
 	}{
 		{
 			desc: "Success: RSA 4096 IAK and ECC P384 IDevID certs",
@@ -422,6 +432,100 @@ func TestVerifyAndParseIakAndIDevIdCerts(t *testing.T) {
 
 			customIDevIdCertPem: "-----BEGIN CERTIFICATE-----\nMIIBRTCBzaADAgECAgMAgXswCgYIKoZIzj0EAwMwADAeFw0yNTAyMTUyMTAxNTBa\n-----END CERTIFICATE-----\n",
 		},
+		{
+			desc: "Failure: IAK cert is not yet valid",
+
+			wantError: true,
+
+			iakCertAsymAlgo:      ECC_P384,
+			iakCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iakCertNotBefore:     time.Now().AddDate(0, 0, 10),
+			iakCertNotAfter:      time.Now().AddDate(0, 0, 20),
+
+			iDevIdCertAsymAlgo:      ECC_P384,
+			iDevIdCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iDevIdCertNotBefore:     time.Now(),
+			iDevIdCertNotAfter:      time.Now().AddDate(1, 0, 0),
+		},
+		{
+			desc: "Failure: IDevID cert is not yet valid",
+
+			wantError: true,
+
+			iakCertAsymAlgo:      ECC_P384,
+			iakCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iakCertNotBefore:     time.Now(),
+			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
+
+			iDevIdCertAsymAlgo:      ECC_P384,
+			iDevIdCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iDevIdCertNotBefore:     time.Now().AddDate(1, 0, 0),
+			iDevIdCertNotAfter:      time.Now().AddDate(2, 0, 0),
+		},
+		{
+			desc: "Failure: IAK cert is expired",
+
+			wantError: true,
+
+			iakCertAsymAlgo:      ECC_P384,
+			iakCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iakCertNotBefore:     time.Now().AddDate(0, 0, -20),
+			iakCertNotAfter:      time.Now().AddDate(0, 0, -10),
+
+			iDevIdCertAsymAlgo:      ECC_P384,
+			iDevIdCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iDevIdCertNotBefore:     time.Now(),
+			iDevIdCertNotAfter:      time.Now().AddDate(1, 0, 0),
+		},
+		{
+			desc: "Failure: IDevID cert is expired",
+
+			wantError: true,
+
+			iakCertAsymAlgo:      ECC_P384,
+			iakCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iakCertNotBefore:     time.Now(),
+			iakCertNotAfter:      time.Now().AddDate(1, 0, 0),
+
+			iDevIdCertAsymAlgo:      ECC_P384,
+			iDevIdCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iDevIdCertNotBefore:     time.Now().AddDate(-2, 0, 0),
+			iDevIdCertNotAfter:      time.Now().AddDate(-1, 0, 0),
+		},
+		{
+			desc: "Failure: cannot validate IAK cert signature",
+
+			wantError: true,
+
+			iakCertAsymAlgo:      RSA_4096,
+			iakCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iakCertNotBefore:     time.Now(),
+			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
+
+			iDevIdCertAsymAlgo:      ECC_P384,
+			iDevIdCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iDevIdCertNotBefore:     time.Now(),
+			iDevIdCertNotAfter:      time.Now().AddDate(1, 0, 0),
+
+			customIakCaRootPem: unknownCaCert.certPem,
+		},
+		{
+			desc: "Failure: cannot validate IDevID cert signature",
+
+			wantError: true,
+
+			iakCertAsymAlgo:      RSA_4096,
+			iakCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iakCertNotBefore:     time.Now(),
+			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
+
+			iDevIdCertAsymAlgo:      ECC_P384,
+			iDevIdCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iDevIdCertNotBefore:     time.Now(),
+			iDevIdCertNotAfter:      time.Now().AddDate(1, 0, 0),
+
+			customIDevIdCaRootPem: unknownCaCert.certPem,
+		},
 	}
 
 	for _, test := range tests {
@@ -458,7 +562,7 @@ func TestVerifyAndParseIakAndIDevIdCerts(t *testing.T) {
 					certSubjectSerial: test.iDevIdCertSubjectSerial,
 					signingCert:       genIDevIdCaCert.certX509,
 					signingPrivKey:    genIDevIdCaCert.privKey,
-					notBefore:         test.iDevIdCertNotAfter,
+					notBefore:         test.iDevIdCertNotBefore,
 					notAfter:          test.iDevIdCertNotAfter,
 				},
 			)
@@ -480,20 +584,43 @@ func TestVerifyAndParseIakAndIDevIdCerts(t *testing.T) {
 				iDevIdCertPemReq = test.customIDevIdCertPem
 			}
 
+			// Build cert verification options.
+			roots := x509.NewCertPool()
+			// If a custom CA root cert PEM is set, then use that.
+			iakCaCertPemReq := genIakCaCert.certPem
+			if test.customIakCaRootPem != "" {
+				iakCaCertPemReq = test.customIakCaRootPem
+			}
+			iDevIdCaCertPemReq := genIDevIdCaCert.certPem
+			if test.customIDevIdCaRootPem != "" {
+				iDevIdCaCertPemReq = test.customIDevIdCaRootPem
+			}
+			// Add resolved root CA certs to x509 cert pool.
+			if !roots.AppendCertsFromPEM([]byte(iakCaCertPemReq)) {
+				t.Fatalf("Test setup failed! Unable to append the following IAK CA cert to x509 cert pool: %s", iakCaCertPemReq)
+			}
+			if !roots.AppendCertsFromPEM([]byte(iDevIdCaCertPemReq)) {
+				t.Fatalf("Test setup failed! Unable to append the following IDevID CA cert to x509 cert pool: %s", iDevIdCaCertPemReq)
+			}
+			certVerificationOptsReq := x509.VerifyOptions{
+				Roots: roots,
+			}
+
 			// Call TpmCertVerifier's default impl of VerifyAndParseIakAndIDevIdCerts.
 			req := &TpmCertVerifierReq{
-				iakCertPem:    iakCertPemReq,
-				iDevIdCertPem: iDevIdCertPemReq,
+				iakCertPem:           iakCertPemReq,
+				iDevIdCertPem:        iDevIdCertPemReq,
+				certVerificationOpts: certVerificationOptsReq,
 			}
 			gotResp, gotErr := VerifyAndParseIakAndIDevIdCerts(req)
 
 			if test.wantError {
-				// Error was expected, so do not verify actual response.
+				// Error was expected, so do not verify the actual response.
 				if gotErr == nil {
 					t.Fatalf("Expected error response, but got response: %+v", gotResp)
 				}
 			} else {
-				// No error was expected, so verify actual response.
+				// No error was expected, so verify the actual response.
 				if gotErr != nil {
 					t.Fatalf("Expected successful response, but got error: %v", gotErr)
 				}
