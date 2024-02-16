@@ -59,7 +59,7 @@ func VerifyAndParseIakAndIDevIdCerts(req *TpmCertVerifierReq) (*TpmCertVerifierR
 
 	iDevIdX509, err := VerifyAndParsePemCert(req.iDevIdCertPem)
 	if err != nil {
-		return nil, fmt.Errorf("failed to verify and parse IAK cert: %v", err)
+		return nil, fmt.Errorf("failed to verify and parse IDevID cert: %v", err)
 	}
 	log.Info("Successfully verified and parsed IDevID cert")
 
@@ -117,15 +117,15 @@ func VerifyAndSerializePubKey(cert *x509.Certificate) (string, error) {
 		if pubKeyLen < 2048 {
 			return "", fmt.Errorf("pub RSA key must be 2048 bits or higher, but was %d", pubKeyLen)
 		}
-		log.Infof("pub key algorithm is %s %d", cert.PublicKeyAlgorithm.String(), pubKeyLen)
+		log.Infof("pub key algorithm is %s %d", cert.PublicKeyAlgorithm, pubKeyLen)
 	case *ecdsa.PublicKey:
 		pubKeyLen := certPubKey.Curve.Params().BitSize
 		if pubKeyLen < 384 {
 			return "", fmt.Errorf("pub ECC key must be 384 bits or higher, but was %d", pubKeyLen)
 		}
-		log.Infof("pub key algorithm is %s %d", cert.PublicKeyAlgorithm.String(), pubKeyLen)
+		log.Infof("pub key algorithm is %s %d", cert.PublicKeyAlgorithm, pubKeyLen)
 	default:
-		return "", fmt.Errorf("unsupported public key algorithm: %s", certPubKey)
+		return "", fmt.Errorf("unsupported public key algorithm: %s", cert.PublicKeyAlgorithm)
 	}
 
 	// Marshal pub key to DER.

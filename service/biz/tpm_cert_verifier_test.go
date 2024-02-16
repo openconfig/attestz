@@ -58,7 +58,7 @@ func generateCaCert() (*CaCert, error) {
 	}
 
 	// CA cert is self-signed, so pass caCert twice.
-	certBytes, err := x509.CreateCertificate(rand.Reader, certX509, certX509, &privKey.PublicKey, privKey)
+	certDer, err := x509.CreateCertificate(rand.Reader, certX509, certX509, &privKey.PublicKey, privKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create x509 self-signed CA cert: %v", err)
 	}
@@ -67,7 +67,7 @@ func generateCaCert() (*CaCert, error) {
 	certPem := new(bytes.Buffer)
 	err = pem.Encode(certPem, &pem.Block{
 		Type:  "CERTIFICATE",
-		Bytes: certBytes,
+		Bytes: certDer,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode DER cert to PEM: %v", err)
@@ -91,6 +91,7 @@ const (
 	RSA_4096 AsymAlgo = iota
 	RSA_2048
 	RSA_1024
+	ECC_P521
 	ECC_P384
 	ECC_P256
 	ED_25519
@@ -148,6 +149,11 @@ func generateSignedCert(params *CertCreationParams) (*SignedTpmCert, error) {
 		if err == nil {
 			certPubKey = &certPrivKey.PublicKey
 		}
+	case ECC_P521:
+		certPrivKey, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
+		if err == nil {
+			certPubKey = &certPrivKey.PublicKey
+		}
 	case ED_25519:
 		certPubKey, _, err = ed25519.GenerateKey(rand.Reader)
 	default:
@@ -157,7 +163,7 @@ func generateSignedCert(params *CertCreationParams) (*SignedTpmCert, error) {
 		return nil, fmt.Errorf("failed to generate asym key pair from asymmetric algo %d: %v", params.asymAlgo, err)
 	}
 
-	certBytes, err := x509.CreateCertificate(rand.Reader, cert, params.signingCert, certPubKey, params.signingPrivKey)
+	certDer, err := x509.CreateCertificate(rand.Reader, cert, params.signingCert, certPubKey, params.signingPrivKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create a signed x509 cert: %v", err)
 	}
@@ -165,7 +171,7 @@ func generateSignedCert(params *CertCreationParams) (*SignedTpmCert, error) {
 	certPem := new(bytes.Buffer)
 	err = pem.Encode(certPem, &pem.Block{
 		Type:  "CERTIFICATE",
-		Bytes: certBytes,
+		Bytes: certDer,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode DER cert to PEM: %v", err)
@@ -193,76 +199,311 @@ func generateSignedCert(params *CertCreationParams) (*SignedTpmCert, error) {
 }
 
 func TestVerifyAndParseIakAndIDevIdCerts(t *testing.T) {
-	/*
-		TODO(jenia-grunin):
-		* Tests to add:
-			- Unsupported algo such as ED25519.
-			- Bad pub key length for RSA.
-			- Bad pub key length for ECC.
-			- IAK and IDevID cert serials don't match.
-			- Bad cert pem header.
-			- Good pem cert header, but bad x509 structure.
-			- Repeat above for both IAK and IDevID certs.
-	*/
+	tests := []struct {
+		// Test description.
+		desc string
 
-	iakCaCert, err := generateCaCert()
-	if err != nil {
-		t.Fatalf("Test setup failed! Unable to generate IAK CA signing cert: %v", err)
-	}
+		wantError bool
 
-	iakCert, err := generateSignedCert(
-		&CertCreationParams{
-			asymAlgo:          RSA_4096,
-			certSubjectSerial: "S0M3S3R1ALNUMB3R",
-			signingCert:       iakCaCert.certX509,
-			signingPrivKey:    iakCaCert.privKey,
-			notBefore:         time.Now(),
-			notAfter:          time.Now().AddDate(0, 0, 10),
+		iakCertAsymAlgo      AsymAlgo
+		iakCertSubjectSerial string
+		iakCertNotBefore     time.Time
+		iakCertNotAfter      time.Time
+
+		iDevIdCertAsymAlgo      AsymAlgo
+		iDevIdCertSubjectSerial string
+		iDevIdCertNotBefore     time.Time
+		iDevIdCertNotAfter      time.Time
+
+		// To test against malformed PEM certs.
+		customIakCertPem    string
+		customIDevIdCertPem string
+	}{
+		{
+			desc: "Success: RSA 4096 IAK and ECC P384 IDevID certs",
+
+			wantError: false,
+
+			iakCertAsymAlgo:      RSA_4096,
+			iakCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iakCertNotBefore:     time.Now(),
+			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
+
+			iDevIdCertAsymAlgo:      ECC_P384,
+			iDevIdCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iDevIdCertNotBefore:     time.Now(),
+			iDevIdCertNotAfter:      time.Now().AddDate(1, 0, 0),
 		},
-	)
-	if err != nil {
-		t.Fatalf("Test setup failed! Unable to generate an IAK cert: %v", err)
-	}
+		{
+			desc: "Success: ECC P521 IAK and RSA 2048 IDevID certs",
 
-	iDevIdCaCert, err := generateCaCert()
-	if err != nil {
-		t.Fatalf("Test setup failed! Unable to generate IDevID CA signing cert: %v", err)
-	}
+			wantError: false,
 
-	iDevIdCert, err := generateSignedCert(
-		&CertCreationParams{
-			asymAlgo:          ECC_P384,
-			certSubjectSerial: "S0M3S3R1ALNUMB3R",
-			signingCert:       iDevIdCaCert.certX509,
-			signingPrivKey:    iDevIdCaCert.privKey,
-			notBefore:         time.Now(),
-			notAfter:          time.Now().AddDate(0, 0, 10),
+			iakCertAsymAlgo:      ECC_P521,
+			iakCertSubjectSerial: "AN0TH3RS3R1ALNUMB3R",
+			iakCertNotBefore:     time.Now(),
+			iakCertNotAfter:      time.Now().AddDate(0, 1, 0),
+
+			iDevIdCertAsymAlgo:      RSA_2048,
+			iDevIdCertSubjectSerial: "AN0TH3RS3R1ALNUMB3R",
+			iDevIdCertNotBefore:     time.Now(),
+			iDevIdCertNotAfter:      time.Now().AddDate(0, 0, 10),
 		},
-	)
-	if err != nil {
-		t.Fatalf("Test setup failed! Unable to generate an IDevID cert: %v", err)
+		{
+			desc: "Failure: unsupported ED25519 algo for IAK",
+
+			wantError: true,
+
+			iakCertAsymAlgo:      ED_25519,
+			iakCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iakCertNotBefore:     time.Now(),
+			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
+
+			iDevIdCertAsymAlgo:      ECC_P384,
+			iDevIdCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iDevIdCertNotBefore:     time.Now(),
+			iDevIdCertNotAfter:      time.Now().AddDate(0, 0, 10),
+		},
+		{
+			desc: "Failure: unsupported ED25519 algo for IDevID",
+
+			wantError: true,
+
+			iakCertAsymAlgo:      ECC_P384,
+			iakCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iakCertNotBefore:     time.Now(),
+			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
+
+			iDevIdCertAsymAlgo:      ED_25519,
+			iDevIdCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iDevIdCertNotBefore:     time.Now(),
+			iDevIdCertNotAfter:      time.Now().AddDate(0, 0, 10),
+		},
+		{
+			desc: "Failure: RSA key length lower than 2048 for IAK",
+
+			wantError: true,
+
+			iakCertAsymAlgo:      RSA_1024,
+			iakCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iakCertNotBefore:     time.Now(),
+			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
+
+			iDevIdCertAsymAlgo:      ECC_P384,
+			iDevIdCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iDevIdCertNotBefore:     time.Now(),
+			iDevIdCertNotAfter:      time.Now().AddDate(1, 0, 0),
+		},
+		{
+			desc: "Failure: RSA key length lower than 2048 for IDevID",
+
+			wantError: true,
+
+			iakCertAsymAlgo:      ECC_P384,
+			iakCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iakCertNotBefore:     time.Now(),
+			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
+
+			iDevIdCertAsymAlgo:      RSA_1024,
+			iDevIdCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iDevIdCertNotBefore:     time.Now(),
+			iDevIdCertNotAfter:      time.Now().AddDate(1, 0, 0),
+		},
+		{
+			desc: "Failure: ECC key length lower than 384 for IAK",
+
+			wantError: true,
+
+			iakCertAsymAlgo:      ECC_P256,
+			iakCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iakCertNotBefore:     time.Now(),
+			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
+
+			iDevIdCertAsymAlgo:      ECC_P384,
+			iDevIdCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iDevIdCertNotBefore:     time.Now(),
+			iDevIdCertNotAfter:      time.Now().AddDate(1, 0, 0),
+		},
+		{
+			desc: "Failure: ECC key length lower than 384 for IDevID",
+
+			wantError: true,
+
+			iakCertAsymAlgo:      ECC_P384,
+			iakCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iakCertNotBefore:     time.Now(),
+			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
+
+			iDevIdCertAsymAlgo:      ECC_P256,
+			iDevIdCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iDevIdCertNotBefore:     time.Now(),
+			iDevIdCertNotAfter:      time.Now().AddDate(1, 0, 0),
+		},
+		{
+			desc: "Failure: IAK cert and IDevID cert subject serials do not match",
+
+			wantError: true,
+
+			iakCertAsymAlgo:      ECC_P384,
+			iakCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iakCertNotBefore:     time.Now(),
+			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
+
+			iDevIdCertAsymAlgo:      ECC_P384,
+			iDevIdCertSubjectSerial: "AN0TH3RS3R1ALNUMB3R",
+			iDevIdCertNotBefore:     time.Now(),
+			iDevIdCertNotAfter:      time.Now().AddDate(1, 0, 0),
+		},
+		{
+			desc: "Failure: malformed PEM IAK cert",
+
+			wantError: true,
+
+			iakCertAsymAlgo:      ECC_P384,
+			iakCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iakCertNotBefore:     time.Now(),
+			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
+
+			iDevIdCertAsymAlgo:      ECC_P384,
+			iDevIdCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iDevIdCertNotBefore:     time.Now(),
+			iDevIdCertNotAfter:      time.Now().AddDate(1, 0, 0),
+
+			customIakCertPem: "BAD HEADER\nsome payload\nBAD FOOTER\n",
+		},
+		{
+			desc: "Failure: malformed PEM IDevID cert",
+
+			wantError: true,
+
+			iakCertAsymAlgo:      ECC_P384,
+			iakCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iakCertNotBefore:     time.Now(),
+			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
+
+			iDevIdCertAsymAlgo:      ECC_P384,
+			iDevIdCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iDevIdCertNotBefore:     time.Now(),
+			iDevIdCertNotAfter:      time.Now().AddDate(1, 0, 0),
+
+			customIDevIdCertPem: "BAD HEADER\nsome payload\nBAD FOOTER\n",
+		},
+		{
+			desc: "Failure: malformed x509 IAK cert",
+
+			wantError: true,
+
+			iakCertAsymAlgo:      ECC_P384,
+			iakCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iakCertNotBefore:     time.Now(),
+			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
+
+			iDevIdCertAsymAlgo:      ECC_P384,
+			iDevIdCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iDevIdCertNotBefore:     time.Now(),
+			iDevIdCertNotAfter:      time.Now().AddDate(1, 0, 0),
+
+			customIakCertPem: "-----BEGIN CERTIFICATE-----\nMIIBRTCBzaADAgECAgMAgXswCgYIKoZIzj0EAwMwADAeFw0yNTAyMTUyMTAxNTBa\n-----END CERTIFICATE-----\n",
+		},
+		{
+			desc: "Failure: malformed x509 IDevID cert",
+
+			wantError: true,
+
+			iakCertAsymAlgo:      ECC_P384,
+			iakCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iakCertNotBefore:     time.Now(),
+			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
+
+			iDevIdCertAsymAlgo:      ECC_P384,
+			iDevIdCertSubjectSerial: "S0M3S3R1ALNUMB3R",
+			iDevIdCertNotBefore:     time.Now(),
+			iDevIdCertNotAfter:      time.Now().AddDate(1, 0, 0),
+
+			customIDevIdCertPem: "-----BEGIN CERTIFICATE-----\nMIIBRTCBzaADAgECAgMAgXswCgYIKoZIzj0EAwMwADAeFw0yNTAyMTUyMTAxNTBa\n-----END CERTIFICATE-----\n",
+		},
 	}
 
-	iakCertPemRsa2048 := iakCert.certPem
-	wantIakPubPem := iakCert.pubKeyPem
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			// Generate switch vendor CA IAK cert.
+			genIakCaCert, err := generateCaCert()
+			if err != nil {
+				t.Fatalf("Test setup failed! Unable to generate IAK CA signing cert: %v", err)
+			}
+			// Generate switch's IAK cert signed by switch vendor CA.
+			genIakCert, err := generateSignedCert(
+				&CertCreationParams{
+					asymAlgo:          test.iakCertAsymAlgo,
+					certSubjectSerial: test.iakCertSubjectSerial,
+					signingCert:       genIakCaCert.certX509,
+					signingPrivKey:    genIakCaCert.privKey,
+					notBefore:         test.iakCertNotBefore,
+					notAfter:          test.iakCertNotAfter,
+				},
+			)
+			if err != nil {
+				t.Fatalf("Test setup failed! Unable to generate an IAK cert: %v", err)
+			}
 
-	iDevIdCertPemEcc384 := iDevIdCert.certPem
-	wantIDevIdPubPem := iDevIdCert.pubKeyPem
+			// Generate switch vendor CA IDevID cert.
+			genIDevIdCaCert, err := generateCaCert()
+			if err != nil {
+				t.Fatalf("Test setup failed! Unable to generate IDevID CA signing cert: %v", err)
+			}
+			// Generate switch's IDevID cert signed by switch vendor CA.
+			genIDevIdCert, err := generateSignedCert(
+				&CertCreationParams{
+					asymAlgo:          test.iDevIdCertAsymAlgo,
+					certSubjectSerial: test.iDevIdCertSubjectSerial,
+					signingCert:       genIDevIdCaCert.certX509,
+					signingPrivKey:    genIDevIdCaCert.privKey,
+					notBefore:         test.iDevIdCertNotAfter,
+					notAfter:          test.iDevIdCertNotAfter,
+				},
+			)
+			if err != nil {
+				t.Fatalf("Test setup failed! Unable to generate an IDevID cert: %v", err)
+			}
 
-	req := &TpmCertVerifierReq{
-		iakCertPem:    iakCertPemRsa2048,
-		iDevIdCertPem: iDevIdCertPemEcc384,
-	}
-	resp, err := VerifyAndParseIakAndIDevIdCerts(req)
+			// Expected IAK and IDevID pub key PEMs if certs validation passes.
+			wantIakPubPem := genIakCert.pubKeyPem
+			wantIDevIdPubPem := genIDevIdCert.pubKeyPem
 
-	if err != nil {
-		t.Fatalf("Unexpected error response %v", err)
-	}
+			// If a custom/malformed PEM is set, then use that.
+			iakCertPemReq := genIakCert.certPem
+			if test.customIakCertPem != "" {
+				iakCertPemReq = test.customIakCertPem
+			}
+			iDevIdCertPemReq := genIDevIdCert.certPem
+			if test.customIDevIdCertPem != "" {
+				iDevIdCertPemReq = test.customIDevIdCertPem
+			}
 
-	if diff := cmp.Diff(resp.iakPubPem, wantIakPubPem); diff != "" {
-		t.Errorf("IAK pub PEM does not match expectations: diff = %v", diff)
-	}
-	if diff := cmp.Diff(resp.iDevIdPubPem, wantIDevIdPubPem); diff != "" {
-		t.Errorf("IDevID pub PEM does not match expectations: diff = %v", diff)
+			// Call TpmCertVerifier's default impl of VerifyAndParseIakAndIDevIdCerts.
+			req := &TpmCertVerifierReq{
+				iakCertPem:    iakCertPemReq,
+				iDevIdCertPem: iDevIdCertPemReq,
+			}
+			gotResp, gotErr := VerifyAndParseIakAndIDevIdCerts(req)
+
+			if test.wantError {
+				// Error was expected, so do not verify actual response.
+				if gotErr == nil {
+					t.Fatalf("Expected error response, but got response: %+v", gotResp)
+				}
+			} else {
+				// No error was expected, so verify actual response.
+				if gotErr != nil {
+					t.Fatalf("Expected successful response, but got error: %v", gotErr)
+				}
+				if diff := cmp.Diff(gotResp.iakPubPem, wantIakPubPem); diff != "" {
+					t.Errorf("IAK pub PEM does not match expectations: diff = %v", diff)
+				}
+				if diff := cmp.Diff(gotResp.iDevIdPubPem, wantIDevIdPubPem); diff != "" {
+					t.Errorf("IDevID pub PEM does not match expectations: diff = %v", diff)
+				}
+			}
+		})
 	}
 }
