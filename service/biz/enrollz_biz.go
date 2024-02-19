@@ -16,6 +16,7 @@
 package biz
 
 import (
+	"crypto/x509"
 	"fmt"
 
 	log "github.com/golang/glog"
@@ -70,17 +71,25 @@ type EnrollzInfraDeps interface {
 	TpmCertVerifier
 }
 
+// Request to EnrollControlCard().
+type EnrollControlCardReq struct {
+	// Selection of a specific switch control card.
+	controlCardSelection *cpb.ControlCardSelection
+	// Infra-specific wired dependencies.
+	deps EnrollzInfraDeps
+	// Verification options for IAK and IDevID certs.
+	certVerificationOpts x509.VerifyOptions
+}
+
 // This is a "client"/switch-owner side implementation of Enrollz service. This client-side logic
 // is part of the switch owner infra/service and is expected to communicate with a device/switch (hosting
 // enrollz gRPC endpoints) to verify its TPM-based identity and provision it with the switch-owner-issued,
 // TPM-based attestation and TLS certs: Owner IAK and Owner IDevID certs respectively. Switch owner is
 // expected to TPM-enroll one switch control card at a time, starting with an active card.
-func EnrollControlCard(controlCardSelection *cpb.ControlCardSelection, deps EnrollzInfraDeps) error {
-	// 1. Fetch Switch Vendor CA trust bundle.
-
-	// 2. Call device's GetIakCert API for the specified control card.
-	getIakCertReq := &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection}
-	getIakCertResp, err := deps.GetIakCert(getIakCertReq)
+func EnrollControlCard(req *EnrollControlCardReq) error {
+	// 1. Call device's GetIakCert API for the specified control card.
+	getIakCertReq := &epb.GetIakCertRequest{ControlCardSelection: req.controlCardSelection}
+	getIakCertResp, err := req.deps.GetIakCert(getIakCertReq)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve IAK cert from the device with req=%s: %w",
 			prototext.Format(getIakCertReq), err)
@@ -88,12 +97,13 @@ func EnrollControlCard(controlCardSelection *cpb.ControlCardSelection, deps Enro
 	log.Infof("Successfully received from device GetIakCert() resp=%s for req=%s",
 		prototext.Format(getIakCertResp), prototext.Format(getIakCertReq))
 
-	// 3. Validate and parse IDevID and IAK certs.
+	// 2. Validate and parse IDevID and IAK certs.
 	tpmCertVerifierReq := &TpmCertVerifierReq{
-		iakCertPem:    getIakCertResp.IakCert,
-		iDevIdCertPem: getIakCertResp.IdevidCert,
+		iakCertPem:           getIakCertResp.IakCert,
+		iDevIdCertPem:        getIakCertResp.IdevidCert,
+		certVerificationOpts: req.certVerificationOpts,
 	}
-	tpmCertVerifierResp, err := deps.VerifyAndParseIakAndIDevIdCerts(tpmCertVerifierReq)
+	tpmCertVerifierResp, err := req.deps.VerifyAndParseIakAndIDevIdCerts(tpmCertVerifierReq)
 	if err != nil {
 		return fmt.Errorf("failed to verify IAK_cert_pem=%s and IDevID_cert_pem=%s: %w",
 			tpmCertVerifierReq.iakCertPem, tpmCertVerifierReq.iDevIdCertPem, err)
@@ -101,8 +111,8 @@ func EnrollControlCard(controlCardSelection *cpb.ControlCardSelection, deps Enro
 	log.Infof("Successfully verified IAK and IDevID certs and parsed IAK_pub_pem=%s and IDevID_pub_pem=%s",
 		tpmCertVerifierResp.iakPubPem, tpmCertVerifierResp.iDevIdPubPem)
 
-	// 4. Call Switch Owner CA to issue oIAK and oIDevID certs.
-	oIakCertPem, err := deps.IssueOwnerIakCert(getIakCertResp.ControlCardId, tpmCertVerifierResp.iakPubPem)
+	// 3. Call Switch Owner CA to issue oIAK and oIDevID certs.
+	oIakCertPem, err := req.deps.IssueOwnerIakCert(getIakCertResp.ControlCardId, tpmCertVerifierResp.iakPubPem)
 	if err != nil {
 		return fmt.Errorf("failed to execute Switch Owner CA IssueOwnerIakCert() with control_card_id=%s IAK_pub_pem=%s: %w",
 			prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.iakPubPem, err)
@@ -110,7 +120,7 @@ func EnrollControlCard(controlCardSelection *cpb.ControlCardSelection, deps Enro
 	log.Infof("Successfully received Switch Owner CA IssueOwnerIakCert() resp=%s for control_card_id=%s IAK_pub_pem=%s",
 		oIakCertPem, prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.iakPubPem)
 
-	oIDevIdCertPem, err := deps.IssueOwnerIDevIdCert(getIakCertResp.ControlCardId, tpmCertVerifierResp.iDevIdPubPem)
+	oIDevIdCertPem, err := req.deps.IssueOwnerIDevIdCert(getIakCertResp.ControlCardId, tpmCertVerifierResp.iDevIdPubPem)
 	if err != nil {
 		return fmt.Errorf("failed to execute Switch Owner CA IssueOwnerIDevIdCert() with control_card_id=%s IDevID_pub_pem=%s: %w",
 			prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.iDevIdPubPem, err)
@@ -118,13 +128,13 @@ func EnrollControlCard(controlCardSelection *cpb.ControlCardSelection, deps Enro
 	log.Infof("Successfully received Switch Owner CA IssueOwnerIDevIdCert() resp=%s for control_card_id=%s IDevID_pub_pem=%s",
 		oIDevIdCertPem, prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.iDevIdPubPem)
 
-	// 5. Call device's RotateOIakCert for the specified card card to persist oIAK and oIDevID certs.
+	// 4. Call device's RotateOIakCert for the specified card card to persist oIAK and oIDevID certs.
 	rotateOIakCertReq := &epb.RotateOIakCertRequest{
-		ControlCardSelection: controlCardSelection,
+		ControlCardSelection: req.controlCardSelection,
 		OiakCert:             oIakCertPem,
 		OidevidCert:          oIDevIdCertPem,
 	}
-	rotateOIakCertResp, err := deps.RotateOIakCert(rotateOIakCertReq)
+	rotateOIakCertResp, err := req.deps.RotateOIakCert(rotateOIakCertReq)
 	if err != nil {
 		return fmt.Errorf("failed to rotate oIAK and oIDevID certs from the device with req=%s: %w",
 			prototext.Format(rotateOIakCertReq), err)
