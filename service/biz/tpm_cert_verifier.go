@@ -27,8 +27,8 @@ import (
 	log "github.com/golang/glog"
 )
 
-// Request to VerifyAndParseIakAndIDevIdCerts().
-type TpmCertVerifierReq struct {
+// Request to VerifyIakAndIDevIdCerts().
+type VerifyIakAndIDevIdCertsReq struct {
 	// Verification options for IAK and IDevID certs.
 	certVerificationOpts x509.VerifyOptions
 	// PEM-encoded IAK x509 attestation cert.
@@ -37,27 +37,46 @@ type TpmCertVerifierReq struct {
 	iDevIdCertPem string
 }
 
-// Response from VerifyAndParseIakAndIDevIdCerts().
-type TpmCertVerifierResp struct {
+// Response from VerifyIakAndIDevIdCerts().
+type VerifyIakAndIDevIdCertsResp struct {
 	// PEM-encoded IAK public key.
 	iakPubPem string
 	// PEM-encoded IDevID public key.
 	iDevIdPubPem string
 }
 
+// Request to VerifyTpmCert().
+type VerifyTpmCertReq struct {
+	// Verification options for a TPM-based cert such as IAK or IDevID.
+	certVerificationOpts x509.VerifyOptions
+	// PEM-encoded x509 attestation IAK or TLS IDevID cert.
+	certPem string
+}
+
+// Response from VerifyTpmCert().
+type VerifyTpmCertResp struct {
+	// PEM-encoded public key from x509 attestation IAK or TLS IDevID cert.
+	pubPem string
+}
+
 // Parses and verifies IAK and IDevID certs.
 type TpmCertVerifier interface {
 	// Performs the following:
-	// 1. Validate IDevID TLS cert.
-	// 2. Validate IAK cert.
-	// 3. Make sure IAK and IDevID serials match.
+	// 1. Validate (signature and expiration) IDevID TLS cert.
+	// 2. Validate (signature and expiration) IAK cert.
+	// 3. Make sure IAK and IDevID cert subject serials match.
 	// 4. Parse IAK pub from IAK cert and validate it (accepted crypto algo and key length).
 	// 5. Parse IDevID pub from IDevID cert and validate it (accepted crypto algo and key length).
-	VerifyAndParseIakAndIDevIdCerts(req *TpmCertVerifierReq) (*TpmCertVerifierResp, error)
+	VerifyIakAndIDevIdCerts(req *VerifyIakAndIDevIdCertsReq) (*VerifyIakAndIDevIdCertsResp, error)
+
+	// Performs the following:
+	// 1. Validate (signature and expiration) a TPM-based cert such as IAK or IDevID.
+	// 2. Parse pub key from the cert and validate it (accepted crypto algo and key length).
+	VerifyTpmCert(req *VerifyTpmCertReq) (*VerifyTpmCertResp, error)
 }
 
-// Default/reference implementation of TpmCertVerifier.VerifyAndParseIakAndIDevIdCerts()
-func VerifyAndParseIakAndIDevIdCerts(req *TpmCertVerifierReq) (*TpmCertVerifierResp, error) {
+// Default/reference implementation of TpmCertVerifier.VerifyIakAndIDevIdCerts()
+func VerifyIakAndIDevIdCerts(req *VerifyIakAndIDevIdCertsReq) (*VerifyIakAndIDevIdCertsResp, error) {
 	iakX509, err := VerifyAndParsePemCert(req.iakCertPem, req.certVerificationOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify and parse IAK cert: %v", err)
@@ -89,7 +108,7 @@ func VerifyAndParseIakAndIDevIdCerts(req *TpmCertVerifierReq) (*TpmCertVerifierR
 	}
 	log.Infof("Successfully verified and parsed IDevID pub key PEM %s", iDevIdPubPem)
 
-	return &TpmCertVerifierResp{
+	return &VerifyIakAndIDevIdCertsResp{
 		iakPubPem:    iakPubPem,
 		iDevIdPubPem: iDevIdPubPem,
 	}, nil

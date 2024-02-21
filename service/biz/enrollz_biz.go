@@ -38,13 +38,20 @@ type SwitchOwnerCaClient interface {
 
 // Wrapper around gRPC `TpmEnrollzServiceClient` to allow callers to specify `context.Context`
 // and `grpc.CallOption`s.
+//
+// During initial install the device is expected to use IDevID cert to secure TLS connection. Once
+// the initial install (includes TPM enrollment and attestation) is completed, the device is expected
+// to obtain a set of "real" prod TLS credentials/certs and only rely on those instead of IDevID/oIDevID
+// certs. This implies that Enrollz client should carefully choose the right/expected TLS trust anchors
+// based on the device state/scenario (e.g. initial install vs oIAK cert rotation).
 type EnrollzDeviceClient interface {
 	// Returns `TpmEnrollzServiceClient.GetIakCert()` response.
 	//
-	// For an active control card IDevID cert *must* come from the TLS handshake. Even though the device may
-	// optionally also specify active card's IDevID cert in the response payload, as part of this
-	// EnrollzDeviceClient.GetIakCert() implementation it is expected that the caller will overwrite/set this
-	// response payload idevid_cert field with the IDevID cert from the TLS handshake.
+	// During initial device install scenario, for an active control card IDevID cert *must* come from
+	// the TLS handshake. Even though the device may optionally also specify active card's IDevID cert
+	// in the response payload, as part of this EnrollzDeviceClient.GetIakCert() implementation it is
+	// expected that the caller will overwrite/set this response payload `idevid_cert` field with the
+	// IDevID cert from the TLS handshake.
 	//
 	// As specified in https://github.com/openconfig/attestz README, it is impossible to talk directly to the
 	// standby control card (so all calls to standby card are relayed by the active card), and it is a
@@ -84,8 +91,15 @@ type EnrollControlCardReq struct {
 // This is a "client"/switch-owner side implementation of Enrollz service. This client-side logic
 // is part of the switch owner infra/service and is expected to communicate with a device/switch (hosting
 // enrollz gRPC endpoints) to verify its TPM-based identity and provision it with the switch-owner-issued,
-// TPM-based attestation and TLS certs: Owner IAK and Owner IDevID certs respectively. Switch owner is
+// TPM-based attestation and TLS certs: Owner IAK and Owner IDevID certs, respectively. Switch owner is
 // expected to TPM-enroll one switch control card at a time, starting with an active card.
+//
+// More specifically, this function targets initial install/enrollment of the device. This means that the
+// switch is expected to rely on the IDevID cert for establishing a secure TLS connection. Consumers
+// of this function should carefully choose CA trust anchors in `x509.VerifyOptions` to include switch
+// vendor CA root and intermediate certs that signed both IAK and IDevID certs. By the end of the workflow
+// a given control card will obtain its first set of Owner IAK and Owner IDevID certs (signed by the switch
+// owner CA).
 func EnrollControlCard(req *EnrollControlCardReq) error {
 	// 1. Call device's GetIakCert API for the specified control card.
 	getIakCertReq := &epb.GetIakCertRequest{ControlCardSelection: req.controlCardSelection}
@@ -98,12 +112,12 @@ func EnrollControlCard(req *EnrollControlCardReq) error {
 		prototext.Format(getIakCertResp), prototext.Format(getIakCertReq))
 
 	// 2. Validate and parse IDevID and IAK certs.
-	tpmCertVerifierReq := &TpmCertVerifierReq{
+	tpmCertVerifierReq := &VerifyIakAndIDevIdCertsReq{
 		iakCertPem:           getIakCertResp.IakCert,
 		iDevIdCertPem:        getIakCertResp.IdevidCert,
 		certVerificationOpts: req.certVerificationOpts,
 	}
-	tpmCertVerifierResp, err := req.deps.VerifyAndParseIakAndIDevIdCerts(tpmCertVerifierReq)
+	tpmCertVerifierResp, err := req.deps.VerifyIakAndIDevIdCerts(tpmCertVerifierReq)
 	if err != nil {
 		return fmt.Errorf("failed to verify IAK_cert_pem=%s and IDevID_cert_pem=%s: %w",
 			tpmCertVerifierReq.iakCertPem, tpmCertVerifierReq.iDevIdCertPem, err)
@@ -137,6 +151,79 @@ func EnrollControlCard(req *EnrollControlCardReq) error {
 	rotateOIakCertResp, err := req.deps.RotateOIakCert(rotateOIakCertReq)
 	if err != nil {
 		return fmt.Errorf("failed to rotate oIAK and oIDevID certs from the device with req=%s: %w",
+			prototext.Format(rotateOIakCertReq), err)
+	}
+	log.Infof("Successfully received from device RotateOIakCert() resp=%s for req=%s",
+		prototext.Format(rotateOIakCertResp), prototext.Format(rotateOIakCertReq))
+
+	// Return a successful (no-error) response.
+	return nil
+}
+
+// Request to RotateOwnerIakCert().
+type RotateOwnerIakCertReq struct {
+	// Selection of a specific switch control card.
+	controlCardSelection *cpb.ControlCardSelection
+	// Infra-specific wired dependencies.
+	deps EnrollzInfraDeps
+	// Verification options for IAK cert.
+	certVerificationOpts x509.VerifyOptions
+}
+
+// This is a "client"/switch-owner side implementation of Enrollz service. This client-side logic
+// is part of the switch owner infra/service and is expected to communicate with a device/switch (hosting
+// enrollz gRPC endpoints) to verify its TPM-based identity and provision it with the switch-owner-issued,
+// TPM-based attestation Owner IAK cert. Switch owner is expected to TPM-enroll one switch control card
+// at a time, starting with an active card.
+//
+// More specifically, this function targets rotation of the Owner IAK cert in a post-install scenario.
+// This means that the switch may NOT be using (o/)IDevID TLS certs anymore, and instead relies on a "real"
+// prod mTLS cert that was issued to the switch after its first successful attestation. Thus, this function
+// only assumes the presence of an IAK cert in the response from the device. Consumers of this function
+// should carefully choose CA trust anchors in `x509.VerifyOptions` to include switch vendor CA root and
+// intermediate certs that signed the IAK cert. By the end of the workflow a given control card will obtain a
+// new (rotated) Owner IAK cert (signed by the switch owner CA).
+func RotateOwnerIakCert(req *RotateOwnerIakCertReq) error {
+	// 1. Call device's GetIakCert API for the specified control card.
+	getIakCertReq := &epb.GetIakCertRequest{ControlCardSelection: req.controlCardSelection}
+	getIakCertResp, err := req.deps.GetIakCert(getIakCertReq)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve IAK cert from the device with req=%s: %w",
+			prototext.Format(getIakCertReq), err)
+	}
+	log.Infof("Successfully received from device GetIakCert() resp=%s for req=%s",
+		prototext.Format(getIakCertResp), prototext.Format(getIakCertReq))
+
+	// 2. Validate and parse IAK cert.
+	tpmCertVerifierReq := &VerifyTpmCertReq{
+		certPem:              getIakCertResp.IakCert,
+		certVerificationOpts: req.certVerificationOpts,
+	}
+	tpmCertVerifierResp, err := req.deps.VerifyTpmCert(tpmCertVerifierReq)
+	if err != nil {
+		return fmt.Errorf("failed to verify IAK_cert_pem=%s: %w",
+			tpmCertVerifierReq.certPem, err)
+	}
+	log.Infof("Successfully verified IAK cert and parsed IAK_pub_pem=%s",
+		tpmCertVerifierResp.pubPem)
+
+	// 3. Call Switch Owner CA to issue a new oIAK cert.
+	oIakCertPem, err := req.deps.IssueOwnerIakCert(getIakCertResp.ControlCardId, tpmCertVerifierResp.pubPem)
+	if err != nil {
+		return fmt.Errorf("failed to execute Switch Owner CA IssueOwnerIakCert() with control_card_id=%s IAK_pub_pem=%s: %w",
+			prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.pubPem, err)
+	}
+	log.Infof("Successfully received Switch Owner CA IssueOwnerIakCert() resp=%s for control_card_id=%s IAK_pub_pem=%s",
+		oIakCertPem, prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.pubPem)
+
+	// 4. Call device's RotateOIakCert for the specified card to persist a new (rotate an existing) oIAK cert.
+	rotateOIakCertReq := &epb.RotateOIakCertRequest{
+		ControlCardSelection: req.controlCardSelection,
+		OiakCert:             oIakCertPem,
+	}
+	rotateOIakCertResp, err := req.deps.RotateOIakCert(rotateOIakCertReq)
+	if err != nil {
+		return fmt.Errorf("failed to rotate oIAK cert from the device with req=%s: %w",
 			prototext.Format(rotateOIakCertReq), err)
 	}
 	log.Infof("Successfully received from device RotateOIakCert() resp=%s for req=%s",

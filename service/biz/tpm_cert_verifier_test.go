@@ -198,7 +198,7 @@ func generateSignedCert(params *CertCreationParams) (*SignedTpmCert, error) {
 	}, nil
 }
 
-func TestVerifyAndParseIakAndIDevIdCerts(t *testing.T) {
+func TestVerifyIakAndIDevIdCerts(t *testing.T) {
 	// Handy to simulate IAK/IDevID cert signature validation failure.
 	unknownCaCert, err := generateCaCert()
 	if err != nil {
@@ -606,13 +606,13 @@ func TestVerifyAndParseIakAndIDevIdCerts(t *testing.T) {
 				Roots: roots,
 			}
 
-			// Call TpmCertVerifier's default impl of VerifyAndParseIakAndIDevIdCerts.
-			req := &TpmCertVerifierReq{
+			// Call TpmCertVerifier's default impl of VerifyIakAndIDevIdCerts().
+			req := &VerifyIakAndIDevIdCertsReq{
 				iakCertPem:           iakCertPemReq,
 				iDevIdCertPem:        iDevIdCertPemReq,
 				certVerificationOpts: certVerificationOptsReq,
 			}
-			gotResp, gotErr := VerifyAndParseIakAndIDevIdCerts(req)
+			gotResp, gotErr := VerifyIakAndIDevIdCerts(req)
 
 			if test.wantError {
 				// Error was expected, so do not verify the actual response.
