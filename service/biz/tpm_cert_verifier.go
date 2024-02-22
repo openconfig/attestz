@@ -75,7 +75,7 @@ type TpmCertVerifier interface {
 	VerifyTpmCert(req *VerifyTpmCertReq) (*VerifyTpmCertResp, error)
 }
 
-// Default/reference implementation of TpmCertVerifier.VerifyIakAndIDevIdCerts()
+// Default/reference implementation of TpmCertVerifier.VerifyIakAndIDevIdCerts().
 func VerifyIakAndIDevIdCerts(req *VerifyIakAndIDevIdCertsReq) (*VerifyIakAndIDevIdCertsResp, error) {
 	iakX509, err := VerifyAndParsePemCert(req.iakCertPem, req.certVerificationOpts)
 	if err != nil {
@@ -111,6 +111,26 @@ func VerifyIakAndIDevIdCerts(req *VerifyIakAndIDevIdCertsReq) (*VerifyIakAndIDev
 	return &VerifyIakAndIDevIdCertsResp{
 		iakPubPem:    iakPubPem,
 		iDevIdPubPem: iDevIdPubPem,
+	}, nil
+}
+
+// Default/reference implementation of TpmCertVerifier.VerifyTpmCert().
+func VerifyTpmCert(req *VerifyTpmCertReq) (*VerifyTpmCertResp, error) {
+	certX509, err := VerifyAndParsePemCert(req.certPem, req.certVerificationOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify and parse PEM cert: %v", err)
+	}
+	log.Info("Successfully verified and parsed PEM cert into x509 structure")
+
+	// Verify and convert x509 cert pub key to PEM.
+	pubKeyPem, err := VerifyAndSerializePubKey(certX509)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify and serialize cert's pub key: %v", err)
+	}
+	log.Infof("Successfully verified and parsed pub key PEM %s", pubKeyPem)
+
+	return &VerifyTpmCertResp{
+		pubPem: pubKeyPem,
 	}, nil
 }
 

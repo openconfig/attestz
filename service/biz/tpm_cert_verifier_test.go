@@ -634,3 +634,227 @@ func TestVerifyIakAndIDevIdCerts(t *testing.T) {
 		})
 	}
 }
+
+func TestVerifyTpmCert(t *testing.T) {
+	// Handy to simulate cert signature validation failure.
+	unknownCaCert, err := generateCaCert()
+	if err != nil {
+		t.Fatalf("Test setup failed! Unable to generate CA signing cert: %v", err)
+	}
+
+	tests := []struct {
+		// Test description.
+		desc string
+
+		wantError bool
+
+		certAsymAlgo      AsymAlgo
+		certSubjectSerial string
+		certNotBefore     time.Time
+		certNotAfter      time.Time
+
+		// To test against malformed PEM certs.
+		customCertPem string
+
+		// To simulate cert signature validation failure.
+		customCaRootPem string
+	}{
+		{
+			desc: "Success: RSA 4096 cert",
+
+			wantError: false,
+
+			certAsymAlgo:      RSA_4096,
+			certSubjectSerial: "S0M3S3R1ALNUMB3R",
+			certNotBefore:     time.Now(),
+			certNotAfter:      time.Now().AddDate(0, 0, 10),
+		},
+		{
+			desc: "Success: RSA 2048 cert",
+
+			wantError: false,
+
+			certAsymAlgo:      RSA_2048,
+			certSubjectSerial: "S0M3S3R1ALNUMB3R",
+			certNotBefore:     time.Now(),
+			certNotAfter:      time.Now().AddDate(0, 1, 0),
+		},
+		{
+			desc: "Success: ECC P384 cert",
+
+			wantError: false,
+
+			certAsymAlgo:      ECC_P384,
+			certSubjectSerial: "S0M3S3R1ALNUMB3R",
+			certNotBefore:     time.Now(),
+			certNotAfter:      time.Now().AddDate(1, 0, 0),
+		},
+		{
+			desc: "Success: ECC P521 cert",
+
+			wantError: false,
+
+			certAsymAlgo:      ECC_P521,
+			certSubjectSerial: "AN0TH3RS3R1ALNUMB3R",
+			certNotBefore:     time.Now(),
+			certNotAfter:      time.Now().AddDate(0, 0, 10),
+		},
+		{
+			desc: "Failure: unsupported ED25519 algo",
+
+			wantError: true,
+
+			certAsymAlgo:      ED_25519,
+			certSubjectSerial: "S0M3S3R1ALNUMB3R",
+			certNotBefore:     time.Now(),
+			certNotAfter:      time.Now().AddDate(0, 0, 10),
+		},
+		{
+			desc: "Failure: RSA key length lower than 2048",
+
+			wantError: true,
+
+			certAsymAlgo:      RSA_1024,
+			certSubjectSerial: "S0M3S3R1ALNUMB3R",
+			certNotBefore:     time.Now(),
+			certNotAfter:      time.Now().AddDate(0, 0, 10),
+		},
+		{
+			desc: "Failure: ECC key length lower than 384",
+
+			wantError: true,
+
+			certAsymAlgo:      ECC_P256,
+			certSubjectSerial: "S0M3S3R1ALNUMB3R",
+			certNotBefore:     time.Now(),
+			certNotAfter:      time.Now().AddDate(0, 0, 10),
+		},
+
+		{
+			desc: "Failure: malformed PEM cert",
+
+			wantError: true,
+
+			certAsymAlgo:      ECC_P384,
+			certSubjectSerial: "S0M3S3R1ALNUMB3R",
+			certNotBefore:     time.Now(),
+			certNotAfter:      time.Now().AddDate(0, 0, 10),
+
+			customCertPem: "BAD HEADER\nsome payload\nBAD FOOTER\n",
+		},
+		{
+			desc: "Failure: malformed x509 cert",
+
+			wantError: true,
+
+			certAsymAlgo:      ECC_P384,
+			certSubjectSerial: "S0M3S3R1ALNUMB3R",
+			certNotBefore:     time.Now(),
+			certNotAfter:      time.Now().AddDate(0, 0, 10),
+
+			customCertPem: "-----BEGIN CERTIFICATE-----\nMIIBRTCBzaADAgECAgMAgXswCgYIKoZIzj0EAwMwADAeFw0yNTAyMTUyMTAxNTBa\n-----END CERTIFICATE-----\n",
+		},
+		{
+			desc: "Failure: cert is not yet valid",
+
+			wantError: true,
+
+			certAsymAlgo:      ECC_P384,
+			certSubjectSerial: "S0M3S3R1ALNUMB3R",
+			certNotBefore:     time.Now().AddDate(0, 0, 10),
+			certNotAfter:      time.Now().AddDate(0, 0, 20),
+		},
+		{
+			desc: "Failure: cert is expired",
+
+			wantError: true,
+
+			certAsymAlgo:      ECC_P384,
+			certSubjectSerial: "S0M3S3R1ALNUMB3R",
+			certNotBefore:     time.Now().AddDate(0, 0, -20),
+			certNotAfter:      time.Now().AddDate(0, 0, -10),
+		},
+		{
+			desc: "Failure: cannot validate cert signature",
+
+			wantError: true,
+
+			certAsymAlgo:      RSA_4096,
+			certSubjectSerial: "S0M3S3R1ALNUMB3R",
+			certNotBefore:     time.Now(),
+			certNotAfter:      time.Now().AddDate(0, 0, 10),
+
+			customCaRootPem: unknownCaCert.certPem,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			// Generate switch vendor CA cert.
+			genCaCert, err := generateCaCert()
+			if err != nil {
+				t.Fatalf("Test setup failed! Unable to generate CA signing cert: %v", err)
+			}
+			// Generate switch's cert signed by switch vendor CA.
+			genTpmCert, err := generateSignedCert(
+				&CertCreationParams{
+					asymAlgo:          test.certAsymAlgo,
+					certSubjectSerial: test.certSubjectSerial,
+					signingCert:       genCaCert.certX509,
+					signingPrivKey:    genCaCert.privKey,
+					notBefore:         test.certNotBefore,
+					notAfter:          test.certNotAfter,
+				},
+			)
+			if err != nil {
+				t.Fatalf("Test setup failed! Unable to generate a TPM cert: %v", err)
+			}
+
+			// Expected cert pub key PEMs if cert validation passes.
+			wantCertPubPem := genTpmCert.pubKeyPem
+
+			// If a custom/malformed PEM is set, then use that.
+			certPemReq := genTpmCert.certPem
+			if test.customCertPem != "" {
+				certPemReq = test.customCertPem
+			}
+
+			// Build cert verification options.
+			roots := x509.NewCertPool()
+			// If a custom CA root cert PEM is set, then use that.
+			caCertPemReq := genCaCert.certPem
+			if test.customCaRootPem != "" {
+				caCertPemReq = test.customCaRootPem
+			}
+			// Add resolved root CA certs to x509 cert pool.
+			if !roots.AppendCertsFromPEM([]byte(caCertPemReq)) {
+				t.Fatalf("Test setup failed! Unable to append the following CA cert to x509 cert pool: %s", caCertPemReq)
+			}
+			certVerificationOptsReq := x509.VerifyOptions{
+				Roots: roots,
+			}
+
+			// Call TpmCertVerifier's default impl of VerifyTpmCert().
+			req := &VerifyTpmCertReq{
+				certPem:              certPemReq,
+				certVerificationOpts: certVerificationOptsReq,
+			}
+			gotResp, gotErr := VerifyTpmCert(req)
+
+			if test.wantError {
+				// Error was expected, so do not verify the actual response.
+				if gotErr == nil {
+					t.Fatalf("Expected error response, but got response: %+v", gotResp)
+				}
+			} else {
+				// No error was expected, so verify the actual response.
+				if gotErr != nil {
+					t.Fatalf("Expected successful response, but got error: %v", gotErr)
+				}
+				if diff := cmp.Diff(gotResp.pubPem, wantCertPubPem); diff != "" {
+					t.Errorf("Cert pub PEM does not match expectations: diff = %v", diff)
+				}
+			}
+		})
+	}
+}
