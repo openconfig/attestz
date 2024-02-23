@@ -34,18 +34,16 @@ type stubEnrollzInfraDeps struct {
 	TpmCertVerifier
 
 	// Request params that would be captured in stubbed deps' function calls.
-	cardIDIssueIakReq          *cpb.ControlCardVendorId
-	cardIDIssueIDevIDReq       *cpb.ControlCardVendorId
-	iakPubPemReq               string
-	iDevIDPubPemReq            string
+	issueOwnerIakCertReq       *IssueOwnerIakCertReq
+	issueOwnerIDevIdCertReq    *IssueOwnerIDevIdCertReq
 	getIakCertReq              *epb.GetIakCertRequest
 	rotateOIakCertReq          *epb.RotateOIakCertRequest
 	verifyIakAndIDevIDCertsReq *VerifyIakAndIDevIDCertsReq
 	verifyTpmCertReq           *VerifyTpmCertReq
 
 	// Stubbed responses to simulate behavior of deps without implementing them.
-	oIakCertResp                string
-	oIDevIDCertPemResp          string
+	issueOwnerIakCertResp       *IssueOwnerIakCertResp
+	issueOwnerIDevIdCertResp    *IssueOwnerIDevIdCertResp
 	getIakCertResp              *epb.GetIakCertResponse
 	rotateOIakCertResp          *epb.RotateOIakCertResponse
 	verifyIakAndIDevIDCertsResp *VerifyIakAndIDevIDCertsResp
@@ -84,42 +82,32 @@ func (s *stubEnrollzInfraDeps) VerifyTpmCert(req *VerifyTpmCertReq) (*VerifyTpmC
 	return s.verifyTpmCertResp, nil
 }
 
-func (s *stubEnrollzInfraDeps) IssueOwnerIakCert(cardID *cpb.ControlCardVendorId, iakPubPem string) (string, error) {
+func (s *stubEnrollzInfraDeps) IssueOwnerIakCert(req *IssueOwnerIakCertReq) (*IssueOwnerIakCertResp, error) {
 	// Validate that no stub (captured) request params were set prior to execution.
-	if s.cardIDIssueIakReq != nil {
-		return "", fmt.Errorf("IssueOwnerIakCert unexpected req cardID %s", prototext.Format(s.cardIDIssueIakReq))
+	if s.issueOwnerIakCertReq != nil {
+		return nil, fmt.Errorf("IssueOwnerIakCert unexpected req %+v", s.issueOwnerIakCertReq)
 	}
-	s.cardIDIssueIakReq = cardID
-
-	if s.iakPubPemReq != "" {
-		return "", fmt.Errorf("IssueOwnerIakCert unexpected req IAK pub key PEM %s", s.iakPubPemReq)
-	}
-	s.iakPubPemReq = iakPubPem
+	s.issueOwnerIakCertReq = req
 
 	// If a stubbed response is not set, then return error, otherwise return the response.
-	if s.oIakCertResp == "" {
-		return "", s.errorResp
+	if s.issueOwnerIakCertResp == nil {
+		return nil, s.errorResp
 	}
-	return s.oIakCertResp, nil
+	return s.issueOwnerIakCertResp, nil
 }
 
-func (s *stubEnrollzInfraDeps) IssueOwnerIDevIdCert(cardID *cpb.ControlCardVendorId, iDevIDPubPem string) (string, error) {
+func (s *stubEnrollzInfraDeps) IssueOwnerIDevIdCert(req *IssueOwnerIDevIdCertReq) (*IssueOwnerIDevIdCertResp, error) {
 	// Validate that no stub (captured) request params were set prior to execution.
-	if s.cardIDIssueIDevIDReq != nil {
-		return "", fmt.Errorf("IssueOwnerIDevIdCert unexpected req cardID %s", prototext.Format(s.cardIDIssueIDevIDReq))
+	if s.issueOwnerIDevIdCertReq != nil {
+		return nil, fmt.Errorf("IssueOwnerIDevIdCert unexpected req %+v", s.issueOwnerIDevIdCertReq)
 	}
-	s.cardIDIssueIDevIDReq = cardID
-
-	if s.iDevIDPubPemReq != "" {
-		return "", fmt.Errorf("IssueOwnerIDevIdCert unexpected req IDevId pub key PEM %s", s.iDevIDPubPemReq)
-	}
-	s.iDevIDPubPemReq = iDevIDPubPem
+	s.issueOwnerIDevIdCertReq = req
 
 	// If a stubbed response is not set, then return error, otherwise return the response.
-	if s.oIDevIDCertPemResp == "" {
-		return "", s.errorResp
+	if s.issueOwnerIDevIdCertResp == nil {
+		return nil, s.errorResp
 	}
-	return s.oIDevIDCertPemResp, nil
+	return s.issueOwnerIDevIdCertResp, nil
 }
 
 func (s *stubEnrollzInfraDeps) GetIakCert(req *epb.GetIakCertRequest) (*epb.GetIakCertResponse, error) {
@@ -183,22 +171,15 @@ func TestEnrollControlCard(t *testing.T) {
 		wantErrResp error
 		// Expected captured params to stubbed deps functions calls.
 		wantGetIakCertReq              *epb.GetIakCertRequest
-		wantCardIDIssueIakReq          *cpb.ControlCardVendorId
-		wantIakPubPemReq               string
-		wantCardIDIssueIDevIDReq       *cpb.ControlCardVendorId
-		wantIDevIDPubPemReq            string
+		wantIssueOwnerIakCertReq       *IssueOwnerIakCertReq
+		wantIssueOwnerIDevIdCertReq    *IssueOwnerIDevIdCertReq
 		wantRotateOIakCertReq          *epb.RotateOIakCertRequest
 		wantVerifyIakAndIDevIDCertsReq *VerifyIakAndIDevIDCertsReq
 		// Stubbed responses to EnrollzInfraDeps deps.
-		oIakCertResp                string
-		oIDevIDCertPemResp          string
-		getIakCertResp              *epb.GetIakCertResponse
-		rotateOIakCertResp          *epb.RotateOIakCertResponse
-		verifyIakAndIDevIDCertsResp *VerifyIakAndIDevIDCertsResp
-	}{
+		issueOwnerIakCertResp       *IssueOwnerIakCertResp
+		issueOwnerIDevIdCertResp    *IssueOwnerIDevIdCertResp
 		{
 			desc: "Successful control card enrollment",
-			// Stubbed deps called:
 			// * GetIakCert => Success
 			// * VerifyIakAndIDevIDCerts => Success
 			// * IssueOwnerIakCert => Success
@@ -213,9 +194,9 @@ func TestEnrollControlCard(t *testing.T) {
 				iakPubPem:    iakPub,
 				iDevIDPubPem: iDevIDCert,
 			},
-			oIakCertResp:       oIakCert,
-			oIDevIDCertPemResp: oIdevIDCert,
-			rotateOIakCertResp: &epb.RotateOIakCertResponse{},
+			issueOwnerIakCertResp:    &IssueOwnerIakCertResp{ownerIakCertPem: oIakCert},
+			issueOwnerIDevIdCertResp: &IssueOwnerIDevIdCertResp{ownerIDevIdCertPem: oIdevIdCert},
+			rotateOIakCertResp:       &epb.RotateOIakCertResponse{},
 			// Expected params to all deps functions calls.
 			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantVerifyIakAndIDevIDCertsReq: &VerifyIakAndIDevIDCertsReq{
@@ -224,10 +205,14 @@ func TestEnrollControlCard(t *testing.T) {
 				iDevIDCertPem:        iDevIDCert,
 				certVerificationOpts: certVerificationOpts,
 			},
-			wantCardIDIssueIakReq:    vendorID,
-			wantIakPubPemReq:         iakPub,
-			wantCardIDIssueIDevIDReq: vendorID,
-			wantIDevIDPubPemReq:      iDevIDCert,
+			wantIssueOwnerIakCertReq: &IssueOwnerIakCertReq{
+				cardId:    vendorId,
+				iakPubPem: iakPub,
+			},
+			wantIssueOwnerIDevIdCertReq: &IssueOwnerIDevIdCertReq{
+				cardId:       vendorId,
+				iDevIdPubPem: iDevIdPub,
+			},
 			wantRotateOIakCertReq: &epb.RotateOIakCertRequest{
 				ControlCardSelection: controlCardSelection,
 				OiakCert:             oIakCert,
@@ -283,8 +268,10 @@ func TestEnrollControlCard(t *testing.T) {
 				iDevIDCertPem:        iDevIDCert,
 				certVerificationOpts: certVerificationOpts,
 			},
-			wantCardIDIssueIakReq: vendorID,
-			wantIakPubPemReq:      iakPub,
+			wantIssueOwnerIakCertReq: &IssueOwnerIakCertReq{
+				cardId:    vendorId,
+				iakPubPem: iakPub,
+			},
 		},
 		{
 			desc:        "SwitchOwnerCaClient.IssueOwnerIDevIdCert() failure causes overall EnrollControlCard failure",
@@ -303,18 +290,22 @@ func TestEnrollControlCard(t *testing.T) {
 				iakPubPem:    iakPub,
 				iDevIDPubPem: iDevIDPub,
 			},
-			oIakCertResp:      oIakCert,
-			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
-			wantVerifyIakAndIDevIDCertsReq: &VerifyIakAndIDevIDCertsReq{
-				controlCardID:        vendorID,
+			issueOwnerIakCertResp: &IssueOwnerIakCertResp{ownerIakCertPem: oIakCert},
+			wantGetIakCertReq:     &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
+			wantVerifyIakAndIDevIdCertsReq: &VerifyIakAndIDevIdCertsReq{
+				controlCardId:        vendorId,
 				iakCertPem:           iakCert,
 				iDevIDCertPem:        iDevIDCert,
 				certVerificationOpts: certVerificationOpts,
 			},
-			wantCardIDIssueIakReq:    vendorID,
-			wantIakPubPemReq:         iakPub,
-			wantCardIDIssueIDevIDReq: vendorID,
-			wantIDevIDPubPemReq:      iDevIDPub,
+			wantIssueOwnerIakCertReq: &IssueOwnerIakCertReq{
+				cardId:    vendorId,
+				iakPubPem: iakPub,
+			},
+			wantIssueOwnerIDevIdCertReq: &IssueOwnerIDevIdCertReq{
+				cardId:       vendorId,
+				iDevIdPubPem: iDevIdPub,
+			},
 		},
 		{
 			desc:        "EnrollzDeviceClient.RotateOIakCert() failure causes overall EnrollControlCard failure",
@@ -334,19 +325,23 @@ func TestEnrollControlCard(t *testing.T) {
 				iakPubPem:    iakPub,
 				iDevIDPubPem: iDevIDPub,
 			},
-			oIakCertResp:       oIakCert,
-			oIDevIDCertPemResp: oIdevIDCert,
-			wantGetIakCertReq:  &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
-			wantVerifyIakAndIDevIDCertsReq: &VerifyIakAndIDevIDCertsReq{
-				controlCardID:        vendorID,
+			issueOwnerIakCertResp:    &IssueOwnerIakCertResp{ownerIakCertPem: oIakCert},
+			issueOwnerIDevIdCertResp: &IssueOwnerIDevIdCertResp{ownerIDevIdCertPem: oIdevIdCert},
+			wantGetIakCertReq:        &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
+			wantVerifyIakAndIDevIdCertsReq: &VerifyIakAndIDevIdCertsReq{
+				controlCardId:        vendorId,
 				iakCertPem:           iakCert,
 				iDevIDCertPem:        iDevIDCert,
 				certVerificationOpts: certVerificationOpts,
 			},
-			wantCardIDIssueIakReq:    vendorID,
-			wantIakPubPemReq:         iakPub,
-			wantCardIDIssueIDevIDReq: vendorID,
-			wantIDevIDPubPemReq:      iDevIDPub,
+			wantIssueOwnerIakCertReq: &IssueOwnerIakCertReq{
+				cardId:    vendorId,
+				iakPubPem: iakPub,
+			},
+			wantIssueOwnerIDevIdCertReq: &IssueOwnerIDevIdCertReq{
+				cardId:       vendorId,
+				iDevIdPubPem: iDevIdPub,
+			},
 			wantRotateOIakCertReq: &epb.RotateOIakCertRequest{
 				ControlCardSelection: controlCardSelection,
 				OiakCert:             oIakCert,
@@ -359,9 +354,9 @@ func TestEnrollControlCard(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			stub := &stubEnrollzInfraDeps{
 				getIakCertResp:              test.getIakCertResp,
-				verifyIakAndIDevIDCertsResp: test.verifyIakAndIDevIDCertsResp,
-				oIakCertResp:                test.oIakCertResp,
-				oIDevIDCertPemResp:          test.oIDevIDCertPemResp,
+				verifyIakAndIDevIdCertsResp: test.verifyIakAndIDevIdCertsResp,
+				issueOwnerIakCertResp:       test.issueOwnerIakCertResp,
+				issueOwnerIDevIdCertResp:    test.issueOwnerIDevIdCertResp,
 				rotateOIakCertResp:          test.rotateOIakCertResp,
 				errorResp:                   test.wantErrResp,
 			}
@@ -386,17 +381,27 @@ func TestEnrollControlCard(t *testing.T) {
 			if diff := cmp.Diff(stub.verifyIakAndIDevIDCertsReq, test.wantVerifyIakAndIDevIDCertsReq, cmp.AllowUnexported(VerifyIakAndIDevIDCertsReq{}), protocmp.Transform()); diff != "" {
 				t.Errorf("VerifyIakAndIDevIDCertsReq request param to stubbed VerifyIakAndIDevIDCerts dep does not match expectations: diff = %v", diff)
 			}
-			if diff := cmp.Diff(stub.cardIDIssueIakReq, test.wantCardIDIssueIakReq, protocmp.Transform()); diff != "" {
-				t.Errorf("ControlCardVendorID request param to stubbed IssueOwnerIakCert dep does not match expectations: diff = %v", diff)
+			// Use Comparer opt to handle "unexported" ControlCardVendorId cardId field in IssueOwnerIakCertReq.
+			if diff := cmp.Diff(stub.issueOwnerIakCertReq, test.wantIssueOwnerIakCertReq,
+				cmp.Comparer(func(x, y *IssueOwnerIakCertReq) bool {
+					if x != nil && y != nil {
+						return cmp.Equal(x.cardId, y.cardId, protocmp.Transform()) && x.iakPubPem == y.iakPubPem
+					}
+					return x == y
+				}),
+			); diff != "" {
+				t.Errorf("IssueOwnerIakCertReq request param to stubbed IssueOwnerIakCert dep does not match expectations: diff = %v", diff)
 			}
-			if diff := cmp.Diff(stub.iakPubPemReq, test.wantIakPubPemReq); diff != "" {
-				t.Errorf("iakPubPem request param to stubbed IssueOwnerIakCert dep does not match expectations: diff = %v", diff)
-			}
-			if diff := cmp.Diff(stub.cardIDIssueIDevIDReq, test.wantCardIDIssueIDevIDReq, protocmp.Transform()); diff != "" {
-				t.Errorf("ControlCardVendorID request param to stubbed IssueOwnerIDevIdCert dep does not match expectations: diff = %v", diff)
-			}
-			if diff := cmp.Diff(stub.iDevIDPubPemReq, test.wantIDevIDPubPemReq); diff != "" {
-				t.Errorf("iDevIDPubPem request param to stubbed IssueOwnerIDevIdCert dep does not match expectations: diff = %v", diff)
+			// Use Comparer opt to handle "unexported" ControlCardVendorId cardId field in IssueOwnerIDevIdCertReq.
+			if diff := cmp.Diff(stub.issueOwnerIDevIdCertReq, test.wantIssueOwnerIDevIdCertReq,
+				cmp.Comparer(func(x, y *IssueOwnerIDevIdCertReq) bool {
+					if x != nil && y != nil {
+						return cmp.Equal(x.cardId, y.cardId, protocmp.Transform()) && x.iDevIdPubPem == y.iDevIdPubPem
+					}
+					return x == y
+				}),
+			); diff != "" {
+				t.Errorf("IssueOwnerIDevIdCertReq request param to stubbed IssueOwnerIDevIdCert dep does not match expectations: diff = %v", diff)
 			}
 			if diff := cmp.Diff(stub.rotateOIakCertReq, test.wantRotateOIakCertReq, protocmp.Transform()); diff != "" {
 				t.Errorf("RotateOIakCertRequest request param to stubbed RotateOIakCert dep does not match expectations: diff = %v", diff)
@@ -434,16 +439,15 @@ func TestRotateOwnerIakCert(t *testing.T) {
 		// Overall expected RotateOwnerIakCert response.
 		wantErrResp error
 		// Expected captured params to stubbed deps functions calls.
-		wantGetIakCertReq     *epb.GetIakCertRequest
-		wantCardIDIssueIakReq *cpb.ControlCardVendorId
-		wantIakPubPemReq      string
-		wantRotateOIakCertReq *epb.RotateOIakCertRequest
-		wantVerifyTpmCertReq  *VerifyTpmCertReq
+		wantGetIakCertReq        *epb.GetIakCertRequest
+		wantIssueOwnerIakCertReq *IssueOwnerIakCertReq
+		wantRotateOIakCertReq    *epb.RotateOIakCertRequest
+		wantVerifyTpmCertReq     *VerifyTpmCertReq
 		// Stubbed responses to EnrollzInfraDeps deps.
-		oIakCertResp       string
-		getIakCertResp     *epb.GetIakCertResponse
-		rotateOIakCertResp *epb.RotateOIakCertResponse
-		verifyTpmCertResp  *VerifyTpmCertResp
+		issueOwnerIakCertResp *IssueOwnerIakCertResp
+		getIakCertResp        *epb.GetIakCertResponse
+		rotateOIakCertResp    *epb.RotateOIakCertResponse
+		verifyTpmCertResp     *VerifyTpmCertResp
 	}{
 		{
 			desc: "Successful rotation of Owner IAK cert",
@@ -459,8 +463,8 @@ func TestRotateOwnerIakCert(t *testing.T) {
 			verifyTpmCertResp: &VerifyTpmCertResp{
 				pubPem: iakPub,
 			},
-			oIakCertResp:       oIakCert,
-			rotateOIakCertResp: &epb.RotateOIakCertResponse{},
+			issueOwnerIakCertResp: &IssueOwnerIakCertResp{ownerIakCertPem: oIakCert},
+			rotateOIakCertResp:    &epb.RotateOIakCertResponse{},
 			// Expected params to all deps functions calls.
 			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantVerifyTpmCertReq: &VerifyTpmCertReq{
@@ -468,8 +472,10 @@ func TestRotateOwnerIakCert(t *testing.T) {
 				certPem:              iakCert,
 				certVerificationOpts: certVerificationOpts,
 			},
-			wantCardIDIssueIakReq: vendorID,
-			wantIakPubPemReq:      iakPub,
+			wantIssueOwnerIakCertReq: &IssueOwnerIakCertReq{
+				cardId:    vendorId,
+				iakPubPem: iakPub,
+			},
 			wantRotateOIakCertReq: &epb.RotateOIakCertRequest{
 				ControlCardSelection: controlCardSelection,
 				OiakCert:             oIakCert,
@@ -519,8 +525,10 @@ func TestRotateOwnerIakCert(t *testing.T) {
 				certPem:              iakCert,
 				certVerificationOpts: certVerificationOpts,
 			},
-			wantCardIDIssueIakReq: vendorID,
-			wantIakPubPemReq:      iakPub,
+			wantIssueOwnerIakCertReq: &IssueOwnerIakCertReq{
+				cardId:    vendorId,
+				iakPubPem: iakPub,
+			},
 		},
 		{
 			desc:        "EnrollzDeviceClient.RotateOIakCert() failure causes overall RotateOwnerIakCert failure",
@@ -537,15 +545,17 @@ func TestRotateOwnerIakCert(t *testing.T) {
 			verifyTpmCertResp: &VerifyTpmCertResp{
 				pubPem: iakPub,
 			},
-			oIakCertResp:      oIakCert,
-			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
+			issueOwnerIakCertResp: &IssueOwnerIakCertResp{ownerIakCertPem: oIakCert},
+			wantGetIakCertReq:     &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantVerifyTpmCertReq: &VerifyTpmCertReq{
 				controlCardID:        vendorID,
 				certPem:              iakCert,
 				certVerificationOpts: certVerificationOpts,
 			},
-			wantCardIDIssueIakReq: vendorID,
-			wantIakPubPemReq:      iakPub,
+			wantIssueOwnerIakCertReq: &IssueOwnerIakCertReq{
+				cardId:    vendorId,
+				iakPubPem: iakPub,
+			},
 			wantRotateOIakCertReq: &epb.RotateOIakCertRequest{
 				ControlCardSelection: controlCardSelection,
 				OiakCert:             oIakCert,
@@ -556,11 +566,11 @@ func TestRotateOwnerIakCert(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			stub := &stubEnrollzInfraDeps{
-				getIakCertResp:     test.getIakCertResp,
-				verifyTpmCertResp:  test.verifyTpmCertResp,
-				oIakCertResp:       test.oIakCertResp,
-				rotateOIakCertResp: test.rotateOIakCertResp,
-				errorResp:          test.wantErrResp,
+				getIakCertResp:        test.getIakCertResp,
+				verifyTpmCertResp:     test.verifyTpmCertResp,
+				issueOwnerIakCertResp: test.issueOwnerIakCertResp,
+				rotateOIakCertResp:    test.rotateOIakCertResp,
+				errorResp:             test.wantErrResp,
 			}
 			req := &RotateOwnerIakCertReq{
 				controlCardSelection: controlCardSelection,
@@ -583,11 +593,16 @@ func TestRotateOwnerIakCert(t *testing.T) {
 			if diff := cmp.Diff(stub.verifyTpmCertReq, test.wantVerifyTpmCertReq, cmp.AllowUnexported(VerifyTpmCertReq{}), protocmp.Transform()); diff != "" {
 				t.Errorf("VerifyTpmCertReq request param to stubbed VerifyTpmCert dep does not match expectations: diff = %v", diff)
 			}
-			if diff := cmp.Diff(stub.cardIDIssueIakReq, test.wantCardIDIssueIakReq, protocmp.Transform()); diff != "" {
-				t.Errorf("ControlCardVendorID request param to stubbed IssueOwnerIakCert dep does not match expectations: diff = %v", diff)
-			}
-			if diff := cmp.Diff(stub.iakPubPemReq, test.wantIakPubPemReq); diff != "" {
-				t.Errorf("iakPubPem request param to stubbed IssueOwnerIakCert dep does not match expectations: diff = %v", diff)
+			// Use Comparer opt to handle "unexported" ControlCardVendorId cardId field in IssueOwnerIakCertReq.
+			if diff := cmp.Diff(stub.issueOwnerIakCertReq, test.wantIssueOwnerIakCertReq,
+				cmp.Comparer(func(x, y *IssueOwnerIakCertReq) bool {
+					if x != nil && y != nil {
+						return cmp.Equal(x.cardId, y.cardId, protocmp.Transform()) && x.iakPubPem == y.iakPubPem
+					}
+					return x == y
+				}),
+			); diff != "" {
+				t.Errorf("IssueOwnerIakCertReq request param to stubbed IssueOwnerIakCert dep does not match expectations: diff = %v", diff)
 			}
 			if diff := cmp.Diff(stub.rotateOIakCertReq, test.wantRotateOIakCertReq, protocmp.Transform()); diff != "" {
 				t.Errorf("RotateOIakCertRequest request param to stubbed RotateOIakCert dep does not match expectations: diff = %v", diff)
