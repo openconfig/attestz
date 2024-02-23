@@ -27,7 +27,7 @@ import (
 	"google.golang.org/protobuf/encoding/prototext"
 )
 
-// Request to SwitchOwnerCaClient.IssueOwnerIakCert().
+// IssueOwnerIakCertReq is the request to SwitchOwnerCaClient.IssueOwnerIakCert().
 type IssueOwnerIakCertReq struct {
 	// Identity fields of a given switch control card.
 	cardId *cpb.ControlCardVendorId
@@ -35,13 +35,13 @@ type IssueOwnerIakCertReq struct {
 	iakPubPem string
 }
 
-// Response to SwitchOwnerCaClient.IssueOwnerIakCert().
+// IssueOwnerIakCertResp is the response to SwitchOwnerCaClient.IssueOwnerIakCert().
 type IssueOwnerIakCertResp struct {
 	// PEM-encoded owner IAK cert (signed by the switch owner CA).
 	ownerIakCertPem string
 }
 
-// Request to SwitchOwnerCaClient.IssueOwnerIDevIdCert().
+// IssueOwnerIDevIdCertReq is the request to SwitchOwnerCaClient.IssueOwnerIDevIdCert().
 type IssueOwnerIDevIdCertReq struct {
 	// Identity fields of a given switch control card.
 	cardId *cpb.ControlCardVendorId
@@ -49,7 +49,7 @@ type IssueOwnerIDevIdCertReq struct {
 	iDevIdPubPem string
 }
 
-// Response to SwitchOwnerCaClient.IssueOwnerIDevIdCert().
+// IssueOwnerIDevIdCertResp is the response to SwitchOwnerCaClient.IssueOwnerIDevIdCert().
 type IssueOwnerIDevIdCertResp struct {
 	// PEM-encoded owner IDevID cert (signed by the switch owner CA).
 	ownerIDevIdCertPem string
