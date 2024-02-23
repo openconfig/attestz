@@ -113,6 +113,7 @@ func EnrollControlCard(req *EnrollControlCardReq) error {
 
 	// 2. Validate and parse IDevID and IAK certs.
 	tpmCertVerifierReq := &VerifyIakAndIDevIdCertsReq{
+		controlCardId:        getIakCertResp.ControlCardId,
 		iakCertPem:           getIakCertResp.IakCert,
 		iDevIdCertPem:        getIakCertResp.IdevidCert,
 		certVerificationOpts: req.certVerificationOpts,
@@ -196,6 +197,7 @@ func RotateOwnerIakCert(req *RotateOwnerIakCertReq) error {
 
 	// 2. Validate and parse IAK cert.
 	tpmCertVerifierReq := &VerifyTpmCertReq{
+		controlCardId:        getIakCertResp.ControlCardId,
 		certPem:              getIakCertResp.IakCert,
 		certVerificationOpts: req.certVerificationOpts,
 	}
