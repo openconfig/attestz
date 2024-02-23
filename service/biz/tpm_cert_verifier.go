@@ -40,7 +40,7 @@ type VerifyIakAndIDevIDCertsReq struct {
 	iDevIDCertPem string
 }
 
-// Response from VerifyIakAndIDevIDCerts().
+// VerifyIakAndIDevIDCertsResp is the response from VerifyIakAndIDevIDCerts().
 type VerifyIakAndIDevIDCertsResp struct {
 	// PEM-encoded IAK public key.
 	iakPubPem string
@@ -48,7 +48,7 @@ type VerifyIakAndIDevIDCertsResp struct {
 	iDevIDPubPem string
 }
 
-// Request to VerifyTpmCert().
+// VerifyTpmCertReq is the request to VerifyTpmCert().
 type VerifyTpmCertReq struct {
 	// Identity fields of a given switch control card.
 	controlCardID *cpb.ControlCardVendorId
