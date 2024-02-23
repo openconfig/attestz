@@ -30,7 +30,7 @@ import (
 // IssueOwnerIakCertReq is the request to SwitchOwnerCaClient.IssueOwnerIakCert().
 type IssueOwnerIakCertReq struct {
 	// Identity fields of a given switch control card.
-	cardId *cpb.ControlCardVendorId
+	cardID *cpb.ControlCardVendorId
 	// PEM-encoded IAK public key.
 	iakPubPem string
 }
@@ -41,18 +41,18 @@ type IssueOwnerIakCertResp struct {
 	ownerIakCertPem string
 }
 
-// IssueOwnerIDevIdCertReq is the request to SwitchOwnerCaClient.IssueOwnerIDevIdCert().
-type IssueOwnerIDevIdCertReq struct {
+// IssueOwnerIDevIDCertReq is the request to SwitchOwnerCaClient.IssueOwnerIDevIDCert().
+type IssueOwnerIDevIDCertReq struct {
 	// Identity fields of a given switch control card.
-	cardId *cpb.ControlCardVendorId
+	cardID *cpb.ControlCardVendorId
 	// PEM-encoded IDevID public key.
-	iDevIdPubPem string
+	iDevIDPubPem string
 }
 
-// IssueOwnerIDevIdCertResp is the response to SwitchOwnerCaClient.IssueOwnerIDevIdCert().
-type IssueOwnerIDevIdCertResp struct {
+// IssueOwnerIDevIDCertResp is the response to SwitchOwnerCaClient.IssueOwnerIDevIDCert().
+type IssueOwnerIDevIDCertResp struct {
 	// PEM-encoded owner IDevID cert (signed by the switch owner CA).
-	ownerIDevIdCertPem string
+	ownerIDevIDCertPem string
 }
 
 // Client to communicate with the Switch Owner CA to issue oIAK and oIDevID certs.
@@ -61,7 +61,7 @@ type SwitchOwnerCaClient interface {
 	IssueOwnerIakCert(req *IssueOwnerIakCertReq) (*IssueOwnerIakCertResp, error)
 
 	// For a given switch control card ID, issue an oIDevID PEM cert based on IDevID public key PEM.
-	IssueOwnerIDevIdCert(req *IssueOwnerIDevIdCertReq) (*IssueOwnerIDevIdCertResp, error)
+	IssueOwnerIDevIDCert(req *IssueOwnerIDevIDCertReq) (*IssueOwnerIDevIDCertResp, error)
 }
 
 // EnrollzDeviceClient is a wrapper around gRPC `TpmEnrollzServiceClient` to allow callers to specify
@@ -156,7 +156,7 @@ func EnrollControlCard(req *EnrollControlCardReq) error {
 
 	// 3. Call Switch Owner CA to issue oIAK and oIDevID certs.
 	issueOwnerIakCertReq := &IssueOwnerIakCertReq{
-		cardId:    getIakCertResp.ControlCardId,
+		cardID:    getIakCertResp.ControlCardId,
 		iakPubPem: tpmCertVerifierResp.iakPubPem,
 	}
 	issueOwnerIakCertResp, err := req.deps.IssueOwnerIakCert(issueOwnerIakCertReq)
@@ -167,23 +167,23 @@ func EnrollControlCard(req *EnrollControlCardReq) error {
 	log.Infof("Successfully received Switch Owner CA IssueOwnerIakCert() resp=%s for control_card_id=%s IAK_pub_pem=%s",
 		issueOwnerIakCertResp.ownerIakCertPem, prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.iakPubPem)
 
-	issueOwnerIDevIdCertReq := &IssueOwnerIDevIdCertReq{
-		cardId:       getIakCertResp.ControlCardId,
-		iDevIdPubPem: tpmCertVerifierResp.iDevIdPubPem,
+	issueOwnerIDevIdCertReq := &IssueOwnerIDevIDCertReq{
+		cardID:       getIakCertResp.ControlCardId,
+		iDevIDPubPem: tpmCertVerifierResp.iDevIDPubPem,
 	}
-	issueOwnerIDevIdCertResp, err := req.deps.IssueOwnerIDevIdCert(issueOwnerIDevIdCertReq)
+	issueOwnerIDevIdCertResp, err := req.deps.IssueOwnerIDevIDCert(issueOwnerIDevIdCertReq)
 	if err != nil {
 		return fmt.Errorf("failed to execute Switch Owner CA IssueOwnerIDevIDCert() with control_card_id=%s IDevID_pub_pem=%s: %w",
 			prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.iDevIDPubPem, err)
 	}
 	log.Infof("Successfully received Switch Owner CA IssueOwnerIDevIdCert() resp=%s for control_card_id=%s IDevID_pub_pem=%s",
-		issueOwnerIDevIdCertResp.ownerIDevIdCertPem, prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.iDevIdPubPem)
+		issueOwnerIDevIdCertResp.ownerIDevIDCertPem, prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.iDevIDPubPem)
 
 	// 4. Call device's RotateOIakCert for the specified card card to persist oIAK and oIDevID certs.
 	rotateOIakCertReq := &epb.RotateOIakCertRequest{
 		ControlCardSelection: req.controlCardSelection,
 		OiakCert:             issueOwnerIakCertResp.ownerIakCertPem,
-		OidevidCert:          issueOwnerIDevIdCertResp.ownerIDevIdCertPem,
+		OidevidCert:          issueOwnerIDevIdCertResp.ownerIDevIDCertPem,
 	}
 	rotateOIakCertResp, err := req.deps.RotateOIakCert(rotateOIakCertReq)
 	if err != nil {
@@ -247,7 +247,7 @@ func RotateOwnerIakCert(req *RotateOwnerIakCertReq) error {
 
 	// 3. Call Switch Owner CA to issue a new oIAK cert.
 	issueOwnerIakCertReq := &IssueOwnerIakCertReq{
-		cardId:    getIakCertResp.ControlCardId,
+		cardID:    getIakCertResp.ControlCardId,
 		iakPubPem: tpmCertVerifierResp.pubPem,
 	}
 	issueOwnerIakCertResp, err := req.deps.IssueOwnerIakCert(issueOwnerIakCertReq)
