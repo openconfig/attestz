@@ -84,12 +84,12 @@ func (s *stubEnrollzInfraDeps) VerifyTpmCert(req *VerifyTpmCertReq) (*VerifyTpmC
 	return s.verifyTpmCertResp, nil
 }
 
-func (s *stubEnrollzInfraDeps) IssueOwnerIakCert(cardId *cpb.ControlCardVendorId, iakPubPem string) (string, error) {
+func (s *stubEnrollzInfraDeps) IssueOwnerIakCert(cardID *cpb.ControlCardVendorId, iakPubPem string) (string, error) {
 	// Validate that no stub (captured) request params were set prior to execution.
 	if s.cardIDIssueIakReq != nil {
-		return "", fmt.Errorf("IssueOwnerIakCert unexpected req cardId %s", prototext.Format(s.cardIDIssueIakReq))
+		return "", fmt.Errorf("IssueOwnerIakCert unexpected req cardID %s", prototext.Format(s.cardIDIssueIakReq))
 	}
-	s.cardIDIssueIakReq = cardId
+	s.cardIDIssueIakReq = cardID
 
 	if s.iakPubPemReq != "" {
 		return "", fmt.Errorf("IssueOwnerIakCert unexpected req IAK pub key PEM %s", s.iakPubPemReq)
@@ -103,12 +103,12 @@ func (s *stubEnrollzInfraDeps) IssueOwnerIakCert(cardId *cpb.ControlCardVendorId
 	return s.oIakCertResp, nil
 }
 
-func (s *stubEnrollzInfraDeps) IssueOwnerIDevIdCert(cardId *cpb.ControlCardVendorId, iDevIDPubPem string) (string, error) {
+func (s *stubEnrollzInfraDeps) IssueOwnerIDevIdCert(cardID *cpb.ControlCardVendorId, iDevIDPubPem string) (string, error) {
 	// Validate that no stub (captured) request params were set prior to execution.
 	if s.cardIDIssueIDevIDReq != nil {
-		return "", fmt.Errorf("IssueOwnerIDevIdCert unexpected req cardId %s", prototext.Format(s.cardIDIssueIDevIDReq))
+		return "", fmt.Errorf("IssueOwnerIDevIdCert unexpected req cardID %s", prototext.Format(s.cardIDIssueIDevIDReq))
 	}
-	s.cardIDIssueIDevIDReq = cardId
+	s.cardIDIssueIDevIDReq = cardID
 
 	if s.iDevIDPubPemReq != "" {
 		return "", fmt.Errorf("IssueOwnerIDevIdCert unexpected req IDevId pub key PEM %s", s.iDevIDPubPemReq)
