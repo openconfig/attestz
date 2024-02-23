@@ -167,24 +167,24 @@ func EnrollControlCard(req *EnrollControlCardReq) error {
 	log.Infof("Successfully received Switch Owner CA IssueOwnerIakCert() resp=%s for control_card_id=%s IAK_pub_pem=%s",
 		issueOwnerIakCertResp.ownerIakCertPem, prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.iakPubPem)
 
-	issueOwnerIDevIdCertReq := &IssueOwnerIDevIDCertReq{
+	issueOwnerIDevIDCertReq := &IssueOwnerIDevIDCertReq{
 		cardID:       getIakCertResp.ControlCardId,
 		iDevIDPubPem: tpmCertVerifierResp.iDevIDPubPem,
 	}
-	issueOwnerIDevIdCertResp, err := req.deps.IssueOwnerIDevIDCert(issueOwnerIDevIdCertReq)
- 
+	issueOwnerIDevIDCertResp, err := req.deps.IssueOwnerIDevIDCert(issueOwnerIDevIDCertReq)
+
 	if err != nil {
 		return fmt.Errorf("failed to execute Switch Owner CA IssueOwnerIDevIDCert() with control_card_id=%s IDevID_pub_pem=%s: %w",
 			prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.iDevIDPubPem, err)
 	}
-	log.Infof("Successfully received Switch Owner CA IssueOwnerIDevIdCert() resp=%s for control_card_id=%s IDevID_pub_pem=%s",
-		issueOwnerIDevIdCertResp.ownerIDevIDCertPem, prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.iDevIDPubPem)
+	log.Infof("Successfully received Switch Owner CA IssueOwnerIDevIDCert() resp=%s for control_card_id=%s IDevID_pub_pem=%s",
+		issueOwnerIDevIDCertResp.ownerIDevIDCertPem, prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.iDevIDPubPem)
 
 	// 4. Call device's RotateOIakCert for the specified card card to persist oIAK and oIDevID certs.
 	rotateOIakCertReq := &epb.RotateOIakCertRequest{
 		ControlCardSelection: req.controlCardSelection,
 		OiakCert:             issueOwnerIakCertResp.ownerIakCertPem,
-		OidevidCert:          issueOwnerIDevIdCertResp.ownerIDevIDCertPem,
+		OidevidCert:          issueOwnerIDevIDCertResp.ownerIDevIDCertPem,
 	}
 	rotateOIakCertResp, err := req.deps.RotateOIakCert(rotateOIakCertReq)
 	if err != nil {
