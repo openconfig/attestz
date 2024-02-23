@@ -88,7 +88,6 @@ func (s *stubEnrollzInfraDeps) IssueOwnerIakCert(req *IssueOwnerIakCertReq) (*Is
 		return nil, fmt.Errorf("IssueOwnerIakCert unexpected req %+v", s.issueOwnerIakCertReq)
 	}
 	s.issueOwnerIakCertReq = req
-
 	// If a stubbed response is not set, then return error, otherwise return the response.
 	if s.issueOwnerIakCertResp == nil {
 		return nil, s.errorResp
@@ -102,7 +101,6 @@ func (s *stubEnrollzInfraDeps) IssueOwnerIDevIdCert(req *IssueOwnerIDevIdCertReq
 		return nil, fmt.Errorf("IssueOwnerIDevIdCert unexpected req %+v", s.issueOwnerIDevIdCertReq)
 	}
 	s.issueOwnerIDevIdCertReq = req
-
 	// If a stubbed response is not set, then return error, otherwise return the response.
 	if s.issueOwnerIDevIdCertResp == nil {
 		return nil, s.errorResp
@@ -216,93 +214,93 @@ func TestEnrollControlCard(t *testing.T) {
 			wantIssueOwnerIDevIdCertReq: &IssueOwnerIDevIdCertReq{
 				iDevIdPubPem: iDevIdPub,
 			},
-		{
-			desc:        "EnrollzDeviceClient.GetIakCert() failure causes overall EnrollControlCard failure",
-			wantErrResp: errorResp,
-			// Stubbed deps called:
-			// * GetIakCert => Fail
-			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
-		},
-		{
-			desc:        "TpmCertVerifier.VerifyIakAndIDevIDCerts() failure causes overall EnrollControlCard failure",
-			wantErrResp: errorResp,
-			// Stubbed deps called:
-			// * GetIakCert => Success
-			// * VerifyIakAndIDevIDCerts => Fail
-			getIakCertResp: &epb.GetIakCertResponse{
-				ControlCardId: vendorID,
-				IakCert:       iakCert,
-				IdevidCert:    iDevIDCert,
+			{
+				desc:        "EnrollzDeviceClient.GetIakCert() failure causes overall EnrollControlCard failure",
+				wantErrResp: errorResp,
+				// Stubbed deps called:
+				// * GetIakCert => Fail
+				wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			},
-			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
-			wantVerifyIakAndIDevIDCertsReq: &VerifyIakAndIDevIDCertsReq{
-				controlCardID:        vendorID,
-				iakCertPem:           iakCert,
-				iDevIDCertPem:        iDevIDCert,
-				certVerificationOpts: certVerificationOpts,
+			{
+				desc:        "TpmCertVerifier.VerifyIakAndIDevIDCerts() failure causes overall EnrollControlCard failure",
+				wantErrResp: errorResp,
+				// Stubbed deps called:
+				// * GetIakCert => Success
+				// * VerifyIakAndIDevIDCerts => Fail
+				getIakCertResp: &epb.GetIakCertResponse{
+					ControlCardId: vendorID,
+					IakCert:       iakCert,
+					IdevidCert:    iDevIDCert,
+				},
+				wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
+				wantVerifyIakAndIDevIDCertsReq: &VerifyIakAndIDevIDCertsReq{
+					controlCardID:        vendorID,
+					iakCertPem:           iakCert,
+					iDevIDCertPem:        iDevIDCert,
+					certVerificationOpts: certVerificationOpts,
+				},
 			},
-		},
-		{
-			desc:        "SwitchOwnerCaClient.IssueOwnerIakCert() failure causes overall EnrollControlCard failure",
-			wantErrResp: errorResp,
-			// Stubbed deps called:
-			// * GetIakCert => Success
-			// * VerifyIakAndIDevIDCerts => Success
-			// * IssueOwnerIakCert => Fail
-			getIakCertResp: &epb.GetIakCertResponse{
-				ControlCardId: vendorID,
-				IakCert:       iakCert,
-				IdevidCert:    iDevIDCert,
+			{
+				desc:        "SwitchOwnerCaClient.IssueOwnerIakCert() failure causes overall EnrollControlCard failure",
+				wantErrResp: errorResp,
+				// Stubbed deps called:
+				// * GetIakCert => Success
+				// * VerifyIakAndIDevIDCerts => Success
+				// * IssueOwnerIakCert => Fail
+				getIakCertResp: &epb.GetIakCertResponse{
+					ControlCardId: vendorID,
+					IakCert:       iakCert,
+					IdevidCert:    iDevIDCert,
+				},
+				verifyIakAndIDevIDCertsResp: &VerifyIakAndIDevIDCertsResp{
+					iakPubPem:    iakPub,
+					iDevIDPubPem: iDevIDCert,
+				},
+				wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
+				wantVerifyIakAndIDevIDCertsReq: &VerifyIakAndIDevIDCertsReq{
+					controlCardID:        vendorID,
+					iakCertPem:           iakCert,
+					iDevIDCertPem:        iDevIDCert,
+					certVerificationOpts: certVerificationOpts,
+				},
+				wantIssueOwnerIakCertReq: &IssueOwnerIakCertReq{
+					cardId:    vendorId,
+					iakPubPem: iakPub,
+				},
 			},
-			verifyIakAndIDevIDCertsResp: &VerifyIakAndIDevIDCertsResp{
-				iakPubPem:    iakPub,
-				iDevIDPubPem: iDevIDCert,
+			{
+				desc:        "SwitchOwnerCaClient.IssueOwnerIDevIdCert() failure causes overall EnrollControlCard failure",
+				wantErrResp: errorResp,
+				// Stubbed deps called:
+				// * GetIakCert => Success
+				// * VerifyIakAndIDevIDCerts => Success
+				// * IssueOwnerIakCert => Success
+				// * IssueOwnerIDevIdCert => Fail
+				getIakCertResp: &epb.GetIakCertResponse{
+					ControlCardId: vendorID,
+					IakCert:       iakCert,
+					IdevidCert:    iDevIDCert,
+				},
+				verifyIakAndIDevIDCertsResp: &VerifyIakAndIDevIDCertsResp{
+					iakPubPem:    iakPub,
+					iDevIDPubPem: iDevIDPub,
+				},
+				issueOwnerIakCertResp: &IssueOwnerIakCertResp{ownerIakCertPem: oIakCert},
+				wantGetIakCertReq:     &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
+				wantVerifyIakAndIDevIdCertsReq: &VerifyIakAndIDevIdCertsReq{
+					controlCardId:        vendorId,
+					iakCertPem:           iakCert,
+					iDevIDCertPem:        iDevIDCert,
+					certVerificationOpts: certVerificationOpts,
+				},
+				wantIssueOwnerIakCertReq: &IssueOwnerIakCertReq{
+					cardId:    vendorId,
+					iakPubPem: iakPub,
+				},
+				wantIssueOwnerIDevIdCertReq: &IssueOwnerIDevIdCertReq{
+					cardId: vendorId,
+				},
 			},
-			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
-			wantVerifyIakAndIDevIDCertsReq: &VerifyIakAndIDevIDCertsReq{
-				controlCardID:        vendorID,
-				iakCertPem:           iakCert,
-				iDevIDCertPem:        iDevIDCert,
-				certVerificationOpts: certVerificationOpts,
-			},
-			wantIssueOwnerIakCertReq: &IssueOwnerIakCertReq{
-				cardId:    vendorId,
-				iakPubPem: iakPub,
-			},
-		},
-		{
-			desc:        "SwitchOwnerCaClient.IssueOwnerIDevIdCert() failure causes overall EnrollControlCard failure",
-			wantErrResp: errorResp,
-			// Stubbed deps called:
-			// * GetIakCert => Success
-			// * VerifyIakAndIDevIDCerts => Success
-			// * IssueOwnerIakCert => Success
-			// * IssueOwnerIDevIdCert => Fail
-			getIakCertResp: &epb.GetIakCertResponse{
-				ControlCardId: vendorID,
-				IakCert:       iakCert,
-				IdevidCert:    iDevIDCert,
-			},
-			verifyIakAndIDevIDCertsResp: &VerifyIakAndIDevIDCertsResp{
-				iakPubPem:    iakPub,
-				iDevIDPubPem: iDevIDPub,
-			},
-			issueOwnerIakCertResp: &IssueOwnerIakCertResp{ownerIakCertPem: oIakCert},
-			wantGetIakCertReq:     &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
-			wantVerifyIakAndIDevIdCertsReq: &VerifyIakAndIDevIdCertsReq{
-				controlCardId:        vendorId,
-				iakCertPem:           iakCert,
-				iDevIDCertPem:        iDevIDCert,
-				certVerificationOpts: certVerificationOpts,
-			},
-			wantIssueOwnerIakCertReq: &IssueOwnerIakCertReq{
-				cardId:    vendorId,
-				iakPubPem: iakPub,
-			},
-			wantIssueOwnerIDevIdCertReq: &IssueOwnerIDevIdCertReq{
-				cardId:       vendorId,
-			},
-		},
 			// * IssueOwnerIakCert => Success
 			// * IssueOwnerIDevIdCert => Success
 			// * RotateOIakCert => Fail
