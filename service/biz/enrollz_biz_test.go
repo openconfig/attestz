@@ -219,6 +219,7 @@ func TestEnrollControlCard(t *testing.T) {
 			// Expected params to all deps functions calls.
 			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantVerifyIakAndIDevIdCertsReq: &VerifyIakAndIDevIdCertsReq{
+				controlCardId:        vendorId,
 				iakCertPem:           iakCert,
 				iDevIdCertPem:        iDevIdCert,
 				certVerificationOpts: certVerificationOpts,
@@ -253,6 +254,7 @@ func TestEnrollControlCard(t *testing.T) {
 			},
 			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantVerifyIakAndIDevIdCertsReq: &VerifyIakAndIDevIdCertsReq{
+				controlCardId:        vendorId,
 				iakCertPem:           iakCert,
 				iDevIdCertPem:        iDevIdCert,
 				certVerificationOpts: certVerificationOpts,
@@ -276,6 +278,7 @@ func TestEnrollControlCard(t *testing.T) {
 			},
 			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantVerifyIakAndIDevIdCertsReq: &VerifyIakAndIDevIdCertsReq{
+				controlCardId:        vendorId,
 				iakCertPem:           iakCert,
 				iDevIdCertPem:        iDevIdCert,
 				certVerificationOpts: certVerificationOpts,
@@ -303,6 +306,7 @@ func TestEnrollControlCard(t *testing.T) {
 			oIakCertResp:      oIakCert,
 			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantVerifyIakAndIDevIdCertsReq: &VerifyIakAndIDevIdCertsReq{
+				controlCardId:        vendorId,
 				iakCertPem:           iakCert,
 				iDevIdCertPem:        iDevIdCert,
 				certVerificationOpts: certVerificationOpts,
@@ -334,6 +338,7 @@ func TestEnrollControlCard(t *testing.T) {
 			oIDevIdCertPemResp: oIdevIdCert,
 			wantGetIakCertReq:  &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantVerifyIakAndIDevIdCertsReq: &VerifyIakAndIDevIdCertsReq{
+				controlCardId:        vendorId,
 				iakCertPem:           iakCert,
 				iDevIdCertPem:        iDevIdCert,
 				certVerificationOpts: certVerificationOpts,
@@ -378,7 +383,7 @@ func TestEnrollControlCard(t *testing.T) {
 			if diff := cmp.Diff(stub.getIakCertReq, test.wantGetIakCertReq, protocmp.Transform()); diff != "" {
 				t.Errorf("GetIakCertRequest request param to stubbed GetIakCert dep does not match expectations: diff = %v", diff)
 			}
-			if diff := cmp.Diff(stub.verifyIakAndIDevIdCertsReq, test.wantVerifyIakAndIDevIdCertsReq, cmp.AllowUnexported(VerifyIakAndIDevIdCertsReq{})); diff != "" {
+			if diff := cmp.Diff(stub.verifyIakAndIDevIdCertsReq, test.wantVerifyIakAndIDevIdCertsReq, cmp.AllowUnexported(VerifyIakAndIDevIdCertsReq{}), protocmp.Transform()); diff != "" {
 				t.Errorf("VerifyIakAndIDevIdCertsReq request param to stubbed VerifyIakAndIDevIdCerts dep does not match expectations: diff = %v", diff)
 			}
 			if diff := cmp.Diff(stub.cardIdIssueIakReq, test.wantCardIdIssueIakReq, protocmp.Transform()); diff != "" {
@@ -459,6 +464,7 @@ func TestRotateOwnerIakCert(t *testing.T) {
 			// Expected params to all deps functions calls.
 			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantVerifyTpmCertReq: &VerifyTpmCertReq{
+				controlCardId:        vendorId,
 				certPem:              iakCert,
 				certVerificationOpts: certVerificationOpts,
 			},
@@ -488,6 +494,7 @@ func TestRotateOwnerIakCert(t *testing.T) {
 			},
 			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantVerifyTpmCertReq: &VerifyTpmCertReq{
+				controlCardId:        vendorId,
 				certPem:              iakCert,
 				certVerificationOpts: certVerificationOpts,
 			},
@@ -508,6 +515,7 @@ func TestRotateOwnerIakCert(t *testing.T) {
 			},
 			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantVerifyTpmCertReq: &VerifyTpmCertReq{
+				controlCardId:        vendorId,
 				certPem:              iakCert,
 				certVerificationOpts: certVerificationOpts,
 			},
@@ -532,6 +540,7 @@ func TestRotateOwnerIakCert(t *testing.T) {
 			oIakCertResp:      oIakCert,
 			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantVerifyTpmCertReq: &VerifyTpmCertReq{
+				controlCardId:        vendorId,
 				certPem:              iakCert,
 				certVerificationOpts: certVerificationOpts,
 			},
@@ -571,7 +580,7 @@ func TestRotateOwnerIakCert(t *testing.T) {
 			if diff := cmp.Diff(stub.getIakCertReq, test.wantGetIakCertReq, protocmp.Transform()); diff != "" {
 				t.Errorf("GetIakCertRequest request param to stubbed GetIakCert dep does not match expectations: diff = %v", diff)
 			}
-			if diff := cmp.Diff(stub.verifyTpmCertReq, test.wantVerifyTpmCertReq, cmp.AllowUnexported(VerifyTpmCertReq{})); diff != "" {
+			if diff := cmp.Diff(stub.verifyTpmCertReq, test.wantVerifyTpmCertReq, cmp.AllowUnexported(VerifyTpmCertReq{}), protocmp.Transform()); diff != "" {
 				t.Errorf("VerifyTpmCertReq request param to stubbed VerifyTpmCert dep does not match expectations: diff = %v", diff)
 			}
 			if diff := cmp.Diff(stub.cardIdIssueIakReq, test.wantCardIdIssueIakReq, protocmp.Transform()); diff != "" {

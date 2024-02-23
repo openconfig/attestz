@@ -25,10 +25,13 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	log "github.com/golang/glog"
+	cpb "github.com/openconfig/attestz/proto/common_definitions"
 )
 
 // Request to VerifyIakAndIDevIdCerts().
 type VerifyIakAndIDevIdCertsReq struct {
+	// Identity fields of a given switch control card.
+	controlCardId *cpb.ControlCardVendorId
 	// Verification options for IAK and IDevID certs.
 	certVerificationOpts x509.VerifyOptions
 	// PEM-encoded IAK x509 attestation cert.
@@ -47,6 +50,8 @@ type VerifyIakAndIDevIdCertsResp struct {
 
 // Request to VerifyTpmCert().
 type VerifyTpmCertReq struct {
+	// Identity fields of a given switch control card.
+	controlCardId *cpb.ControlCardVendorId
 	// Verification options for a TPM-based cert such as IAK or IDevID.
 	certVerificationOpts x509.VerifyOptions
 	// PEM-encoded x509 attestation IAK or TLS IDevID cert.
@@ -95,6 +100,12 @@ func VerifyIakAndIDevIdCerts(req *VerifyIakAndIDevIdCertsReq) (*VerifyIakAndIDev
 	}
 	log.Infof("Subject serial numbers of IAK and IDevID certs match: %s", iakX509.Subject.SerialNumber)
 
+	// Verify IAK/IDevID cert subject serial and expected control card serial numbers match.
+	if diff := cmp.Diff(iakX509.Subject.SerialNumber, req.controlCardId.ControlCardSerial); diff != "" {
+		return nil, fmt.Errorf("subject serial number in IAK/IDevID cert and expected control card serial from request do not match: diff = %v", diff)
+	}
+	log.Infof("Subject serial number in IAK/IDevID cert and expected control card serial from request match: %s", iakX509.Subject.SerialNumber)
+
 	// Verify and convert IAK and IDevID certs' pub keys to PEM.
 	iakPubPem, err := VerifyAndSerializePubKey(iakX509)
 	if err != nil {
@@ -121,6 +132,12 @@ func VerifyTpmCert(req *VerifyTpmCertReq) (*VerifyTpmCertResp, error) {
 		return nil, fmt.Errorf("failed to verify and parse PEM cert: %v", err)
 	}
 	log.Info("Successfully verified and parsed PEM cert into x509 structure")
+
+	// Verify IAK/IDevID cert subject serial and expected control card serial numbers match.
+	if diff := cmp.Diff(certX509.Subject.SerialNumber, req.controlCardId.ControlCardSerial); diff != "" {
+		return nil, fmt.Errorf("subject serial number in IAK/IDevID cert and expected control card serial from request do not match: diff = %v", diff)
+	}
+	log.Infof("Subject serial number in IAK/IDevID cert and expected control card serial from request match: %s", certX509.Subject.SerialNumber)
 
 	// Verify and convert x509 cert pub key to PEM.
 	pubKeyPem, err := VerifyAndSerializePubKey(certX509)
