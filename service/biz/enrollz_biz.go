@@ -55,7 +55,8 @@ type IssueOwnerIDevIDCertResp struct {
 	ownerIDevIDCertPem string
 }
 
-// Client to communicate with the Switch Owner CA to issue oIAK and oIDevID certs.
+// SwitchOwnerCaClient is the client to communicate with the Switch Owner CA to issue oIAK and oIDevID
+// certs.
 type SwitchOwnerCaClient interface {
 	// For a given switch control card ID, issue an oIAK PEM cert based on IAK public key PEM.
 	IssueOwnerIakCert(req *IssueOwnerIakCertReq) (*IssueOwnerIakCertResp, error)
