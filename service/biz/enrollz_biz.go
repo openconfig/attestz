@@ -172,6 +172,7 @@ func EnrollControlCard(req *EnrollControlCardReq) error {
 		iDevIDPubPem: tpmCertVerifierResp.iDevIDPubPem,
 	}
 	issueOwnerIDevIdCertResp, err := req.deps.IssueOwnerIDevIDCert(issueOwnerIDevIdCertReq)
+ 
 	if err != nil {
 		return fmt.Errorf("failed to execute Switch Owner CA IssueOwnerIDevIDCert() with control_card_id=%s IDevID_pub_pem=%s: %w",
 			prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.iDevIDPubPem, err)
