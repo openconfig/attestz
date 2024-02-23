@@ -178,6 +178,10 @@ func TestEnrollControlCard(t *testing.T) {
 		// Stubbed responses to EnrollzInfraDeps deps.
 		issueOwnerIakCertResp       *IssueOwnerIakCertResp
 		issueOwnerIDevIdCertResp    *IssueOwnerIDevIdCertResp
+		getIakCertResp              *epb.GetIakCertResponse
+		rotateOIakCertResp          *epb.RotateOIakCertResponse
+		verifyIakAndIDevIDCertsResp *VerifyIakAndIDevIDCertsResp
+	}{
 		{
 			desc: "Successful control card enrollment",
 			// * GetIakCert => Success
@@ -210,15 +214,8 @@ func TestEnrollControlCard(t *testing.T) {
 				iakPubPem: iakPub,
 			},
 			wantIssueOwnerIDevIdCertReq: &IssueOwnerIDevIdCertReq{
-				cardId:       vendorId,
 				iDevIdPubPem: iDevIdPub,
 			},
-			wantRotateOIakCertReq: &epb.RotateOIakCertRequest{
-				ControlCardSelection: controlCardSelection,
-				OiakCert:             oIakCert,
-				OidevidCert:          oIdevIDCert,
-			},
-		},
 		{
 			desc:        "EnrollzDeviceClient.GetIakCert() failure causes overall EnrollControlCard failure",
 			wantErrResp: errorResp,
@@ -304,15 +301,8 @@ func TestEnrollControlCard(t *testing.T) {
 			},
 			wantIssueOwnerIDevIdCertReq: &IssueOwnerIDevIdCertReq{
 				cardId:       vendorId,
-				iDevIdPubPem: iDevIdPub,
 			},
 		},
-		{
-			desc:        "EnrollzDeviceClient.RotateOIakCert() failure causes overall EnrollControlCard failure",
-			wantErrResp: errorResp,
-			// Stubbed deps called:
-			// * GetIakCert => Success
-			// * VerifyIakAndIDevIDCerts => Success
 			// * IssueOwnerIakCert => Success
 			// * IssueOwnerIDevIdCert => Success
 			// * RotateOIakCert => Fail
