@@ -34,14 +34,14 @@ import (
 	cpb "github.com/openconfig/attestz/proto/common_definitions"
 )
 
-type CaCert struct {
+type caCert struct {
 	certX509 *x509.Certificate
 	certPem  string
 	privKey  any
 }
 
 // Simulates simplified switch vendor CA cert.
-func generateCaCert() (*CaCert, error) {
+func generateCaCert() (*caCert, error) {
 	certSerial, err := rand.Int(rand.Reader, big.NewInt(100000))
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate rand int for cert serial: %v", err)
@@ -75,32 +75,32 @@ func generateCaCert() (*CaCert, error) {
 		return nil, fmt.Errorf("failed to encode DER cert to PEM: %v", err)
 	}
 
-	return &CaCert{
+	return &caCert{
 		certX509: certX509,
 		certPem:  certPem.String(),
 		privKey:  privKey,
 	}, nil
 }
 
-type SignedTpmCert struct {
+type signedTpmCert struct {
 	certPem   string
 	pubKeyPem string
 }
 
-type AsymAlgo int
+type asymAlgo int
 
 const (
-	Rsa4096 AsymAlgo = iota
-	Rsa2048
-	Rsa1024
-	EccP521
-	EccP384
-	EccP256
-	Ed25519
+	rsa4096Algo asymAlgo = iota
+	rsa2048Algo
+	rsa1024Algo
+	eccP521Algo
+	eccP384Algo
+	eccP256Algo
+	ed25519Algo
 )
 
-type CertCreationParams struct {
-	asymAlgo          AsymAlgo
+type certCreationParams struct {
+	asymAlgo          asymAlgo
 	certSubjectSerial string
 	signingCert       *x509.Certificate
 	signingPrivKey    any
@@ -109,7 +109,7 @@ type CertCreationParams struct {
 }
 
 // Simulates simplified switch's IAK or IDevID certs.
-func generateSignedCert(params *CertCreationParams) (*SignedTpmCert, error) {
+func generateSignedCert(params *certCreationParams) (*signedTpmCert, error) {
 	// Cert serial (different form cert *subject* serial number).
 	certSerial, err := rand.Int(rand.Reader, big.NewInt(100000))
 	if err != nil {
@@ -126,37 +126,37 @@ func generateSignedCert(params *CertCreationParams) (*SignedTpmCert, error) {
 
 	var certPubKey any
 	switch params.asymAlgo {
-	case Rsa4096:
+	case rsa4096Algo:
 		certPrivKey, err := rsa.GenerateKey(rand.Reader, 4096)
 		if err == nil {
 			certPubKey = &certPrivKey.PublicKey
 		}
-	case Rsa2048:
+	case rsa2048Algo:
 		certPrivKey, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err == nil {
 			certPubKey = &certPrivKey.PublicKey
 		}
-	case Rsa1024:
+	case rsa1024Algo:
 		certPrivKey, err := rsa.GenerateKey(rand.Reader, 1024)
 		if err == nil {
 			certPubKey = &certPrivKey.PublicKey
 		}
-	case EccP256:
+	case eccP256Algo:
 		certPrivKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		if err == nil {
 			certPubKey = &certPrivKey.PublicKey
 		}
-	case EccP384:
+	case eccP384Algo:
 		certPrivKey, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 		if err == nil {
 			certPubKey = &certPrivKey.PublicKey
 		}
-	case EccP521:
+	case eccP521Algo:
 		certPrivKey, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 		if err == nil {
 			certPubKey = &certPrivKey.PublicKey
 		}
-	case Ed25519:
+	case ed25519Algo:
 		certPubKey, _, err = ed25519.GenerateKey(rand.Reader)
 	default:
 		return nil, fmt.Errorf("unrecognized asymmetric algo: %d", params.asymAlgo)
@@ -194,7 +194,7 @@ func generateSignedCert(params *CertCreationParams) (*SignedTpmCert, error) {
 		return nil, fmt.Errorf("failed to encode pub key DER to PEM: %v", err)
 	}
 
-	return &SignedTpmCert{
+	return &signedTpmCert{
 		certPem:   certPem.String(),
 		pubKeyPem: pubKeyPem.String(),
 	}, nil
@@ -225,12 +225,12 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 
 		cardID *cpb.ControlCardVendorId
 
-		iakCertAsymAlgo      AsymAlgo
+		iakCertAsymAlgo      asymAlgo
 		iakCertSubjectSerial string
 		iakCertNotBefore     time.Time
 		iakCertNotAfter      time.Time
 
-		iDevIDCertAsymAlgo      AsymAlgo
+		iDevIDCertAsymAlgo      asymAlgo
 		iDevIDCertSubjectSerial string
 		iDevIDCertNotBefore     time.Time
 		iDevIDCertNotAfter      time.Time
@@ -250,12 +250,12 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 
 			cardID: cardID,
 
-			iakCertAsymAlgo:      Rsa4096,
+			iakCertAsymAlgo:      rsa4096Algo,
 			iakCertSubjectSerial: cardSerial,
 			iakCertNotBefore:     time.Now(),
 			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
 
-			iDevIDCertAsymAlgo:      EccP384,
+			iDevIDCertAsymAlgo:      eccP384Algo,
 			iDevIDCertSubjectSerial: cardSerial,
 			iDevIDCertNotBefore:     time.Now(),
 			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
@@ -267,12 +267,12 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 
 			cardID: cardID,
 
-			iakCertAsymAlgo:      EccP521,
+			iakCertAsymAlgo:      eccP521Algo,
 			iakCertSubjectSerial: cardSerial,
 			iakCertNotBefore:     time.Now(),
 			iakCertNotAfter:      time.Now().AddDate(0, 1, 0),
 
-			iDevIDCertAsymAlgo:      Rsa2048,
+			iDevIDCertAsymAlgo:      rsa2048Algo,
 			iDevIDCertSubjectSerial: cardSerial,
 			iDevIDCertNotBefore:     time.Now(),
 			iDevIDCertNotAfter:      time.Now().AddDate(0, 0, 10),
@@ -284,12 +284,12 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 
 			cardID: cardID,
 
-			iakCertAsymAlgo:      Ed25519,
+			iakCertAsymAlgo:      ed25519Algo,
 			iakCertSubjectSerial: cardSerial,
 			iakCertNotBefore:     time.Now(),
 			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
 
-			iDevIDCertAsymAlgo:      EccP384,
+			iDevIDCertAsymAlgo:      eccP384Algo,
 			iDevIDCertSubjectSerial: cardSerial,
 			iDevIDCertNotBefore:     time.Now(),
 			iDevIDCertNotAfter:      time.Now().AddDate(0, 0, 10),
@@ -301,12 +301,12 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 
 			cardID: cardID,
 
-			iakCertAsymAlgo:      EccP384,
+			iakCertAsymAlgo:      eccP384Algo,
 			iakCertSubjectSerial: cardSerial,
 			iakCertNotBefore:     time.Now(),
 			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
 
-			iDevIDCertAsymAlgo:      Ed25519,
+			iDevIDCertAsymAlgo:      ed25519Algo,
 			iDevIDCertSubjectSerial: cardSerial,
 			iDevIDCertNotBefore:     time.Now(),
 			iDevIDCertNotAfter:      time.Now().AddDate(0, 0, 10),
@@ -318,12 +318,12 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 
 			cardID: cardID,
 
-			iakCertAsymAlgo:      Rsa1024,
+			iakCertAsymAlgo:      rsa1024Algo,
 			iakCertSubjectSerial: cardSerial,
 			iakCertNotBefore:     time.Now(),
 			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
 
-			iDevIDCertAsymAlgo:      EccP384,
+			iDevIDCertAsymAlgo:      eccP384Algo,
 			iDevIDCertSubjectSerial: cardSerial,
 			iDevIDCertNotBefore:     time.Now(),
 			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
@@ -335,12 +335,12 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 
 			cardID: cardID,
 
-			iakCertAsymAlgo:      EccP384,
+			iakCertAsymAlgo:      eccP384Algo,
 			iakCertSubjectSerial: cardSerial,
 			iakCertNotBefore:     time.Now(),
 			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
 
-			iDevIDCertAsymAlgo:      Rsa1024,
+			iDevIDCertAsymAlgo:      rsa1024Algo,
 			iDevIDCertSubjectSerial: cardSerial,
 			iDevIDCertNotBefore:     time.Now(),
 			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
@@ -352,12 +352,12 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 
 			cardID: cardID,
 
-			iakCertAsymAlgo:      EccP256,
+			iakCertAsymAlgo:      eccP256Algo,
 			iakCertSubjectSerial: cardSerial,
 			iakCertNotBefore:     time.Now(),
 			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
 
-			iDevIDCertAsymAlgo:      EccP384,
+			iDevIDCertAsymAlgo:      eccP384Algo,
 			iDevIDCertSubjectSerial: cardSerial,
 			iDevIDCertNotBefore:     time.Now(),
 			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
@@ -369,12 +369,12 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 
 			cardID: cardID,
 
-			iakCertAsymAlgo:      EccP384,
+			iakCertAsymAlgo:      eccP384Algo,
 			iakCertSubjectSerial: cardSerial,
 			iakCertNotBefore:     time.Now(),
 			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
 
-			iDevIDCertAsymAlgo:      EccP256,
+			iDevIDCertAsymAlgo:      eccP256Algo,
 			iDevIDCertSubjectSerial: cardSerial,
 			iDevIDCertNotBefore:     time.Now(),
 			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
@@ -386,12 +386,12 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 
 			cardID: cardID,
 
-			iakCertAsymAlgo:      EccP384,
+			iakCertAsymAlgo:      eccP384Algo,
 			iakCertSubjectSerial: "AN0TH3RS3R1ALNUMB3R",
 			iakCertNotBefore:     time.Now(),
 			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
 
-			iDevIDCertAsymAlgo:      EccP384,
+			iDevIDCertAsymAlgo:      eccP384Algo,
 			iDevIDCertSubjectSerial: "AN0TH3RS3R1ALNUMB3R",
 			iDevIDCertNotBefore:     time.Now(),
 			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
@@ -403,12 +403,12 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 
 			cardID: cardID,
 
-			iakCertAsymAlgo:      EccP384,
+			iakCertAsymAlgo:      eccP384Algo,
 			iakCertSubjectSerial: cardSerial,
 			iakCertNotBefore:     time.Now(),
 			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
 
-			iDevIDCertAsymAlgo:      EccP384,
+			iDevIDCertAsymAlgo:      eccP384Algo,
 			iDevIDCertSubjectSerial: "AN0TH3RS3R1ALNUMB3R",
 			iDevIDCertNotBefore:     time.Now(),
 			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
@@ -420,12 +420,12 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 
 			cardID: cardID,
 
-			iakCertAsymAlgo:      EccP384,
+			iakCertAsymAlgo:      eccP384Algo,
 			iakCertSubjectSerial: cardSerial,
 			iakCertNotBefore:     time.Now(),
 			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
 
-			iDevIDCertAsymAlgo:      EccP384,
+			iDevIDCertAsymAlgo:      eccP384Algo,
 			iDevIDCertSubjectSerial: cardSerial,
 			iDevIDCertNotBefore:     time.Now(),
 			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
@@ -439,12 +439,12 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 
 			cardID: cardID,
 
-			iakCertAsymAlgo:      EccP384,
+			iakCertAsymAlgo:      eccP384Algo,
 			iakCertSubjectSerial: cardSerial,
 			iakCertNotBefore:     time.Now(),
 			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
 
-			iDevIDCertAsymAlgo:      EccP384,
+			iDevIDCertAsymAlgo:      eccP384Algo,
 			iDevIDCertSubjectSerial: cardSerial,
 			iDevIDCertNotBefore:     time.Now(),
 			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
@@ -458,12 +458,12 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 
 			cardID: cardID,
 
-			iakCertAsymAlgo:      EccP384,
+			iakCertAsymAlgo:      eccP384Algo,
 			iakCertSubjectSerial: cardSerial,
 			iakCertNotBefore:     time.Now(),
 			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
 
-			iDevIDCertAsymAlgo:      EccP384,
+			iDevIDCertAsymAlgo:      eccP384Algo,
 			iDevIDCertSubjectSerial: cardSerial,
 			iDevIDCertNotBefore:     time.Now(),
 			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
@@ -477,12 +477,12 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 
 			cardID: cardID,
 
-			iakCertAsymAlgo:      EccP384,
+			iakCertAsymAlgo:      eccP384Algo,
 			iakCertSubjectSerial: cardSerial,
 			iakCertNotBefore:     time.Now(),
 			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
 
-			iDevIDCertAsymAlgo:      EccP384,
+			iDevIDCertAsymAlgo:      eccP384Algo,
 			iDevIDCertSubjectSerial: cardSerial,
 			iDevIDCertNotBefore:     time.Now(),
 			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
@@ -496,12 +496,12 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 
 			cardID: cardID,
 
-			iakCertAsymAlgo:      EccP384,
+			iakCertAsymAlgo:      eccP384Algo,
 			iakCertSubjectSerial: cardSerial,
 			iakCertNotBefore:     time.Now().AddDate(0, 0, 10),
 			iakCertNotAfter:      time.Now().AddDate(0, 0, 20),
 
-			iDevIDCertAsymAlgo:      EccP384,
+			iDevIDCertAsymAlgo:      eccP384Algo,
 			iDevIDCertSubjectSerial: cardSerial,
 			iDevIDCertNotBefore:     time.Now(),
 			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
@@ -513,12 +513,12 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 
 			cardID: cardID,
 
-			iakCertAsymAlgo:      EccP384,
+			iakCertAsymAlgo:      eccP384Algo,
 			iakCertSubjectSerial: cardSerial,
 			iakCertNotBefore:     time.Now(),
 			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
 
-			iDevIDCertAsymAlgo:      EccP384,
+			iDevIDCertAsymAlgo:      eccP384Algo,
 			iDevIDCertSubjectSerial: cardSerial,
 			iDevIDCertNotBefore:     time.Now().AddDate(1, 0, 0),
 			iDevIDCertNotAfter:      time.Now().AddDate(2, 0, 0),
@@ -530,12 +530,12 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 
 			cardID: cardID,
 
-			iakCertAsymAlgo:      EccP384,
+			iakCertAsymAlgo:      eccP384Algo,
 			iakCertSubjectSerial: cardSerial,
 			iakCertNotBefore:     time.Now().AddDate(0, 0, -20),
 			iakCertNotAfter:      time.Now().AddDate(0, 0, -10),
 
-			iDevIDCertAsymAlgo:      EccP384,
+			iDevIDCertAsymAlgo:      eccP384Algo,
 			iDevIDCertSubjectSerial: cardSerial,
 			iDevIDCertNotBefore:     time.Now(),
 			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
@@ -547,12 +547,12 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 
 			cardID: cardID,
 
-			iakCertAsymAlgo:      EccP384,
+			iakCertAsymAlgo:      eccP384Algo,
 			iakCertSubjectSerial: cardSerial,
 			iakCertNotBefore:     time.Now(),
 			iakCertNotAfter:      time.Now().AddDate(1, 0, 0),
 
-			iDevIDCertAsymAlgo:      EccP384,
+			iDevIDCertAsymAlgo:      eccP384Algo,
 			iDevIDCertSubjectSerial: cardSerial,
 			iDevIDCertNotBefore:     time.Now().AddDate(-2, 0, 0),
 			iDevIDCertNotAfter:      time.Now().AddDate(-1, 0, 0),
@@ -564,12 +564,12 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 
 			cardID: cardID,
 
-			iakCertAsymAlgo:      Rsa4096,
+			iakCertAsymAlgo:      rsa4096Algo,
 			iakCertSubjectSerial: cardSerial,
 			iakCertNotBefore:     time.Now(),
 			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
 
-			iDevIDCertAsymAlgo:      EccP384,
+			iDevIDCertAsymAlgo:      eccP384Algo,
 			iDevIDCertSubjectSerial: cardSerial,
 			iDevIDCertNotBefore:     time.Now(),
 			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
@@ -583,12 +583,12 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 
 			cardID: cardID,
 
-			iakCertAsymAlgo:      Rsa4096,
+			iakCertAsymAlgo:      rsa4096Algo,
 			iakCertSubjectSerial: cardSerial,
 			iakCertNotBefore:     time.Now(),
 			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
 
-			iDevIDCertAsymAlgo:      EccP384,
+			iDevIDCertAsymAlgo:      eccP384Algo,
 			iDevIDCertSubjectSerial: cardSerial,
 			iDevIDCertNotBefore:     time.Now(),
 			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
@@ -606,7 +606,7 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 			}
 			// Generate switch's IAK cert signed by switch vendor CA.
 			genIakCert, err := generateSignedCert(
-				&CertCreationParams{
+				&certCreationParams{
 					asymAlgo:          test.iakCertAsymAlgo,
 					certSubjectSerial: test.iakCertSubjectSerial,
 					signingCert:       genIakCaCert.certX509,
@@ -626,7 +626,7 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 			}
 			// Generate switch's IDevID cert signed by switch vendor CA.
 			genIDevIDCert, err := generateSignedCert(
-				&CertCreationParams{
+				&certCreationParams{
 					asymAlgo:          test.iDevIDCertAsymAlgo,
 					certSubjectSerial: test.iDevIDCertSubjectSerial,
 					signingCert:       genIDevIDCaCert.certX509,
@@ -677,10 +677,10 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 
 			// Call TpmCertVerifier's default impl of VerifyIakAndIDevIDCerts().
 			req := &VerifyIakAndIDevIDCertsReq{
-				controlCardID:        test.cardID,
-				iakCertPem:           iakCertPemReq,
-				iDevIDCertPem:        iDevIDCertPemReq,
-				certVerificationOpts: certVerificationOptsReq,
+				ControlCardID:        test.cardID,
+				IakCertPem:           iakCertPemReq,
+				IDevIDCertPem:        iDevIDCertPemReq,
+				CertVerificationOpts: certVerificationOptsReq,
 			}
 			gotResp, gotErr := VerifyIakAndIDevIDCerts(req)
 
@@ -694,10 +694,10 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 				if gotErr != nil {
 					t.Fatalf("Expected successful response, but got error: %v", gotErr)
 				}
-				if diff := cmp.Diff(gotResp.iakPubPem, wantIakPubPem); diff != "" {
+				if diff := cmp.Diff(gotResp.IakPubPem, wantIakPubPem); diff != "" {
 					t.Errorf("IAK pub PEM does not match expectations: diff = %v", diff)
 				}
-				if diff := cmp.Diff(gotResp.iDevIDPubPem, wantIDevIDPubPem); diff != "" {
+				if diff := cmp.Diff(gotResp.IDevIDPubPem, wantIDevIDPubPem); diff != "" {
 					t.Errorf("IDevID pub PEM does not match expectations: diff = %v", diff)
 				}
 			}
@@ -730,7 +730,7 @@ func TestVerifyTpmCert(t *testing.T) {
 
 		cardID *cpb.ControlCardVendorId
 
-		certAsymAlgo      AsymAlgo
+		certAsymAlgo      asymAlgo
 		certSubjectSerial string
 		certNotBefore     time.Time
 		certNotAfter      time.Time
@@ -748,7 +748,7 @@ func TestVerifyTpmCert(t *testing.T) {
 
 			cardID: cardID,
 
-			certAsymAlgo:      Rsa4096,
+			certAsymAlgo:      rsa4096Algo,
 			certSubjectSerial: cardSerial,
 			certNotBefore:     time.Now(),
 			certNotAfter:      time.Now().AddDate(0, 0, 10),
@@ -760,7 +760,7 @@ func TestVerifyTpmCert(t *testing.T) {
 
 			cardID: cardID,
 
-			certAsymAlgo:      Rsa2048,
+			certAsymAlgo:      rsa2048Algo,
 			certSubjectSerial: cardSerial,
 			certNotBefore:     time.Now(),
 			certNotAfter:      time.Now().AddDate(0, 1, 0),
@@ -772,7 +772,7 @@ func TestVerifyTpmCert(t *testing.T) {
 
 			cardID: cardID,
 
-			certAsymAlgo:      EccP384,
+			certAsymAlgo:      eccP384Algo,
 			certSubjectSerial: cardSerial,
 			certNotBefore:     time.Now(),
 			certNotAfter:      time.Now().AddDate(1, 0, 0),
@@ -784,7 +784,7 @@ func TestVerifyTpmCert(t *testing.T) {
 
 			cardID: cardID,
 
-			certAsymAlgo:      EccP521,
+			certAsymAlgo:      eccP521Algo,
 			certSubjectSerial: cardSerial,
 			certNotBefore:     time.Now(),
 			certNotAfter:      time.Now().AddDate(0, 0, 10),
@@ -796,7 +796,7 @@ func TestVerifyTpmCert(t *testing.T) {
 
 			cardID: cardID,
 
-			certAsymAlgo:      Ed25519,
+			certAsymAlgo:      ed25519Algo,
 			certSubjectSerial: cardSerial,
 			certNotBefore:     time.Now(),
 			certNotAfter:      time.Now().AddDate(0, 0, 10),
@@ -808,7 +808,7 @@ func TestVerifyTpmCert(t *testing.T) {
 
 			cardID: cardID,
 
-			certAsymAlgo:      Rsa1024,
+			certAsymAlgo:      rsa1024Algo,
 			certSubjectSerial: cardSerial,
 			certNotBefore:     time.Now(),
 			certNotAfter:      time.Now().AddDate(0, 0, 10),
@@ -820,7 +820,7 @@ func TestVerifyTpmCert(t *testing.T) {
 
 			cardID: cardID,
 
-			certAsymAlgo:      EccP256,
+			certAsymAlgo:      eccP256Algo,
 			certSubjectSerial: cardSerial,
 			certNotBefore:     time.Now(),
 			certNotAfter:      time.Now().AddDate(0, 0, 10),
@@ -833,7 +833,7 @@ func TestVerifyTpmCert(t *testing.T) {
 
 			cardID: cardID,
 
-			certAsymAlgo:      EccP384,
+			certAsymAlgo:      eccP384Algo,
 			certSubjectSerial: cardSerial,
 			certNotBefore:     time.Now(),
 			certNotAfter:      time.Now().AddDate(0, 0, 10),
@@ -847,7 +847,7 @@ func TestVerifyTpmCert(t *testing.T) {
 
 			cardID: cardID,
 
-			certAsymAlgo:      EccP384,
+			certAsymAlgo:      eccP384Algo,
 			certSubjectSerial: cardSerial,
 			certNotBefore:     time.Now(),
 			certNotAfter:      time.Now().AddDate(0, 0, 10),
@@ -861,7 +861,7 @@ func TestVerifyTpmCert(t *testing.T) {
 
 			cardID: cardID,
 
-			certAsymAlgo:      EccP384,
+			certAsymAlgo:      eccP384Algo,
 			certSubjectSerial: cardSerial,
 			certNotBefore:     time.Now().AddDate(0, 0, 10),
 			certNotAfter:      time.Now().AddDate(0, 0, 20),
@@ -873,7 +873,7 @@ func TestVerifyTpmCert(t *testing.T) {
 
 			cardID: cardID,
 
-			certAsymAlgo:      EccP384,
+			certAsymAlgo:      eccP384Algo,
 			certSubjectSerial: cardSerial,
 			certNotBefore:     time.Now().AddDate(0, 0, -20),
 			certNotAfter:      time.Now().AddDate(0, 0, -10),
@@ -885,7 +885,7 @@ func TestVerifyTpmCert(t *testing.T) {
 
 			cardID: cardID,
 
-			certAsymAlgo:      Rsa4096,
+			certAsymAlgo:      rsa4096Algo,
 			certSubjectSerial: cardSerial,
 			certNotBefore:     time.Now(),
 			certNotAfter:      time.Now().AddDate(0, 0, 10),
@@ -899,7 +899,7 @@ func TestVerifyTpmCert(t *testing.T) {
 
 			cardID: cardID,
 
-			certAsymAlgo:      EccP384,
+			certAsymAlgo:      eccP384Algo,
 			certSubjectSerial: "AN0TH3RS3R1ALNUMB3R",
 			certNotBefore:     time.Now(),
 			certNotAfter:      time.Now().AddDate(1, 0, 0),
@@ -915,7 +915,7 @@ func TestVerifyTpmCert(t *testing.T) {
 			}
 			// Generate switch's cert signed by switch vendor CA.
 			genTpmCert, err := generateSignedCert(
-				&CertCreationParams{
+				&certCreationParams{
 					asymAlgo:          test.certAsymAlgo,
 					certSubjectSerial: test.certSubjectSerial,
 					signingCert:       genCaCert.certX509,
@@ -954,9 +954,9 @@ func TestVerifyTpmCert(t *testing.T) {
 
 			// Call TpmCertVerifier's default impl of VerifyTpmCert().
 			req := &VerifyTpmCertReq{
-				controlCardID:        test.cardID,
-				certPem:              certPemReq,
-				certVerificationOpts: certVerificationOptsReq,
+				ControlCardID:        test.cardID,
+				CertPem:              certPemReq,
+				CertVerificationOpts: certVerificationOptsReq,
 			}
 			gotResp, gotErr := VerifyTpmCert(req)
 
@@ -970,7 +970,7 @@ func TestVerifyTpmCert(t *testing.T) {
 				if gotErr != nil {
 					t.Fatalf("Expected successful response, but got error: %v", gotErr)
 				}
-				if diff := cmp.Diff(gotResp.pubPem, wantCertPubPem); diff != "" {
+				if diff := cmp.Diff(gotResp.PubPem, wantCertPubPem); diff != "" {
 					t.Errorf("Cert pub PEM does not match expectations: diff = %v", diff)
 				}
 			}

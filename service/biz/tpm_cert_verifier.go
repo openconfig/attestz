@@ -15,7 +15,6 @@
 package biz
 
 import (
-	"bytes"
 	"crypto/ecdsa"
 	"crypto/rsa"
 	"crypto/x509"
@@ -31,37 +30,37 @@ import (
 // VerifyIakAndIDevIDCertsReq is the request to VerifyIakAndIDevIDCerts().
 type VerifyIakAndIDevIDCertsReq struct {
 	// Identity fields of a given switch control card.
-	controlCardID *cpb.ControlCardVendorId
+	ControlCardID *cpb.ControlCardVendorId
 	// Verification options for IAK and IDevID certs.
-	certVerificationOpts x509.VerifyOptions
+	CertVerificationOpts x509.VerifyOptions
 	// PEM-encoded IAK x509 attestation cert.
-	iakCertPem string
+	IakCertPem string
 	// PEM-encoded IDevID x509 TLS cert.
-	iDevIDCertPem string
+	IDevIDCertPem string
 }
 
 // VerifyIakAndIDevIDCertsResp is the response from VerifyIakAndIDevIDCerts().
 type VerifyIakAndIDevIDCertsResp struct {
 	// PEM-encoded IAK public key.
-	iakPubPem string
+	IakPubPem string
 	// PEM-encoded IDevID public key.
-	iDevIDPubPem string
+	IDevIDPubPem string
 }
 
 // VerifyTpmCertReq is the request to VerifyTpmCert().
 type VerifyTpmCertReq struct {
 	// Identity fields of a given switch control card.
-	controlCardID *cpb.ControlCardVendorId
+	ControlCardID *cpb.ControlCardVendorId
 	// Verification options for a TPM-based cert such as IAK or IDevID.
-	certVerificationOpts x509.VerifyOptions
+	CertVerificationOpts x509.VerifyOptions
 	// PEM-encoded x509 attestation IAK or TLS IDevID cert.
-	certPem string
+	CertPem string
 }
 
 // VerifyTpmCertResp is the response from VerifyTpmCert().
 type VerifyTpmCertResp struct {
 	// PEM-encoded public key from x509 attestation IAK or TLS IDevID cert.
-	pubPem string
+	PubPem string
 }
 
 // TpmCertVerifier parses and verifies IAK and IDevID certs.
@@ -80,15 +79,31 @@ type TpmCertVerifier interface {
 	VerifyTpmCert(req *VerifyTpmCertReq) (*VerifyTpmCertResp, error)
 }
 
+// validateVerifyIakAndIDevIDCertsReq verifies that VerifyIakAndIDevIDCertsReq request is valid.
+func validateVerifyIakAndIDevIDCertsReq(req *VerifyIakAndIDevIDCertsReq) error {
+	if req == nil {
+		return fmt.Errorf("request VerifyIakAndIDevIDCertsReq is nil")
+	}
+	if req.ControlCardID == nil {
+		return fmt.Errorf("field ControlCardID in VerifyIakAndIDevIDCertsReq request is nil")
+	}
+
+	return nil
+}
+
 // VerifyIakAndIDevIDCerts is  the default/reference implementation of TpmCertVerifier.VerifyIakAndIDevIDCerts().
 func VerifyIakAndIDevIDCerts(req *VerifyIakAndIDevIDCertsReq) (*VerifyIakAndIDevIDCertsResp, error) {
-	iakX509, err := VerifyAndParsePemCert(req.iakCertPem, req.certVerificationOpts)
+	err := validateVerifyIakAndIDevIDCertsReq(req)
+	if err != nil {
+		return nil, fmt.Errorf("invalid request VerifyIakAndIDevIDCertsReq to VerifyIakAndIDevIDCerts(): %v", err)
+	}
+	iakX509, err := VerifyAndParsePemCert(req.IakCertPem, req.CertVerificationOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify and parse IAK cert: %v", err)
 	}
 	log.Info("Successfully verified and parsed IAK cert")
 
-	iDevIDX509, err := VerifyAndParsePemCert(req.iDevIDCertPem, req.certVerificationOpts)
+	iDevIDX509, err := VerifyAndParsePemCert(req.IDevIDCertPem, req.CertVerificationOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify and parse IDevID cert: %v", err)
 	}
@@ -101,7 +116,7 @@ func VerifyIakAndIDevIDCerts(req *VerifyIakAndIDevIDCertsReq) (*VerifyIakAndIDev
 	log.Infof("Subject serial numbers of IAK and IDevID certs match: %s", iakX509.Subject.SerialNumber)
 
 	// Verify IAK/IDevID cert subject serial and expected control card serial numbers match.
-	if diff := cmp.Diff(iakX509.Subject.SerialNumber, req.controlCardID.ControlCardSerial); diff != "" {
+	if diff := cmp.Diff(iakX509.Subject.SerialNumber, req.ControlCardID.ControlCardSerial); diff != "" {
 		return nil, fmt.Errorf("subject serial number in IAK/IDevID cert and expected control card serial from request do not match: diff = %v", diff)
 	}
 	log.Infof("Subject serial number in IAK/IDevID cert and expected control card serial from request match: %s", iakX509.Subject.SerialNumber)
@@ -120,21 +135,37 @@ func VerifyIakAndIDevIDCerts(req *VerifyIakAndIDevIDCertsReq) (*VerifyIakAndIDev
 	log.Infof("Successfully verified and parsed IDevID pub key PEM %s", iDevIDPubPem)
 
 	return &VerifyIakAndIDevIDCertsResp{
-		iakPubPem:    iakPubPem,
-		iDevIDPubPem: iDevIDPubPem,
+		IakPubPem:    iakPubPem,
+		IDevIDPubPem: iDevIDPubPem,
 	}, nil
+}
+
+// validateVerifyTpmCertReq verifies that VerifyTpmCertReq request is valid.
+func validateVerifyTpmCertReq(req *VerifyTpmCertReq) error {
+	if req == nil {
+		return fmt.Errorf("request VerifyTpmCertReq is nil")
+	}
+	if req.ControlCardID == nil {
+		return fmt.Errorf("field ControlCardID in VerifyTpmCertReq request is nil")
+	}
+
+	return nil
 }
 
 // VerifyTpmCert is the default/reference implementation of TpmCertVerifier.VerifyTpmCert().
 func VerifyTpmCert(req *VerifyTpmCertReq) (*VerifyTpmCertResp, error) {
-	certX509, err := VerifyAndParsePemCert(req.certPem, req.certVerificationOpts)
+	err := validateVerifyTpmCertReq(req)
+	if err != nil {
+		return nil, fmt.Errorf("invalid request VerifyTpmCertReq to VerifyTpmCert(): %v", err)
+	}
+	certX509, err := VerifyAndParsePemCert(req.CertPem, req.CertVerificationOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify and parse PEM cert: %v", err)
 	}
 	log.Info("Successfully verified and parsed PEM cert into x509 structure")
 
 	// Verify IAK/IDevID cert subject serial and expected control card serial numbers match.
-	if diff := cmp.Diff(certX509.Subject.SerialNumber, req.controlCardID.ControlCardSerial); diff != "" {
+	if diff := cmp.Diff(certX509.Subject.SerialNumber, req.ControlCardID.ControlCardSerial); diff != "" {
 		return nil, fmt.Errorf("subject serial number in IAK/IDevID cert and expected control card serial from request do not match: diff = %v", diff)
 	}
 	log.Infof("Subject serial number in IAK/IDevID cert and expected control card serial from request match: %s", certX509.Subject.SerialNumber)
@@ -147,12 +178,16 @@ func VerifyTpmCert(req *VerifyTpmCertReq) (*VerifyTpmCertResp, error) {
 	log.Infof("Successfully verified and parsed pub key PEM %s", pubKeyPem)
 
 	return &VerifyTpmCertResp{
-		pubPem: pubKeyPem,
+		PubPem: pubKeyPem,
 	}, nil
 }
 
 // VerifyAndParsePemCert parses PEM (IAK or IDevID) cert, verifies it and returns the parsed x509 structure.
 func VerifyAndParsePemCert(certPem string, certVerificationOpts x509.VerifyOptions) (*x509.Certificate, error) {
+	if certVerificationOpts.Roots == nil {
+		return nil, fmt.Errorf("invalid request to VerifyAndParsePemCert(): x509.VerifyOptions.Roots is nil")
+	}
+
 	// Convert PEM to DER.
 	certDer, _ := pem.Decode([]byte(certPem))
 	if certDer == nil {
@@ -177,6 +212,12 @@ func VerifyAndParsePemCert(certPem string, certVerificationOpts x509.VerifyOptio
 
 // VerifyAndSerializePubKey fetches (IAK or IDevID) public key from x509 cert, validates the key and returns it in the PEM format.
 func VerifyAndSerializePubKey(cert *x509.Certificate) (string, error) {
+	if cert == nil {
+		return "", fmt.Errorf("invalid request to VerifyAndSerializePubKey(): x509.Certificate is nil")
+	}
+	if cert.PublicKey == nil {
+		return "", fmt.Errorf("invalid request to VerifyAndSerializePubKey(): x509.Certificate.PublicKey is nil")
+	}
 	// Verify the underlying pub key is ECC P384 (or higher) or RSA 2048 (or higher).
 	switch certPubKey := cert.PublicKey.(type) {
 	case *rsa.PublicKey:
@@ -202,14 +243,10 @@ func VerifyAndSerializePubKey(cert *x509.Certificate) (string, error) {
 	}
 
 	// Convert DER pub key to PEM and return it.
-	pubKeyBlock := &pem.Block{
-		Type:  "PUBLIC KEY",
-		Bytes: derPub,
-	}
-	pubKeyPem := new(bytes.Buffer)
-	if err = pem.Encode(pubKeyPem, pubKeyBlock); err != nil {
-		return "", fmt.Errorf("failed to encode DER pub key to PEM: %v", err)
-	}
-
-	return pubKeyPem.String(), nil
+	pubKeyPem := pem.EncodeToMemory(
+		&pem.Block{
+			Type:  "PUBLIC KEY",
+			Bytes: derPub,
+		})
+	return string(pubKeyPem), nil
 }
