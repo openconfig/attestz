@@ -196,27 +196,27 @@ func TestEnrollControlCard(t *testing.T) {
 				IdevidCert:    iDevIDCert,
 			},
 			verifyIakAndIDevIDCertsResp: &VerifyIakAndIDevIDCertsResp{
-				iakPubPem:    iakPub,
-				iDevIDPubPem: iDevIDPub,
+				IakPubPem:    iakPub,
+				IDevIDPubPem: iDevIDPub,
 			},
-			issueOwnerIakCertResp:    &IssueOwnerIakCertResp{ownerIakCertPem: oIakCert},
-			issueOwnerIDevIDCertResp: &IssueOwnerIDevIDCertResp{ownerIDevIDCertPem: oIdevIDCert},
+			issueOwnerIakCertResp:    &IssueOwnerIakCertResp{OwnerIakCertPem: oIakCert},
+			issueOwnerIDevIDCertResp: &IssueOwnerIDevIDCertResp{OwnerIDevIDCertPem: oIdevIDCert},
 			rotateOIakCertResp:       &epb.RotateOIakCertResponse{},
 			// Expected params to all deps functions calls.
 			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantVerifyIakAndIDevIDCertsReq: &VerifyIakAndIDevIDCertsReq{
-				controlCardID:        vendorID,
-				iakCertPem:           iakCert,
-				iDevIDCertPem:        iDevIDCert,
-				certVerificationOpts: certVerificationOpts,
+				ControlCardID:        vendorID,
+				IakCertPem:           iakCert,
+				IDevIDCertPem:        iDevIDCert,
+				CertVerificationOpts: certVerificationOpts,
 			},
 			wantIssueOwnerIakCertReq: &IssueOwnerIakCertReq{
-				cardID:    vendorID,
-				iakPubPem: iakPub,
+				CardID:    vendorID,
+				IakPubPem: iakPub,
 			},
 			wantIssueOwnerIDevIDCertReq: &IssueOwnerIDevIDCertReq{
-				cardID:       vendorID,
-				iDevIDPubPem: iDevIDPub,
+				CardID:       vendorID,
+				IDevIDPubPem: iDevIDPub,
 			},
 			wantRotateOIakCertReq: &epb.RotateOIakCertRequest{
 				ControlCardSelection: controlCardSelection,
@@ -244,10 +244,10 @@ func TestEnrollControlCard(t *testing.T) {
 			},
 			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantVerifyIakAndIDevIDCertsReq: &VerifyIakAndIDevIDCertsReq{
-				controlCardID:        vendorID,
-				iakCertPem:           iakCert,
-				iDevIDCertPem:        iDevIDCert,
-				certVerificationOpts: certVerificationOpts,
+				ControlCardID:        vendorID,
+				IakCertPem:           iakCert,
+				IDevIDCertPem:        iDevIDCert,
+				CertVerificationOpts: certVerificationOpts,
 			},
 		},
 		{
@@ -263,19 +263,19 @@ func TestEnrollControlCard(t *testing.T) {
 				IdevidCert:    iDevIDCert,
 			},
 			verifyIakAndIDevIDCertsResp: &VerifyIakAndIDevIDCertsResp{
-				iakPubPem:    iakPub,
-				iDevIDPubPem: iDevIDPub,
+				IakPubPem:    iakPub,
+				IDevIDPubPem: iDevIDPub,
 			},
 			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantVerifyIakAndIDevIDCertsReq: &VerifyIakAndIDevIDCertsReq{
-				controlCardID:        vendorID,
-				iakCertPem:           iakCert,
-				iDevIDCertPem:        iDevIDCert,
-				certVerificationOpts: certVerificationOpts,
+				ControlCardID:        vendorID,
+				IakCertPem:           iakCert,
+				IDevIDCertPem:        iDevIDCert,
+				CertVerificationOpts: certVerificationOpts,
 			},
 			wantIssueOwnerIakCertReq: &IssueOwnerIakCertReq{
-				cardID:    vendorID,
-				iakPubPem: iakPub,
+				CardID:    vendorID,
+				IakPubPem: iakPub,
 			},
 		},
 		{
@@ -292,24 +292,24 @@ func TestEnrollControlCard(t *testing.T) {
 				IdevidCert:    iDevIDCert,
 			},
 			verifyIakAndIDevIDCertsResp: &VerifyIakAndIDevIDCertsResp{
-				iakPubPem:    iakPub,
-				iDevIDPubPem: iDevIDPub,
+				IakPubPem:    iakPub,
+				IDevIDPubPem: iDevIDPub,
 			},
-			issueOwnerIakCertResp: &IssueOwnerIakCertResp{ownerIakCertPem: oIakCert},
+			issueOwnerIakCertResp: &IssueOwnerIakCertResp{OwnerIakCertPem: oIakCert},
 			wantGetIakCertReq:     &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantVerifyIakAndIDevIDCertsReq: &VerifyIakAndIDevIDCertsReq{
-				controlCardID:        vendorID,
-				iakCertPem:           iakCert,
-				iDevIDCertPem:        iDevIDCert,
-				certVerificationOpts: certVerificationOpts,
+				ControlCardID:        vendorID,
+				IakCertPem:           iakCert,
+				IDevIDCertPem:        iDevIDCert,
+				CertVerificationOpts: certVerificationOpts,
 			},
 			wantIssueOwnerIakCertReq: &IssueOwnerIakCertReq{
-				cardID:    vendorID,
-				iakPubPem: iakPub,
+				CardID:    vendorID,
+				IakPubPem: iakPub,
 			},
 			wantIssueOwnerIDevIDCertReq: &IssueOwnerIDevIDCertReq{
-				cardID:       vendorID,
-				iDevIDPubPem: iDevIDPub,
+				CardID:       vendorID,
+				IDevIDPubPem: iDevIDPub,
 			},
 		},
 		{
@@ -327,25 +327,25 @@ func TestEnrollControlCard(t *testing.T) {
 				IdevidCert:    iDevIDCert,
 			},
 			verifyIakAndIDevIDCertsResp: &VerifyIakAndIDevIDCertsResp{
-				iakPubPem:    iakPub,
-				iDevIDPubPem: iDevIDPub,
+				IakPubPem:    iakPub,
+				IDevIDPubPem: iDevIDPub,
 			},
-			issueOwnerIakCertResp:    &IssueOwnerIakCertResp{ownerIakCertPem: oIakCert},
-			issueOwnerIDevIDCertResp: &IssueOwnerIDevIDCertResp{ownerIDevIDCertPem: oIdevIDCert},
+			issueOwnerIakCertResp:    &IssueOwnerIakCertResp{OwnerIakCertPem: oIakCert},
+			issueOwnerIDevIDCertResp: &IssueOwnerIDevIDCertResp{OwnerIDevIDCertPem: oIdevIDCert},
 			wantGetIakCertReq:        &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantVerifyIakAndIDevIDCertsReq: &VerifyIakAndIDevIDCertsReq{
-				controlCardID:        vendorID,
-				iakCertPem:           iakCert,
-				iDevIDCertPem:        iDevIDCert,
-				certVerificationOpts: certVerificationOpts,
+				ControlCardID:        vendorID,
+				IakCertPem:           iakCert,
+				IDevIDCertPem:        iDevIDCert,
+				CertVerificationOpts: certVerificationOpts,
 			},
 			wantIssueOwnerIakCertReq: &IssueOwnerIakCertReq{
-				cardID:    vendorID,
-				iakPubPem: iakPub,
+				CardID:    vendorID,
+				IakPubPem: iakPub,
 			},
 			wantIssueOwnerIDevIDCertReq: &IssueOwnerIDevIDCertReq{
-				cardID:       vendorID,
-				iDevIDPubPem: iDevIDPub,
+				CardID:       vendorID,
+				IDevIDPubPem: iDevIDPub,
 			},
 			wantRotateOIakCertReq: &epb.RotateOIakCertRequest{
 				ControlCardSelection: controlCardSelection,
@@ -366,9 +366,9 @@ func TestEnrollControlCard(t *testing.T) {
 				errorResp:                   test.wantErrResp,
 			}
 			req := &EnrollControlCardReq{
-				controlCardSelection: controlCardSelection,
-				certVerificationOpts: certVerificationOpts,
-				deps:                 stub,
+				ControlCardSelection: controlCardSelection,
+				CertVerificationOpts: certVerificationOpts,
+				Deps:                 stub,
 			}
 			got := EnrollControlCard(req)
 
@@ -383,29 +383,13 @@ func TestEnrollControlCard(t *testing.T) {
 			if diff := cmp.Diff(stub.getIakCertReq, test.wantGetIakCertReq, protocmp.Transform()); diff != "" {
 				t.Errorf("GetIakCertRequest request param to stubbed GetIakCert dep does not match expectations: diff = %v", diff)
 			}
-			if diff := cmp.Diff(stub.verifyIakAndIDevIDCertsReq, test.wantVerifyIakAndIDevIDCertsReq, cmp.AllowUnexported(VerifyIakAndIDevIDCertsReq{}), protocmp.Transform()); diff != "" {
+			if diff := cmp.Diff(stub.verifyIakAndIDevIDCertsReq, test.wantVerifyIakAndIDevIDCertsReq, protocmp.Transform()); diff != "" {
 				t.Errorf("VerifyIakAndIDevIDCertsReq request param to stubbed VerifyIakAndIDevIDCerts dep does not match expectations: diff = %v", diff)
 			}
-			// Use Comparer opt to handle "unexported" ControlCardVendorID cardID field in IssueOwnerIakCertReq.
-			if diff := cmp.Diff(stub.issueOwnerIakCertReq, test.wantIssueOwnerIakCertReq,
-				cmp.Comparer(func(x, y *IssueOwnerIakCertReq) bool {
-					if x != nil && y != nil {
-						return cmp.Equal(x.cardID, y.cardID, protocmp.Transform()) && x.iakPubPem == y.iakPubPem
-					}
-					return x == y
-				}),
-			); diff != "" {
+			if diff := cmp.Diff(stub.issueOwnerIakCertReq, test.wantIssueOwnerIakCertReq, protocmp.Transform()); diff != "" {
 				t.Errorf("IssueOwnerIakCertReq request param to stubbed IssueOwnerIakCert dep does not match expectations: diff = %v", diff)
 			}
-			// Use Comparer opt to handle "unexported" ControlCardVendorID cardID field in IssueOwnerIDevIDCertReq.
-			if diff := cmp.Diff(stub.issueOwnerIDevIDCertReq, test.wantIssueOwnerIDevIDCertReq,
-				cmp.Comparer(func(x, y *IssueOwnerIDevIDCertReq) bool {
-					if x != nil && y != nil {
-						return cmp.Equal(x.cardID, y.cardID, protocmp.Transform()) && x.iDevIDPubPem == y.iDevIDPubPem
-					}
-					return x == y
-				}),
-			); diff != "" {
+			if diff := cmp.Diff(stub.issueOwnerIDevIDCertReq, test.wantIssueOwnerIDevIDCertReq, protocmp.Transform()); diff != "" {
 				t.Errorf("IssueOwnerIDevIDCertReq request param to stubbed IssueOwnerIDevIDCert dep does not match expectations: diff = %v", diff)
 			}
 			if diff := cmp.Diff(stub.rotateOIakCertReq, test.wantRotateOIakCertReq, protocmp.Transform()); diff != "" {
@@ -466,20 +450,20 @@ func TestRotateOwnerIakCert(t *testing.T) {
 				IakCert:       iakCert,
 			},
 			verifyTpmCertResp: &VerifyTpmCertResp{
-				pubPem: iakPub,
+				PubPem: iakPub,
 			},
-			issueOwnerIakCertResp: &IssueOwnerIakCertResp{ownerIakCertPem: oIakCert},
+			issueOwnerIakCertResp: &IssueOwnerIakCertResp{OwnerIakCertPem: oIakCert},
 			rotateOIakCertResp:    &epb.RotateOIakCertResponse{},
 			// Expected params to all deps functions calls.
 			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantVerifyTpmCertReq: &VerifyTpmCertReq{
-				controlCardID:        vendorID,
-				certPem:              iakCert,
-				certVerificationOpts: certVerificationOpts,
+				ControlCardID:        vendorID,
+				CertPem:              iakCert,
+				CertVerificationOpts: certVerificationOpts,
 			},
 			wantIssueOwnerIakCertReq: &IssueOwnerIakCertReq{
-				cardID:    vendorID,
-				iakPubPem: iakPub,
+				CardID:    vendorID,
+				IakPubPem: iakPub,
 			},
 			wantRotateOIakCertReq: &epb.RotateOIakCertRequest{
 				ControlCardSelection: controlCardSelection,
@@ -505,9 +489,9 @@ func TestRotateOwnerIakCert(t *testing.T) {
 			},
 			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantVerifyTpmCertReq: &VerifyTpmCertReq{
-				controlCardID:        vendorID,
-				certPem:              iakCert,
-				certVerificationOpts: certVerificationOpts,
+				ControlCardID:        vendorID,
+				CertPem:              iakCert,
+				CertVerificationOpts: certVerificationOpts,
 			},
 		},
 		{
@@ -522,17 +506,17 @@ func TestRotateOwnerIakCert(t *testing.T) {
 				IakCert:       iakCert,
 			},
 			verifyTpmCertResp: &VerifyTpmCertResp{
-				pubPem: iakPub,
+				PubPem: iakPub,
 			},
 			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantVerifyTpmCertReq: &VerifyTpmCertReq{
-				controlCardID:        vendorID,
-				certPem:              iakCert,
-				certVerificationOpts: certVerificationOpts,
+				ControlCardID:        vendorID,
+				CertPem:              iakCert,
+				CertVerificationOpts: certVerificationOpts,
 			},
 			wantIssueOwnerIakCertReq: &IssueOwnerIakCertReq{
-				cardID:    vendorID,
-				iakPubPem: iakPub,
+				CardID:    vendorID,
+				IakPubPem: iakPub,
 			},
 		},
 		{
@@ -548,18 +532,18 @@ func TestRotateOwnerIakCert(t *testing.T) {
 				IakCert:       iakCert,
 			},
 			verifyTpmCertResp: &VerifyTpmCertResp{
-				pubPem: iakPub,
+				PubPem: iakPub,
 			},
-			issueOwnerIakCertResp: &IssueOwnerIakCertResp{ownerIakCertPem: oIakCert},
+			issueOwnerIakCertResp: &IssueOwnerIakCertResp{OwnerIakCertPem: oIakCert},
 			wantGetIakCertReq:     &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantVerifyTpmCertReq: &VerifyTpmCertReq{
-				controlCardID:        vendorID,
-				certPem:              iakCert,
-				certVerificationOpts: certVerificationOpts,
+				ControlCardID:        vendorID,
+				CertPem:              iakCert,
+				CertVerificationOpts: certVerificationOpts,
 			},
 			wantIssueOwnerIakCertReq: &IssueOwnerIakCertReq{
-				cardID:    vendorID,
-				iakPubPem: iakPub,
+				CardID:    vendorID,
+				IakPubPem: iakPub,
 			},
 			wantRotateOIakCertReq: &epb.RotateOIakCertRequest{
 				ControlCardSelection: controlCardSelection,
@@ -578,9 +562,9 @@ func TestRotateOwnerIakCert(t *testing.T) {
 				errorResp:             test.wantErrResp,
 			}
 			req := &RotateOwnerIakCertReq{
-				controlCardSelection: controlCardSelection,
-				certVerificationOpts: certVerificationOpts,
-				deps:                 stub,
+				ControlCardSelection: controlCardSelection,
+				CertVerificationOpts: certVerificationOpts,
+				Deps:                 stub,
 			}
 			got := RotateOwnerIakCert(req)
 
@@ -595,18 +579,10 @@ func TestRotateOwnerIakCert(t *testing.T) {
 			if diff := cmp.Diff(stub.getIakCertReq, test.wantGetIakCertReq, protocmp.Transform()); diff != "" {
 				t.Errorf("GetIakCertRequest request param to stubbed GetIakCert dep does not match expectations: diff = %v", diff)
 			}
-			if diff := cmp.Diff(stub.verifyTpmCertReq, test.wantVerifyTpmCertReq, cmp.AllowUnexported(VerifyTpmCertReq{}), protocmp.Transform()); diff != "" {
+			if diff := cmp.Diff(stub.verifyTpmCertReq, test.wantVerifyTpmCertReq, protocmp.Transform()); diff != "" {
 				t.Errorf("VerifyTpmCertReq request param to stubbed VerifyTpmCert dep does not match expectations: diff = %v", diff)
 			}
-			// Use Comparer opt to handle "unexported" ControlCardVendorID cardID field in IssueOwnerIakCertReq.
-			if diff := cmp.Diff(stub.issueOwnerIakCertReq, test.wantIssueOwnerIakCertReq,
-				cmp.Comparer(func(x, y *IssueOwnerIakCertReq) bool {
-					if x != nil && y != nil {
-						return cmp.Equal(x.cardID, y.cardID, protocmp.Transform()) && x.iakPubPem == y.iakPubPem
-					}
-					return x == y
-				}),
-			); diff != "" {
+			if diff := cmp.Diff(stub.issueOwnerIakCertReq, test.wantIssueOwnerIakCertReq, protocmp.Transform()); diff != "" {
 				t.Errorf("IssueOwnerIakCertReq request param to stubbed IssueOwnerIakCert dep does not match expectations: diff = %v", diff)
 			}
 			if diff := cmp.Diff(stub.rotateOIakCertReq, test.wantRotateOIakCertReq, protocmp.Transform()); diff != "" {
