@@ -659,7 +659,8 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 				CertVerificationOpts: certVerificationOptsReq,
 			}
 			ctx := context.Background()
-			gotResp, gotErr := VerifyIakAndIDevIDCerts(ctx, req)
+			defTpmCertVerifier := DefaultTpmCertVerifier{}
+			gotResp, gotErr := defTpmCertVerifier.VerifyIakAndIDevIDCerts(ctx, req)
 
 			if test.wantError {
 				// Error was expected, so do not verify the actual response.
@@ -926,7 +927,8 @@ func TestVerifyTpmCert(t *testing.T) {
 				CertVerificationOpts: certVerificationOptsReq,
 			}
 			ctx := context.Background()
-			gotResp, gotErr := VerifyTpmCert(ctx, req)
+			defTpmCertVerifier := DefaultTpmCertVerifier{}
+			gotResp, gotErr := defTpmCertVerifier.VerifyTpmCert(ctx, req)
 
 			if test.wantError {
 				// Error was expected, so do not verify the actual response.

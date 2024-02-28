@@ -80,6 +80,9 @@ type TpmCertVerifier interface {
 	VerifyTpmCert(ctx context.Context, req *VerifyTpmCertReq) (*VerifyTpmCertResp, error)
 }
 
+// DefaultTpmCertVerifier is the default/reference implementation of TpmCertVerifier.
+type DefaultTpmCertVerifier struct{}
+
 // validateVerifyIakAndIDevIDCertsReq verifies that VerifyIakAndIDevIDCertsReq request is valid.
 func validateVerifyIakAndIDevIDCertsReq(req *VerifyIakAndIDevIDCertsReq) error {
 	if req == nil {
@@ -93,7 +96,7 @@ func validateVerifyIakAndIDevIDCertsReq(req *VerifyIakAndIDevIDCertsReq) error {
 }
 
 // VerifyIakAndIDevIDCerts is the default/reference implementation of TpmCertVerifier.VerifyIakAndIDevIDCerts().
-func VerifyIakAndIDevIDCerts(ctx context.Context, req *VerifyIakAndIDevIDCertsReq) (*VerifyIakAndIDevIDCertsResp, error) {
+func (tcv *DefaultTpmCertVerifier) VerifyIakAndIDevIDCerts(ctx context.Context, req *VerifyIakAndIDevIDCertsReq) (*VerifyIakAndIDevIDCertsResp, error) {
 	err := validateVerifyIakAndIDevIDCertsReq(req)
 	if err != nil {
 		err = fmt.Errorf("invalid request VerifyIakAndIDevIDCertsReq to VerifyIakAndIDevIDCerts(): %v", err)
@@ -168,7 +171,7 @@ func validateVerifyTpmCertReq(req *VerifyTpmCertReq) error {
 }
 
 // VerifyTpmCert is the default/reference implementation of TpmCertVerifier.VerifyTpmCert().
-func VerifyTpmCert(ctx context.Context, req *VerifyTpmCertReq) (*VerifyTpmCertResp, error) {
+func (tcv *DefaultTpmCertVerifier) VerifyTpmCert(ctx context.Context, req *VerifyTpmCertReq) (*VerifyTpmCertResp, error) {
 	err := validateVerifyTpmCertReq(req)
 	if err != nil {
 		err = fmt.Errorf("invalid request VerifyTpmCertReq to VerifyTpmCert(): %v", err)
