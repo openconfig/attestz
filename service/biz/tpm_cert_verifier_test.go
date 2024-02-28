@@ -15,7 +15,7 @@
 package biz
 
 import (
-	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
@@ -41,10 +41,11 @@ type caCert struct {
 }
 
 // Simulates simplified switch vendor CA cert.
-func generateCaCert() (*caCert, error) {
+func generateCaCert(t *testing.T) *caCert {
+	t.Helper()
 	certSerial, err := rand.Int(rand.Reader, big.NewInt(100000))
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate rand int for cert serial: %v", err)
+		t.Fatal(fmt.Errorf("failed to generate rand int for cert serial: %v", err))
 	}
 	certX509 := &x509.Certificate{
 		SerialNumber:          certSerial,
@@ -56,30 +57,27 @@ func generateCaCert() (*caCert, error) {
 
 	privKey, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate a ECC P384 priv key for CA cert: %v", err)
+		t.Fatal(fmt.Errorf("failed to generate a ECC P384 priv key for CA cert: %v", err))
 	}
 
 	// CA cert is self-signed, so pass caCert twice.
 	certDer, err := x509.CreateCertificate(rand.Reader, certX509, certX509, &privKey.PublicKey, privKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create x509 self-signed CA cert: %v", err)
+		t.Fatal(fmt.Errorf("failed to create x509 self-signed CA cert: %v", err))
 	}
 
 	// PEM encode the cert.
-	certPem := new(bytes.Buffer)
-	err = pem.Encode(certPem, &pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: certDer,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode DER cert to PEM: %v", err)
-	}
+	certPem := pem.EncodeToMemory(
+		&pem.Block{
+			Type:  "CERTIFICATE",
+			Bytes: certDer,
+		})
 
 	return &caCert{
 		certX509: certX509,
-		certPem:  certPem.String(),
+		certPem:  string(certPem),
 		privKey:  privKey,
-	}, nil
+	}
 }
 
 type signedTpmCert struct {
@@ -109,11 +107,12 @@ type certCreationParams struct {
 }
 
 // Simulates simplified switch's IAK or IDevID certs.
-func generateSignedCert(params *certCreationParams) (*signedTpmCert, error) {
+func generateSignedCert(t *testing.T, params *certCreationParams) *signedTpmCert {
+	t.Helper()
 	// Cert serial (different form cert *subject* serial number).
 	certSerial, err := rand.Int(rand.Reader, big.NewInt(100000))
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate rand int for cert serial: %v", err)
+		t.Fatal(fmt.Errorf("failed to generate rand int for cert serial: %v", err))
 	}
 	cert := &x509.Certificate{
 		SerialNumber: certSerial,
@@ -159,53 +158,44 @@ func generateSignedCert(params *certCreationParams) (*signedTpmCert, error) {
 	case ed25519Algo:
 		certPubKey, _, err = ed25519.GenerateKey(rand.Reader)
 	default:
-		return nil, fmt.Errorf("unrecognized asymmetric algo: %d", params.asymAlgo)
+		t.Fatal(fmt.Errorf("unrecognized asymmetric algo: %d", params.asymAlgo))
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate asym key pair from asymmetric algo %d: %v", params.asymAlgo, err)
+		t.Fatal(fmt.Errorf("failed to generate asym key pair from asymmetric algo %d: %v", params.asymAlgo, err))
 	}
 
 	certDer, err := x509.CreateCertificate(rand.Reader, cert, params.signingCert, certPubKey, params.signingPrivKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create a signed x509 cert: %v", err)
+		t.Fatal(fmt.Errorf("failed to create a signed x509 cert: %v", err))
 	}
 	// PEM encode the cert.
-	certPem := new(bytes.Buffer)
-	err = pem.Encode(certPem, &pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: certDer,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode DER cert to PEM: %v", err)
-	}
+	certPem := pem.EncodeToMemory(
+		&pem.Block{
+			Type:  "CERTIFICATE",
+			Bytes: certDer,
+		})
 
 	// Marshal pub key to DER.
 	derPub, err := x509.MarshalPKIXPublicKey(certPubKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal pub key to DER: %v", err)
+		t.Fatal(fmt.Errorf("failed to marshal pub key to DER: %v", err))
 	}
 	// Convert DER pub key to PEM.
-	pubKeyBlock := &pem.Block{
-		Type:  "PUBLIC KEY",
-		Bytes: derPub,
-	}
-	pubKeyPem := new(bytes.Buffer)
-	if err = pem.Encode(pubKeyPem, pubKeyBlock); err != nil {
-		return nil, fmt.Errorf("failed to encode pub key DER to PEM: %v", err)
-	}
+	pubKeyPem := pem.EncodeToMemory(
+		&pem.Block{
+			Type:  "PUBLIC KEY",
+			Bytes: derPub,
+		})
 
 	return &signedTpmCert{
-		certPem:   certPem.String(),
-		pubKeyPem: pubKeyPem.String(),
-	}, nil
+		certPem:   string(certPem),
+		pubKeyPem: string(pubKeyPem),
+	}
 }
 
 func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 	// Handy to simulate IAK/IDevID cert signature validation failure.
-	unknownCaCert, err := generateCaCert()
-	if err != nil {
-		t.Fatalf("Test setup failed! Unable to generate CA signing cert: %v", err)
-	}
+	unknownCaCert := generateCaCert(t)
 
 	cardSerial := "S0M3S3R1ALNUMB3R"
 	cardID := &cpb.ControlCardVendorId{
@@ -600,44 +590,30 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			// Generate switch vendor CA IAK cert.
-			genIakCaCert, err := generateCaCert()
-			if err != nil {
-				t.Fatalf("Test setup failed! Unable to generate IAK CA signing cert: %v", err)
-			}
+			genIakCaCert := generateCaCert(t)
+
 			// Generate switch's IAK cert signed by switch vendor CA.
-			genIakCert, err := generateSignedCert(
-				&certCreationParams{
-					asymAlgo:          test.iakCertAsymAlgo,
-					certSubjectSerial: test.iakCertSubjectSerial,
-					signingCert:       genIakCaCert.certX509,
-					signingPrivKey:    genIakCaCert.privKey,
-					notBefore:         test.iakCertNotBefore,
-					notAfter:          test.iakCertNotAfter,
-				},
-			)
-			if err != nil {
-				t.Fatalf("Test setup failed! Unable to generate an IAK cert: %v", err)
-			}
+			genIakCert := generateSignedCert(t, &certCreationParams{
+				asymAlgo:          test.iakCertAsymAlgo,
+				certSubjectSerial: test.iakCertSubjectSerial,
+				signingCert:       genIakCaCert.certX509,
+				signingPrivKey:    genIakCaCert.privKey,
+				notBefore:         test.iakCertNotBefore,
+				notAfter:          test.iakCertNotAfter,
+			})
 
 			// Generate switch vendor CA IDevID cert.
-			genIDevIDCaCert, err := generateCaCert()
-			if err != nil {
-				t.Fatalf("Test setup failed! Unable to generate IDevID CA signing cert: %v", err)
-			}
+			genIDevIDCaCert := generateCaCert(t)
+
 			// Generate switch's IDevID cert signed by switch vendor CA.
-			genIDevIDCert, err := generateSignedCert(
-				&certCreationParams{
-					asymAlgo:          test.iDevIDCertAsymAlgo,
-					certSubjectSerial: test.iDevIDCertSubjectSerial,
-					signingCert:       genIDevIDCaCert.certX509,
-					signingPrivKey:    genIDevIDCaCert.privKey,
-					notBefore:         test.iDevIDCertNotBefore,
-					notAfter:          test.iDevIDCertNotAfter,
-				},
-			)
-			if err != nil {
-				t.Fatalf("Test setup failed! Unable to generate an IDevID cert: %v", err)
-			}
+			genIDevIDCert := generateSignedCert(t, &certCreationParams{
+				asymAlgo:          test.iDevIDCertAsymAlgo,
+				certSubjectSerial: test.iDevIDCertSubjectSerial,
+				signingCert:       genIDevIDCaCert.certX509,
+				signingPrivKey:    genIDevIDCaCert.privKey,
+				notBefore:         test.iDevIDCertNotBefore,
+				notAfter:          test.iDevIDCertNotAfter,
+			})
 
 			// Expected IAK and IDevID pub key PEMs if certs validation passes.
 			wantIakPubPem := genIakCert.pubKeyPem
@@ -682,7 +658,9 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 				IDevIDCertPem:        iDevIDCertPemReq,
 				CertVerificationOpts: certVerificationOptsReq,
 			}
-			gotResp, gotErr := VerifyIakAndIDevIDCerts(req)
+			ctx := context.Background()
+			defTpmCertVerifier := DefaultTpmCertVerifier{}
+			gotResp, gotErr := defTpmCertVerifier.VerifyIakAndIDevIDCerts(ctx, req)
 
 			if test.wantError {
 				// Error was expected, so do not verify the actual response.
@@ -707,10 +685,7 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 
 func TestVerifyTpmCert(t *testing.T) {
 	// Handy to simulate cert signature validation failure.
-	unknownCaCert, err := generateCaCert()
-	if err != nil {
-		t.Fatalf("Test setup failed! Unable to generate CA signing cert: %v", err)
-	}
+	unknownCaCert := generateCaCert(t)
 
 	cardSerial := "S0M3S3R1ALNUMB3R"
 	cardID := &cpb.ControlCardVendorId{
@@ -909,24 +884,17 @@ func TestVerifyTpmCert(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			// Generate switch vendor CA cert.
-			genCaCert, err := generateCaCert()
-			if err != nil {
-				t.Fatalf("Test setup failed! Unable to generate CA signing cert: %v", err)
-			}
+			genCaCert := generateCaCert(t)
+
 			// Generate switch's cert signed by switch vendor CA.
-			genTpmCert, err := generateSignedCert(
-				&certCreationParams{
-					asymAlgo:          test.certAsymAlgo,
-					certSubjectSerial: test.certSubjectSerial,
-					signingCert:       genCaCert.certX509,
-					signingPrivKey:    genCaCert.privKey,
-					notBefore:         test.certNotBefore,
-					notAfter:          test.certNotAfter,
-				},
-			)
-			if err != nil {
-				t.Fatalf("Test setup failed! Unable to generate a TPM cert: %v", err)
-			}
+			genTpmCert := generateSignedCert(t, &certCreationParams{
+				asymAlgo:          test.certAsymAlgo,
+				certSubjectSerial: test.certSubjectSerial,
+				signingCert:       genCaCert.certX509,
+				signingPrivKey:    genCaCert.privKey,
+				notBefore:         test.certNotBefore,
+				notAfter:          test.certNotAfter,
+			})
 
 			// Expected cert pub key PEMs if cert validation passes.
 			wantCertPubPem := genTpmCert.pubKeyPem
@@ -958,7 +926,9 @@ func TestVerifyTpmCert(t *testing.T) {
 				CertPem:              certPemReq,
 				CertVerificationOpts: certVerificationOptsReq,
 			}
-			gotResp, gotErr := VerifyTpmCert(req)
+			ctx := context.Background()
+			defTpmCertVerifier := DefaultTpmCertVerifier{}
+			gotResp, gotErr := defTpmCertVerifier.VerifyTpmCert(ctx, req)
 
 			if test.wantError {
 				// Error was expected, so do not verify the actual response.
