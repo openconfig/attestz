@@ -184,10 +184,6 @@ func VerifyTpmCert(req *VerifyTpmCertReq) (*VerifyTpmCertResp, error) {
 
 // VerifyAndParsePemCert parses PEM (IAK or IDevID) cert, verifies it and returns the parsed x509 structure.
 func VerifyAndParsePemCert(certPem string, certVerificationOpts x509.VerifyOptions) (*x509.Certificate, error) {
-	if certVerificationOpts.Roots == nil {
-		return nil, fmt.Errorf("invalid request to VerifyAndParsePemCert(): x509.VerifyOptions.Roots is nil")
-	}
-
 	// Convert PEM to DER.
 	certDer, _ := pem.Decode([]byte(certPem))
 	if certDer == nil {
