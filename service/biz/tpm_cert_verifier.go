@@ -15,6 +15,7 @@
 package biz
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/rsa"
 	"crypto/x509"
@@ -71,12 +72,12 @@ type TpmCertVerifier interface {
 	// 3. Make sure IAK and IDevID cert subject serials match.
 	// 4. Parse IAK pub from IAK cert and validate it (accepted crypto algo and key length).
 	// 5. Parse IDevID pub from IDevID cert and validate it (accepted crypto algo and key length).
-	VerifyIakAndIDevIDCerts(req *VerifyIakAndIDevIDCertsReq) (*VerifyIakAndIDevIDCertsResp, error)
+	VerifyIakAndIDevIDCerts(ctx context.Context, req *VerifyIakAndIDevIDCertsReq) (*VerifyIakAndIDevIDCertsResp, error)
 
 	// Performs the following:
 	// 1. Validate (signature and expiration) a TPM-based cert such as IAK or IDevID.
 	// 2. Parse pub key from the cert and validate it (accepted crypto algo and key length).
-	VerifyTpmCert(req *VerifyTpmCertReq) (*VerifyTpmCertResp, error)
+	VerifyTpmCert(ctx context.Context, req *VerifyTpmCertReq) (*VerifyTpmCertResp, error)
 }
 
 // validateVerifyIakAndIDevIDCertsReq verifies that VerifyIakAndIDevIDCertsReq request is valid.
@@ -91,48 +92,62 @@ func validateVerifyIakAndIDevIDCertsReq(req *VerifyIakAndIDevIDCertsReq) error {
 	return nil
 }
 
-// VerifyIakAndIDevIDCerts is  the default/reference implementation of TpmCertVerifier.VerifyIakAndIDevIDCerts().
-func VerifyIakAndIDevIDCerts(req *VerifyIakAndIDevIDCertsReq) (*VerifyIakAndIDevIDCertsResp, error) {
+// VerifyIakAndIDevIDCerts is the default/reference implementation of TpmCertVerifier.VerifyIakAndIDevIDCerts().
+func VerifyIakAndIDevIDCerts(ctx context.Context, req *VerifyIakAndIDevIDCertsReq) (*VerifyIakAndIDevIDCertsResp, error) {
 	err := validateVerifyIakAndIDevIDCertsReq(req)
 	if err != nil {
-		return nil, fmt.Errorf("invalid request VerifyIakAndIDevIDCertsReq to VerifyIakAndIDevIDCerts(): %v", err)
+		err = fmt.Errorf("invalid request VerifyIakAndIDevIDCertsReq to VerifyIakAndIDevIDCerts(): %v", err)
+		log.ErrorContext(ctx, err)
+		return nil, err
 	}
-	iakX509, err := VerifyAndParsePemCert(req.IakCertPem, req.CertVerificationOpts)
+	iakX509, err := VerifyAndParsePemCert(ctx, req.IakCertPem, req.CertVerificationOpts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to verify and parse IAK cert: %v", err)
+		err = fmt.Errorf("failed to verify and parse IAK cert: %v", err)
+		log.ErrorContext(ctx, err)
+		return nil, err
 	}
-	log.Info("Successfully verified and parsed IAK cert")
+	log.InfoContext(ctx, "Successfully verified and parsed IAK cert")
 
-	iDevIDX509, err := VerifyAndParsePemCert(req.IDevIDCertPem, req.CertVerificationOpts)
+	iDevIDX509, err := VerifyAndParsePemCert(ctx, req.IDevIDCertPem, req.CertVerificationOpts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to verify and parse IDevID cert: %v", err)
+		err = fmt.Errorf("failed to verify and parse IDevID cert: %v", err)
+		log.ErrorContext(ctx, err)
+		return nil, err
 	}
-	log.Info("Successfully verified and parsed IDevID cert")
+	log.InfoContext(ctx, "Successfully verified and parsed IDevID cert")
 
 	// Verify IAK and IDevID cert subject serials match.
 	if diff := cmp.Diff(iakX509.Subject.SerialNumber, iDevIDX509.Subject.SerialNumber); diff != "" {
-		return nil, fmt.Errorf("subject serial numbers of IAK and IDevID certs do not match: diff = %v", diff)
+		err = fmt.Errorf("subject serial numbers of IAK and IDevID certs do not match: diff = %v", diff)
+		log.ErrorContext(ctx, err)
+		return nil, err
 	}
-	log.Infof("Subject serial numbers of IAK and IDevID certs match: %s", iakX509.Subject.SerialNumber)
+	log.InfoContextf(ctx, "Subject serial numbers of IAK and IDevID certs match: %s", iakX509.Subject.SerialNumber)
 
 	// Verify IAK/IDevID cert subject serial and expected control card serial numbers match.
-	if diff := cmp.Diff(iakX509.Subject.SerialNumber, req.ControlCardID.ControlCardSerial); diff != "" {
-		return nil, fmt.Errorf("subject serial number in IAK/IDevID cert and expected control card serial from request do not match: diff = %v", diff)
+	if diff := cmp.Diff(iakX509.Subject.SerialNumber, req.ControlCardID.GetControlCardSerial()); diff != "" {
+		err = fmt.Errorf("subject serial number in IAK/IDevID cert and expected control card serial from request do not match: diff = %v", diff)
+		log.ErrorContext(ctx, err)
+		return nil, err
 	}
-	log.Infof("Subject serial number in IAK/IDevID cert and expected control card serial from request match: %s", iakX509.Subject.SerialNumber)
+	log.InfoContextf(ctx, "Subject serial number in IAK/IDevID cert and expected control card serial from request match: %s", iakX509.Subject.SerialNumber)
 
 	// Verify and convert IAK and IDevID certs' pub keys to PEM.
-	iakPubPem, err := VerifyAndSerializePubKey(iakX509)
+	iakPubPem, err := VerifyAndSerializePubKey(ctx, iakX509)
 	if err != nil {
-		return nil, fmt.Errorf("failed to verify and serialize IAK pub key: %v", err)
+		err = fmt.Errorf("failed to verify and serialize IAK pub key: %v", err)
+		log.ErrorContext(ctx, err)
+		return nil, err
 	}
-	log.Infof("Successfully verified and parsed IAK pub key PEM %s", iakPubPem)
+	log.InfoContextf(ctx, "Successfully verified and parsed IAK pub key PEM %s", iakPubPem)
 
-	iDevIDPubPem, err := VerifyAndSerializePubKey(iDevIDX509)
+	iDevIDPubPem, err := VerifyAndSerializePubKey(ctx, iDevIDX509)
 	if err != nil {
-		return nil, fmt.Errorf("failed to verify and serialize IDevID pub key: %v", err)
+		err = fmt.Errorf("failed to verify and serialize IDevID pub key: %v", err)
+		log.ErrorContext(ctx, err)
+		return nil, err
 	}
-	log.Infof("Successfully verified and parsed IDevID pub key PEM %s", iDevIDPubPem)
+	log.InfoContextf(ctx, "Successfully verified and parsed IDevID pub key PEM %s", iDevIDPubPem)
 
 	return &VerifyIakAndIDevIDCertsResp{
 		IakPubPem:    iakPubPem,
@@ -153,29 +168,37 @@ func validateVerifyTpmCertReq(req *VerifyTpmCertReq) error {
 }
 
 // VerifyTpmCert is the default/reference implementation of TpmCertVerifier.VerifyTpmCert().
-func VerifyTpmCert(req *VerifyTpmCertReq) (*VerifyTpmCertResp, error) {
+func VerifyTpmCert(ctx context.Context, req *VerifyTpmCertReq) (*VerifyTpmCertResp, error) {
 	err := validateVerifyTpmCertReq(req)
 	if err != nil {
-		return nil, fmt.Errorf("invalid request VerifyTpmCertReq to VerifyTpmCert(): %v", err)
+		err = fmt.Errorf("invalid request VerifyTpmCertReq to VerifyTpmCert(): %v", err)
+		log.ErrorContext(ctx, err)
+		return nil, err
 	}
-	certX509, err := VerifyAndParsePemCert(req.CertPem, req.CertVerificationOpts)
+	certX509, err := VerifyAndParsePemCert(ctx, req.CertPem, req.CertVerificationOpts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to verify and parse PEM cert: %v", err)
+		err = fmt.Errorf("failed to verify and parse PEM cert: %v", err)
+		log.ErrorContext(ctx, err)
+		return nil, err
 	}
-	log.Info("Successfully verified and parsed PEM cert into x509 structure")
+	log.InfoContext(ctx, "Successfully verified and parsed PEM cert into x509 structure")
 
 	// Verify IAK/IDevID cert subject serial and expected control card serial numbers match.
-	if diff := cmp.Diff(certX509.Subject.SerialNumber, req.ControlCardID.ControlCardSerial); diff != "" {
-		return nil, fmt.Errorf("subject serial number in IAK/IDevID cert and expected control card serial from request do not match: diff = %v", diff)
+	if diff := cmp.Diff(certX509.Subject.SerialNumber, req.ControlCardID.GetControlCardSerial()); diff != "" {
+		err = fmt.Errorf("subject serial number in IAK/IDevID cert and expected control card serial from request do not match: diff = %v", diff)
+		log.ErrorContext(ctx, err)
+		return nil, err
 	}
-	log.Infof("Subject serial number in IAK/IDevID cert and expected control card serial from request match: %s", certX509.Subject.SerialNumber)
+	log.InfoContextf(ctx, "Subject serial number in IAK/IDevID cert and expected control card serial from request match: %s", certX509.Subject.SerialNumber)
 
 	// Verify and convert x509 cert pub key to PEM.
-	pubKeyPem, err := VerifyAndSerializePubKey(certX509)
+	pubKeyPem, err := VerifyAndSerializePubKey(ctx, certX509)
 	if err != nil {
-		return nil, fmt.Errorf("failed to verify and serialize cert's pub key: %v", err)
+		err = fmt.Errorf("failed to verify and serialize cert's pub key: %v", err)
+		log.ErrorContext(ctx, err)
+		return nil, err
 	}
-	log.Infof("Successfully verified and parsed pub key PEM %s", pubKeyPem)
+	log.InfoContextf(ctx, "Successfully verified and parsed pub key PEM %s", pubKeyPem)
 
 	return &VerifyTpmCertResp{
 		PubPem: pubKeyPem,
@@ -183,31 +206,35 @@ func VerifyTpmCert(req *VerifyTpmCertReq) (*VerifyTpmCertResp, error) {
 }
 
 // VerifyAndParsePemCert parses PEM (IAK or IDevID) cert, verifies it and returns the parsed x509 structure.
-func VerifyAndParsePemCert(certPem string, certVerificationOpts x509.VerifyOptions) (*x509.Certificate, error) {
+func VerifyAndParsePemCert(ctx context.Context, certPem string, certVerificationOpts x509.VerifyOptions) (*x509.Certificate, error) {
 	// Convert PEM to DER.
 	certDer, _ := pem.Decode([]byte(certPem))
 	if certDer == nil {
-		return nil, fmt.Errorf("failed to decode cert PEM into DER cert_pem=%s",
-			certPem)
+		err := fmt.Errorf("failed to decode cert PEM into DER cert_pem=%s", certPem)
+		log.ErrorContext(ctx, err)
+		return nil, err
+
 	}
 	// Parse DER cert into structured x509 object.
 	x509CertParsed, err := x509.ParseCertificate(certDer.Bytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse cert DER into x509 structure cert_pem=%s: %v",
-			certPem, err)
+		err = fmt.Errorf("failed to parse cert DER into x509 structure cert_pem=%s: %v", certPem, err)
+		log.ErrorContext(ctx, err)
+		return nil, err
 	}
 
 	// Validate cert expiration and verify signature using provided options.
 	if _, err := x509CertParsed.Verify(certVerificationOpts); err != nil {
-		return nil, fmt.Errorf("failed to verify certificate_pem=%s: %v",
-			certPem, err)
+		err = fmt.Errorf("failed to verify certificate_pem=%s: %v", certPem, err)
+		log.ErrorContext(ctx, err)
+		return nil, err
 	}
 
 	return x509CertParsed, nil
 }
 
 // VerifyAndSerializePubKey fetches (IAK or IDevID) public key from x509 cert, validates the key and returns it in the PEM format.
-func VerifyAndSerializePubKey(cert *x509.Certificate) (string, error) {
+func VerifyAndSerializePubKey(ctx context.Context, cert *x509.Certificate) (string, error) {
 	if cert == nil {
 		return "", fmt.Errorf("invalid request to VerifyAndSerializePubKey(): x509.Certificate is nil")
 	}
@@ -221,13 +248,13 @@ func VerifyAndSerializePubKey(cert *x509.Certificate) (string, error) {
 		if pubKeyLen < 2048 {
 			return "", fmt.Errorf("pub RSA key must be 2048 bits or higher, but was %d", pubKeyLen)
 		}
-		log.Infof("pub key algorithm is %s %d", cert.PublicKeyAlgorithm, pubKeyLen)
+		log.InfoContextf(ctx, "pub key algorithm is %s %d", cert.PublicKeyAlgorithm, pubKeyLen)
 	case *ecdsa.PublicKey:
 		pubKeyLen := certPubKey.Curve.Params().BitSize
 		if pubKeyLen < 384 {
 			return "", fmt.Errorf("pub ECC key must be 384 bits or higher, but was %d", pubKeyLen)
 		}
-		log.Infof("pub key algorithm is %s %d", cert.PublicKeyAlgorithm, pubKeyLen)
+		log.InfoContextf(ctx, "pub key algorithm is %s %d", cert.PublicKeyAlgorithm, pubKeyLen)
 	default:
 		return "", fmt.Errorf("unsupported public key algorithm: %s", cert.PublicKeyAlgorithm)
 	}

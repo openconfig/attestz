@@ -15,6 +15,7 @@
 package biz
 
 import (
+	"context"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -54,7 +55,7 @@ type stubEnrollzInfraDeps struct {
 	errorResp error
 }
 
-func (s *stubEnrollzInfraDeps) VerifyIakAndIDevIDCerts(req *VerifyIakAndIDevIDCertsReq) (*VerifyIakAndIDevIDCertsResp, error) {
+func (s *stubEnrollzInfraDeps) VerifyIakAndIDevIDCerts(ctx context.Context, req *VerifyIakAndIDevIDCertsReq) (*VerifyIakAndIDevIDCertsResp, error) {
 	// Validate that no stub (captured) request params were set prior to execution.
 	if s.verifyIakAndIDevIDCertsReq != nil {
 		return nil, fmt.Errorf("VerifyIakAndIDevIDCerts unexpected req %+v", req)
@@ -68,7 +69,7 @@ func (s *stubEnrollzInfraDeps) VerifyIakAndIDevIDCerts(req *VerifyIakAndIDevIDCe
 	return s.verifyIakAndIDevIDCertsResp, nil
 }
 
-func (s *stubEnrollzInfraDeps) VerifyTpmCert(req *VerifyTpmCertReq) (*VerifyTpmCertResp, error) {
+func (s *stubEnrollzInfraDeps) VerifyTpmCert(ctx context.Context, req *VerifyTpmCertReq) (*VerifyTpmCertResp, error) {
 	// Validate that no stub (captured) request params were set prior to execution.
 	if s.verifyTpmCertReq != nil {
 		return nil, fmt.Errorf("VerifyTpmCert unexpected req %+v", req)
@@ -82,7 +83,7 @@ func (s *stubEnrollzInfraDeps) VerifyTpmCert(req *VerifyTpmCertReq) (*VerifyTpmC
 	return s.verifyTpmCertResp, nil
 }
 
-func (s *stubEnrollzInfraDeps) IssueOwnerIakCert(req *IssueOwnerIakCertReq) (*IssueOwnerIakCertResp, error) {
+func (s *stubEnrollzInfraDeps) IssueOwnerIakCert(ctx context.Context, req *IssueOwnerIakCertReq) (*IssueOwnerIakCertResp, error) {
 	// Validate that no stub (captured) request params were set prior to execution.
 	if s.issueOwnerIakCertReq != nil {
 		return nil, fmt.Errorf("IssueOwnerIakCert unexpected req %+v", s.issueOwnerIakCertReq)
@@ -96,7 +97,7 @@ func (s *stubEnrollzInfraDeps) IssueOwnerIakCert(req *IssueOwnerIakCertReq) (*Is
 	return s.issueOwnerIakCertResp, nil
 }
 
-func (s *stubEnrollzInfraDeps) IssueOwnerIDevIDCert(req *IssueOwnerIDevIDCertReq) (*IssueOwnerIDevIDCertResp, error) {
+func (s *stubEnrollzInfraDeps) IssueOwnerIDevIDCert(ctx context.Context, req *IssueOwnerIDevIDCertReq) (*IssueOwnerIDevIDCertResp, error) {
 	// Validate that no stub (captured) request params were set prior to execution.
 	if s.issueOwnerIDevIDCertReq != nil {
 		return nil, fmt.Errorf("IssueOwnerIDevIDCert unexpected req %+v", s.issueOwnerIDevIDCertReq)
@@ -110,7 +111,7 @@ func (s *stubEnrollzInfraDeps) IssueOwnerIDevIDCert(req *IssueOwnerIDevIDCertReq
 	return s.issueOwnerIDevIDCertResp, nil
 }
 
-func (s *stubEnrollzInfraDeps) GetIakCert(req *epb.GetIakCertRequest) (*epb.GetIakCertResponse, error) {
+func (s *stubEnrollzInfraDeps) GetIakCert(ctx context.Context, req *epb.GetIakCertRequest) (*epb.GetIakCertResponse, error) {
 	// Validate that no stub (captured) request params were set prior to execution.
 	if s.getIakCertReq != nil {
 		return nil, fmt.Errorf("GetIakCert unexpected req %s", prototext.Format(s.getIakCertReq))
@@ -124,7 +125,7 @@ func (s *stubEnrollzInfraDeps) GetIakCert(req *epb.GetIakCertRequest) (*epb.GetI
 	return s.getIakCertResp, nil
 }
 
-func (s *stubEnrollzInfraDeps) RotateOIakCert(req *epb.RotateOIakCertRequest) (*epb.RotateOIakCertResponse, error) {
+func (s *stubEnrollzInfraDeps) RotateOIakCert(ctx context.Context, req *epb.RotateOIakCertRequest) (*epb.RotateOIakCertResponse, error) {
 	// Validate that no stub (captured) request params were set prior to execution.
 	if s.rotateOIakCertReq != nil {
 		return nil, fmt.Errorf("RotateOIakCert unexpected req %s", prototext.Format(s.rotateOIakCertReq))
@@ -370,7 +371,8 @@ func TestEnrollControlCard(t *testing.T) {
 				CertVerificationOpts: certVerificationOpts,
 				Deps:                 stub,
 			}
-			got := EnrollControlCard(req)
+			ctx := context.Background()
+			got := EnrollControlCard(ctx, req)
 
 			// Verify that EnrollControlCard returned expected error/no-error response.
 			if test.wantErrResp != nil && test.wantErrResp != errors.Unwrap(got) {
@@ -566,7 +568,8 @@ func TestRotateOwnerIakCert(t *testing.T) {
 				CertVerificationOpts: certVerificationOpts,
 				Deps:                 stub,
 			}
-			got := RotateOwnerIakCert(req)
+			ctx := context.Background()
+			got := RotateOwnerIakCert(ctx, req)
 
 			// Verify that RotateOwnerIakCertReq returned expected error/no-error response.
 			if test.wantErrResp != nil && test.wantErrResp != errors.Unwrap(got) {
