@@ -326,7 +326,7 @@ This diagram describes the expected relationship between OpenConfig OSS, switch 
 
 ### Use Cases for Various Packages
 
-This diagram highlights various use cases for different packages in this repo.
+This diagram highlights various use cases for different packages.
 
 ![Alt text](assets/attestz-scenarios.png "Use Cases for Various Packages")
 
