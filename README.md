@@ -6,23 +6,28 @@ TPM attestation workflow ensures the integrity of networking devices throughout 
 ## Table of Contents <!-- omit from toc -->
 
 - [Terminology](#terminology)
-- [TPM 2.0 Enrollment for Switch Owners](#tpm-20-enrollment-for-switch-owners)
-  - [TPM 2.0 Enrollment Workflow Steps](#tpm-20-enrollment-workflow-steps)
-  - [TPM 2.0 Enrollment Workflow Diagram](#tpm-20-enrollment-workflow-diagram)
-  - [TPM 2.0 Enrollment Alternatives Considered](#tpm-20-enrollment-alternatives-considered)
-    - [1. EnrollZ service serves TPM enrollment API endpoints](#1-enrollz-service-serves-tpm-enrollment-api-endpoints)
-    - [2. Use IAK cert (as is) signed by the switch vendor CA](#2-use-iak-cert-as-is-signed-by-the-switch-vendor-ca)
-    - [3. Switch owner uses EK (or EK cert) to issue LAK cert](#3-switch-owner-uses-ek-or-ek-cert-to-issue-lak-cert)
-    - [4. Switch owner issues LAK cert based on IAK cert signed by switch vendor CA](#4-switch-owner-issues-lak-cert-based-on-iak-cert-signed-by-switch-vendor-ca)
-- [TPM 2.0 Attestation for Switch Owners](#tpm-20-attestation-for-switch-owners)
-  - [General Guidelines on What to Attest](#general-guidelines-on-what-to-attest)
-  - [Conceptual Flow for *Offline* PCR Precomputation](#conceptual-flow-for-offline-pcr-precomputation)
-  - [TPM 2.0 Attestation Workflow Steps](#tpm-20-attestation-workflow-steps)
-  - [TPM 2.0 Attestation Workflow Diagram](#tpm-20-attestation-workflow-diagram)
-  - [TPM 2.0 Attestation Alternatives Considered](#tpm-20-attestation-alternatives-considered)
-- [Switch Owner Prod TLS Cert Issuance](#switch-owner-prod-tls-cert-issuance)
-- [RMA Scenario](#rma-scenario)
-- [Building](#building)
+- [Design](#design)
+  - [TPM 2.0 Enrollment for Switch Owners](#tpm-20-enrollment-for-switch-owners)
+    - [TPM 2.0 Enrollment Workflow Steps](#tpm-20-enrollment-workflow-steps)
+    - [TPM 2.0 Enrollment Workflow Diagram](#tpm-20-enrollment-workflow-diagram)
+    - [TPM 2.0 Enrollment Alternatives Considered](#tpm-20-enrollment-alternatives-considered)
+      - [1. EnrollZ service serves TPM enrollment API endpoints](#1-enrollz-service-serves-tpm-enrollment-api-endpoints)
+      - [2. Use IAK cert (as is) signed by the switch vendor CA](#2-use-iak-cert-as-is-signed-by-the-switch-vendor-ca)
+      - [3. Switch owner uses EK (or EK cert) to issue LAK cert](#3-switch-owner-uses-ek-or-ek-cert-to-issue-lak-cert)
+      - [4. Switch owner issues LAK cert based on IAK cert signed by switch vendor CA](#4-switch-owner-issues-lak-cert-based-on-iak-cert-signed-by-switch-vendor-ca)
+  - [TPM 2.0 Attestation for Switch Owners](#tpm-20-attestation-for-switch-owners)
+    - [General Guidelines on What to Attest](#general-guidelines-on-what-to-attest)
+    - [Conceptual Flow for *Offline* PCR Precomputation](#conceptual-flow-for-offline-pcr-precomputation)
+    - [TPM 2.0 Attestation Workflow Steps](#tpm-20-attestation-workflow-steps)
+    - [TPM 2.0 Attestation Workflow Diagram](#tpm-20-attestation-workflow-diagram)
+    - [TPM 2.0 Attestation Alternatives Considered](#tpm-20-attestation-alternatives-considered)
+  - [Special Considerations](#special-considerations)
+    - [Switch Owner Prod TLS Cert Issuance](#switch-owner-prod-tls-cert-issuance)
+    - [RMA Scenario](#rma-scenario)
+- [Implementation](#implementation)
+  - [Code Structure](#code-structure)
+  - [Use Cases for Various Packages](#use-cases-for-various-packages)
+  - [Handy Commands](#handy-commands)
 
 ## Terminology
 
@@ -44,7 +49,9 @@ TPM attestation workflow ensures the integrity of networking devices throughout 
 | Owner Device Identity (oIDevID) | IDevID pub | No | Switch Owner |
 | Endorsement Key (EK) | EK pub | No | TPM Vendor |
 
-## TPM 2.0 Enrollment for Switch Owners
+## Design
+
+### TPM 2.0 Enrollment for Switch Owners
 
 In this workflow switch owner verifies device's Initial Attestation Key (IAK) and Initial DevID (IDevID) certificates (signed by the switch vendor CA) and installs/rotates owner IAK (oIAK) and owner IDevID (oIDevID) certificates (signed by switch owner CA). oIAK and oIDevID certs are based on the same underlying keys as IAK and IDevID certs, respectively, and give switch owner the ability to (1)
 fully control certificate structure, revocation and expiration policies and (2) remove external dependency on switch vendor CA during TPM attestation workflow. The assumption is that before the device is shipped to the switch owner, a switch vendor provisions each control card with IAK and IDevID certificates following the TCG specification in
@@ -58,7 +65,7 @@ Even though it is strongly preferred to rely on ECC P521 and SHA-512 where possi
 3. SHA 384 for PCR quote digest (part of signature scheme of the IAK key used in [TPM2_Quote()](https://www.trustedcomputinggroup.org/wp-content/uploads/TPM-Rev-2.0-Part-2-Structures-01.38.pdf#page=123)).
 4. ECC P384 for switch vendor CA (IAK and IDevID) certificate-signing keys.
 
-### TPM 2.0 Enrollment Workflow Steps
+#### TPM 2.0 Enrollment Workflow Steps
 
 1. On completion of Bootz workflow, device obtains all necessary credentials and configurations to start serving TPM enrollment gRPC API endpoints.
    - *Note: A device is shipped to the switch owner with a default SSL profile configured to rely on the IDevID key pair and IDevID TLS cert (signed by the switch vendor CA) for all RPCs.*
@@ -92,13 +99,13 @@ Even though it is strongly preferred to rely on ECC P521 and SHA-512 where possi
 
 - Need to trust that switch vendors actually performed proper TPM enrollment following TCG spec.
 
-### TPM 2.0 Enrollment Workflow Diagram
+#### TPM 2.0 Enrollment Workflow Diagram
 
 ![Alt text](assets/tpm-20-enrollment-workflow-diagram.svg "TPM 2.0 enrollment workflow diagram")
 
-### TPM 2.0 Enrollment Alternatives Considered
+#### TPM 2.0 Enrollment Alternatives Considered
 
-#### 1. EnrollZ service serves TPM enrollment API endpoints
+##### 1. EnrollZ service serves TPM enrollment API endpoints
 
 **Pros:**
 
@@ -110,7 +117,7 @@ Even though it is strongly preferred to rely on ECC P521 and SHA-512 where possi
 - From a security standpoint, switches generally should not be initiating connections.
 - The design will be cleaner if TPM enrollment followed the same pattern as TPM attestation and gNxI APIs where the device serves the endpoints.
 
-#### 2. Use IAK cert (as is) signed by the switch vendor CA
+##### 2. Use IAK cert (as is) signed by the switch vendor CA
 
 The workflow would follow the TCG specification documented in [section 5.1](https://trustedcomputinggroup.org/wp-content/uploads/TPM-2p0-Keys-for-Device-Identity-and-Attestation_v1_r12_pub10082021.pdf#page=19) and [section 6.1](https://trustedcomputinggroup.org/wp-content/uploads/TPM-2p0-Keys-for-Device-Identity-and-Attestation_v1_r12_pub10082021.pdf#page=27).
 
@@ -124,7 +131,7 @@ The workflow would follow the TCG specification documented in [section 5.1](http
 - Using a switch-vendor-issued IAK cert gives the switch owner no control over the cert structure, management (e.g. revocation) and lifecycle.
 - Need to trust that the switch vendor actually performed proper TPM enrollment following TCG spec.
 
-#### 3. Switch owner uses EK (or EK cert) to issue LAK cert
+##### 3. Switch owner uses EK (or EK cert) to issue LAK cert
 
 The workflow would follow the TCG specification documented in [section 5.6](https://trustedcomputinggroup.org/wp-content/uploads/TPM-2p0-Keys-for-Device-Identity-and-Attestation_v1_r12_pub10082021.pdf#page=24) and [section 6.6](https://trustedcomputinggroup.org/wp-content/uploads/TPM-2p0-Keys-for-Device-Identity-and-Attestation_v1_r12_pub10082021.pdf#page=34). In this case the switch vendor would
 not perform TPM enrollment at all.
@@ -144,7 +151,7 @@ not perform TPM enrollment at all.
 - LAKs are also primarily used in scenarios where device/user privacy is important. In the case of network switches (especially the ones running in switch owner's own data centers), however, infra components would actually want to know exactly the identities of the switches, so their privacy is not desirable. Consult
 [section 11](https://trustedcomputinggroup.org/wp-content/uploads/TPM-2p0-Keys-for-Device-Identity-and-Attestation_v1_r12_pub10082021.pdf#page=64) of the TCG spec for more details.
 
-#### 4. Switch owner issues LAK cert based on IAK cert signed by switch vendor CA
+##### 4. Switch owner issues LAK cert based on IAK cert signed by switch vendor CA
 
 The workflow would follow the TCG specification documented in [section 5.3](https://trustedcomputinggroup.org/wp-content/uploads/TPM-2p0-Keys-for-Device-Identity-and-Attestation_v1_r12_pub10082021.pdf#page=21) and [section 6.3](https://trustedcomputinggroup.org/wp-content/uploads/TPM-2p0-Keys-for-Device-Identity-and-Attestation_v1_r12_pub10082021.pdf#page=32).
 
@@ -161,12 +168,12 @@ The workflow would follow the TCG specification documented in [section 5.3](http
 - LAKs are also primarily used in scenarios where device/user privacy is important. In the case of network switches (especially the ones running in switch owner's own data centers), however, infra components would actually want to know exactly the identities of the switches, so their privacy is not desirable. Consult
 [section 11](https://trustedcomputinggroup.org/wp-content/uploads/TPM-2p0-Keys-for-Device-Identity-and-Attestation_v1_r12_pub10082021.pdf#page=64) of the TCG spec for more details.
 
-## TPM 2.0 Attestation for Switch Owners
+### TPM 2.0 Attestation for Switch Owners
 
 In this workflow switch owner verifies that the device's end-to-end boot state (bootloader, OS, secure boot policy, etc.) matches owner's expectations. This approach assumes that expected final PCR values were precomputed beforehand and are available during the attestation workflow. Thus, on a high level for each control card AttestZ service will (1) fetch final observed PCR values, PCR quote
 (signed with IAK private key) and oIAK cert from the device, (2) verify oIAK cert, (3) verify PCR quote signature with oIAK cert, (4) verify PCRs digest, (5) compare observed PCR final values to the expected ones.
 
-### General Guidelines on What to Attest
+#### General Guidelines on What to Attest
 
 This section is out of scope of the broader openconfig initiative and instead serves more as a guideline. The general question one should ask when thinking of what to attest is "does changing X on the device change the fundamental boot posture of the device?".
 If the answer is yes, then attest it, otherwise it is not required. Examples of such software that should be attested are bootloader image, OS image and secure boot policy.
@@ -194,13 +201,13 @@ Finally, although the exact PCR allocation may vary across vendors, the expectat
 | 16 | Debug |
 | 23 | Application Support |
 
-### Conceptual Flow for *Offline* PCR Precomputation
+#### Conceptual Flow for *Offline* PCR Precomputation
 
 The idea is that before devices are even shipped to a switch owner, switch vendors give switch owners (through an API endpoint) final expected PCR values for those PCRs that are the same across all devices for a given product model and bootloader/OS version (PCRs that do not change between reboots and are not device-specific). Such PCR values can include measurements of BIOS image, bootloader
 image, OS image, security boot policy, etc. A switch owner would simply
 ingest these values and persist them in an internal DB, so that later when AttestZ service actually performs attestation, it can just compare final expected PCRs to the actual PCRs reported by the device, instead of recomputing these PCRs from the boot log for every attestation.
 
-### TPM 2.0 Attestation Workflow Steps
+#### TPM 2.0 Attestation Workflow Steps
 
 1. Device serves gRPC TPM 2.0 attestation APIs. At this point the device must be booted with the correct OS image and with correct configurations/credentials applied.
    - Primary/active control card is also responsible for all RPCs directed to the secondary/standby control card. The mechanism of internal communication between the two control cards depends on the switch vendor and is out of scope of this doc.
@@ -246,11 +253,11 @@ Once the attestation workflow is complete for both control cards, AttestZ servic
 4. AttestZ service calls the device to persist the mTLS cert.
 5. The device ensures that the cert pub key matches the one it created earlier and persists the cert in non-volatile memory.
 
-### TPM 2.0 Attestation Workflow Diagram
+#### TPM 2.0 Attestation Workflow Diagram
 
 ![Alt text](assets/tpm-20-attestation-workflow-diagram.svg "TPM 2.0 attestation workflow diagram")
 
-### TPM 2.0 Attestation Alternatives Considered
+#### TPM 2.0 Attestation Alternatives Considered
 
 Before the device is shipped to the switch owner, the switch owner fetches individual PCR measurement artifacts such as bootloader image hash and OS image hash from the switch vendor portal and stores those in the internal DB.
 
@@ -289,14 +296,16 @@ Attestation workflow with differences from the proposed approach in **bold**:
 - PCR recomputation from the boot log happens in AttestZ service on every attestation when the switches already serve prod traffic. For most (if not all) of the PCRs the recomputed values should be the same for all devices which is also inefficient.
 - AttestZ service needs to “know” the measurement events it is looking for in the log or internal DB. This may not scale well if the events are expected to change over time or if they differ between different switch vendors. Most likely this would imply for switch vendors to provide a simpler version of PCR measurement manifest which defeats the purpose of the approach.
 
-## Switch Owner Prod TLS Cert Issuance
+### Special Considerations
+
+#### Switch Owner Prod TLS Cert Issuance
 
 Although TLS cert/keys issuance workflow/APIs is outside of the scope of this document, attestz and enrollz require the following handling of private TLS keys for TPM-equipped networking devices. Each control card has its own separate prod TLS key pair and cert that it never shares with the other card.
 Each card can perform CSR-style TLS key pair/cert issuance, where TLS pair key is issued by a control card and the private key never leaves a given control card (never shares the key with another card within the same switch chassis either).
 Switch owner will always attest a given control card before issuing a new or rotating an existing prod TLS cert.
 In other words, **switch-owner-issued production TLS credentials/certs can only be accessible to control cards that have been TPM enrolled and attested by switch owner**. If a standby control card becomes active/primary, it must use its own TLS cert for all connections with switch owner infra.
 
-## RMA Scenario
+#### RMA Scenario
 
 One benefit of having multiple control cards is a redundancy model where one control card (active) is serving traffic while another card is unavailable. In such a scenario a switch owner would typically want to replace the failed control card, while the active card is still serving traffic (aka hot-swapping).
 The newly inserted (standby) card must be TPM enrolled and attested by the switch owner before the card gets access to switch-owner-issued prod TLS cert. Thus, conceptually the RMA workflow would be the following:
@@ -310,6 +319,35 @@ The newly inserted (standby) card must be TPM enrolled and attested by the switc
 4. Active card notifies switch owner infra that a new control card is inserted.
 5. Switch owner initiates enrollz and attestz workflow for the new standby card. Once attestz succeeds, switch owner issues to the standby control card its own TLS credentials/cert.
 
-## Building
+## Implementation
 
-`bazel build //proto:*`
+### Code Structure
+
+This diagram describes the expected relationship between OpenConfig OSS, switch vendor and switch owner codebases.
+
+![Alt text](assets/attestz-code-structure.png "Code Structure")
+
+### Use Cases for Various Packages
+
+This diagram highlights various use cases for different packages.
+
+![Alt text](assets/attestz-scenarios.png "Use Cases for Various Packages")
+
+### Handy Commands
+
+```bash
+# Completely remove the entire working tree created by a Bazel instance.
+bazel clean --expunge
+
+# Regenerate Go protobuf and gRPC client/service files.
+sh regenerate-files.sh
+
+# Build all targets.
+bazel build //...
+
+# Update Go dependencies in go.mod and go.sum.
+go mod tidy
+
+# Run a specific test.
+go test -v ./service/biz -run TestVerifyAndParseIakAndIDevIdCerts --alsologtostderr
+```
