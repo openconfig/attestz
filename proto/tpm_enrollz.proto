@@ -58,6 +58,11 @@ message RotateOIakCertRequest {
   // PEM-encoded owner initial DevID certificate signed by the
   // switch owner/administrator CA.
   string oidevid_cert = 3;
+
+  // SSL profile for which the certs will be assigned.
+  // (Optional: Only required if rotating oidevid_cert.)
+  string ssl_profile_id = 4;
+  
 }
 
 // Response from the specified control card to rotate/install an owner Initial

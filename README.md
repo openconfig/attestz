@@ -80,8 +80,11 @@ Even though it is strongly preferred to rely on ECC P521 and SHA-512 where possi
 6. EnrollZ service obtains the oIAK and oIDevID certs from the CA and calls the device's `RotateOIakCert` API to persist the oIAK and oIDevID certs on the control card.
 7. The switch verifies that the IAK pub key in oIAK cert matches the one in IAK cert and that IDevID pub key in oIDevID cert matches the one in IDevID cert.
 8. The switch stores oIAK and oIDevID certs in non-volatile memory and will present them in the TPM attestation `attestz` workflow.
-9. The switch must update its default SSL profile to rely on the owner IDevID cert instead of IDevID cert.
-   - *Note: This implies that after successful enrollment the switch must force all its gRPC servers/services (such as `attestz` and `certz`) to respect the updated SSL profile relying on oIDevID cert.*
+9. The switch must use the profile created during bootz which provided the trust bundle. This will rotate the profiles cert to be the provided Owner IDevID cert and
+   sets the Owner IAK cert.
+   - *Note: This implies that after successful enrollment the switch must force all its gRPC servers/services (such as `attestz` and `certz`) to respect the updated SSL profile relying on oIDevID cert. This should have already been set as part of bootz but this should again be forced at part of enrollment*
+     *Note: Further Rotate calls may only require the rotation of the Owner IAK cert so those messages
+     will not contain the `ssl_profile_id` nor `oidevid_cert` fields.*
 10. EnrollZ service repeats the workflow for the second control card if one is available.
 
 **Pros:**
