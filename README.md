@@ -67,7 +67,7 @@ Even though it is strongly preferred to rely on ECC P521 and SHA-512 where possi
 
 #### TPM 2.0 Enrollment Workflow Steps
 
-1. On completion of Bootz workflow, device obtains all necessary credentials and configurations to start serving TPM enrollment gRPC API endpoints.
+1. On completion of Bootz workflow, device obtains all necessary credentials and configurations to start serving TPM enrollment gRPC API endpoints on the same port as gNOI/gNSI/gNMI (9339).
    - *Note: A device is shipped to the switch owner with a default SSL profile configured to rely on the IDevID key pair and IDevID TLS cert (signed by the switch vendor CA) for all RPCs.*
 2. On completion of Bootz, EnrollZ service is notified to enroll a TPM on a specific control card and calls the device's `GetIakCert` API to get back an IAK and IDevID certs.
    - During initial bootstrapping, an active control card must use its IDevID cert (part of switch's default SSL profile) for securing TLS connection. Once the device is provisioned with switch-owner-issued prod TLS cert in `certz` workflow, the device must always use that cert for all subsequent enrollz RPCs (such as `RotateOIakCert`).
@@ -209,7 +209,7 @@ ingest these values and persist them in an internal DB, so that later when Attes
 
 #### TPM 2.0 Attestation Workflow Steps
 
-1. Device serves gRPC TPM 2.0 attestation APIs. At this point the device must be booted with the correct OS image and with correct configurations/credentials applied.
+1. Device serves gRPC TPM 2.0 attestation endpoints on the same port as gNOI/gNSI/gNMI (9339). At this point the device must be booted with the correct OS image and with correct configurations/credentials applied.
    - Primary/active control card is also responsible for all RPCs directed to the secondary/standby control card. The mechanism of internal communication between the two control cards depends on the switch vendor and is out of scope of this doc.
    Since the switch owner cannot directly TLS authenticate standby card, it is the responsibility of an active card to do an auth handshake with the standby card based on the IDevID key pair/cert as described in [RMA Scenario](#rma-scenario).
    - Device uses active control card’s IDevID private key and oIDevID cert for securing TLS for the **initial** attestation RPCs. On successful completion of initial attestation, the device will be provisioned with switch owner’s prod credentials/certs and will rely on those for securing TLS in subsequent attestation workflows.
