@@ -115,6 +115,8 @@ type EnrollControlCardReq struct {
 	Deps EnrollzInfraDeps
 	// Verification options for IAK and IDevID certs.
 	CertVerificationOpts x509.VerifyOptions
+	// SSL profile ID to which newly-issued Owner IDevID cert should be applied.
+	SSLProfileID string
 }
 
 // validateEnrollControlCardReq verifies that EnrollControlCardReq request is valid.
@@ -208,11 +210,12 @@ func EnrollControlCard(ctx context.Context, req *EnrollControlCardReq) error {
 	log.InfoContextf(ctx, "Successfully received Switch Owner CA IssueOwnerIDevIDCert() resp=%s for control_card_id=%s IDevID_pub_pem=%s",
 		issueOwnerIDevIDCertResp.OwnerIDevIDCertPem, prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.IDevIDPubPem)
 
-	// 4. Call device's RotateOIakCert for the specified card card to persist oIAK and oIDevID certs.
+	// 4. Call device's RotateOIakCert for the specified card to persist oIAK and oIDevID certs.
 	rotateOIakCertReq := &epb.RotateOIakCertRequest{
 		ControlCardSelection: req.ControlCardSelection,
 		OiakCert:             issueOwnerIakCertResp.OwnerIakCertPem,
 		OidevidCert:          issueOwnerIDevIDCertResp.OwnerIDevIDCertPem,
+		SslProfileId:         req.SSLProfileID,
 	}
 	rotateOIakCertResp, err := req.Deps.RotateOIakCert(ctx, rotateOIakCertReq)
 	if err != nil {

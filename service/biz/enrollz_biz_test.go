@@ -157,6 +157,7 @@ func TestEnrollControlCard(t *testing.T) {
 		ChassisPartNumber:   "Some part",
 		ChassisSerialNumber: "Some chassis serial",
 	}
+	sslProfileID := "Some SSL profile ID"
 	iakCert := "Some IAK cert PEM"
 	iakPub := "Some IAK pub PEM"
 	iDevIDCert := "Some IDevID cert PEM"
@@ -223,6 +224,7 @@ func TestEnrollControlCard(t *testing.T) {
 				ControlCardSelection: controlCardSelection,
 				OiakCert:             oIakCert,
 				OidevidCert:          oIdevIDCert,
+				SslProfileId:         sslProfileID,
 			},
 		},
 		{
@@ -352,6 +354,7 @@ func TestEnrollControlCard(t *testing.T) {
 				ControlCardSelection: controlCardSelection,
 				OiakCert:             oIakCert,
 				OidevidCert:          oIdevIDCert,
+				SslProfileId:         sslProfileID,
 			},
 		},
 	}
@@ -370,6 +373,7 @@ func TestEnrollControlCard(t *testing.T) {
 				ControlCardSelection: controlCardSelection,
 				CertVerificationOpts: certVerificationOpts,
 				Deps:                 stub,
+				SSLProfileID:         sslProfileID,
 			}
 			ctx := context.Background()
 			got := EnrollControlCard(ctx, req)
