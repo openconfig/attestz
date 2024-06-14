@@ -232,6 +232,9 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 		// To simulate cert signature validation failure.
 		customIakCaRootPem    string
 		customIDevIDCaRootPem string
+
+		// To simulate a verifying iak for a secondary control card for which IDevID is optional.
+		noIDevID bool
 	}{
 		{
 			desc: "Success: RSA 4096 IAK and ECC P384 IDevID certs",
@@ -266,6 +269,25 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 			iDevIDCertSubjectSerial: cardSerial,
 			iDevIDCertNotBefore:     time.Now(),
 			iDevIDCertNotAfter:      time.Now().AddDate(0, 0, 10),
+		},
+		{
+			desc: "Success: ECC P521 IAK and no IDevID cert",
+
+			wantError: false,
+
+			cardID: cardID,
+
+			iakCertAsymAlgo:      eccP521Algo,
+			iakCertSubjectSerial: cardSerial,
+			iakCertNotBefore:     time.Now(),
+			iakCertNotAfter:      time.Now().AddDate(0, 1, 0),
+
+			iDevIDCertAsymAlgo:      rsa2048Algo,
+			iDevIDCertSubjectSerial: cardSerial,
+			iDevIDCertNotBefore:     time.Now(),
+			iDevIDCertNotAfter:      time.Now().AddDate(0, 0, 10),
+
+			noIDevID: true,
 		},
 		{
 			desc: "Failure: unsupported ED25519 algo for IAK",
@@ -602,51 +624,63 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 				notAfter:          test.iakCertNotAfter,
 			})
 
-			// Generate switch vendor CA IDevID cert.
-			genIDevIDCaCert := generateCaCert(t)
-
-			// Generate switch's IDevID cert signed by switch vendor CA.
-			genIDevIDCert := generateSignedCert(t, &certCreationParams{
-				asymAlgo:          test.iDevIDCertAsymAlgo,
-				certSubjectSerial: test.iDevIDCertSubjectSerial,
-				signingCert:       genIDevIDCaCert.certX509,
-				signingPrivKey:    genIDevIDCaCert.privKey,
-				notBefore:         test.iDevIDCertNotBefore,
-				notAfter:          test.iDevIDCertNotAfter,
-			})
-
-			// Expected IAK and IDevID pub key PEMs if certs validation passes.
+			// Expected IAK pub key PEM if cert validation passes.
 			wantIakPubPem := genIakCert.pubKeyPem
-			wantIDevIDPubPem := genIDevIDCert.pubKeyPem
 
 			// If a custom/malformed PEM is set, then use that.
 			iakCertPemReq := genIakCert.certPem
 			if test.customIakCertPem != "" {
 				iakCertPemReq = test.customIakCertPem
 			}
-			iDevIDCertPemReq := genIDevIDCert.certPem
-			if test.customIDevIDCertPem != "" {
-				iDevIDCertPemReq = test.customIDevIDCertPem
-			}
-
-			// Build cert verification options.
-			roots := x509.NewCertPool()
 			// If a custom CA root cert PEM is set, then use that.
 			iakCaCertPemReq := genIakCaCert.certPem
 			if test.customIakCaRootPem != "" {
 				iakCaCertPemReq = test.customIakCaRootPem
 			}
-			iDevIDCaCertPemReq := genIDevIDCaCert.certPem
-			if test.customIDevIDCaRootPem != "" {
-				iDevIDCaCertPemReq = test.customIDevIDCaRootPem
-			}
+
+			// Build cert verification options.
+			roots := x509.NewCertPool()
 			// Add resolved root CA certs to x509 cert pool.
 			if !roots.AppendCertsFromPEM([]byte(iakCaCertPemReq)) {
 				t.Fatalf("Test setup failed! Unable to append the following IAK CA cert to x509 cert pool: %s", iakCaCertPemReq)
 			}
-			if !roots.AppendCertsFromPEM([]byte(iDevIDCaCertPemReq)) {
-				t.Fatalf("Test setup failed! Unable to append the following IDevID CA cert to x509 cert pool: %s", iDevIDCaCertPemReq)
+
+			wantIDevIDPubPem := ""
+			iDevIDCertPemReq := ""
+			if !test.noIDevID {
+				// Generate switch vendor CA IDevID cert.
+				genIDevIDCaCert := generateCaCert(t)
+
+				// Generate switch's IDevID cert signed by switch vendor CA.
+				genIDevIDCert := generateSignedCert(t, &certCreationParams{
+					asymAlgo:          test.iDevIDCertAsymAlgo,
+					certSubjectSerial: test.iDevIDCertSubjectSerial,
+					signingCert:       genIDevIDCaCert.certX509,
+					signingPrivKey:    genIDevIDCaCert.privKey,
+					notBefore:         test.iDevIDCertNotBefore,
+					notAfter:          test.iDevIDCertNotAfter,
+				})
+
+				// Expected IDevID pub key PEM if cert validation passes.
+				wantIDevIDPubPem = genIDevIDCert.pubKeyPem
+
+				// If a custom/malformed PEM is set, then use that.
+				iDevIDCertPemReq = genIDevIDCert.certPem
+				if test.customIDevIDCertPem != "" {
+					iDevIDCertPemReq = test.customIDevIDCertPem
+				}
+
+				// If a custom CA root cert PEM is set, then use that.
+				iDevIDCaCertPemReq := genIDevIDCaCert.certPem
+				if test.customIDevIDCaRootPem != "" {
+					iDevIDCaCertPemReq = test.customIDevIDCaRootPem
+				}
+
+				if !roots.AppendCertsFromPEM([]byte(iDevIDCaCertPemReq)) {
+					t.Fatalf("Test setup failed! Unable to append the following IDevID CA cert to x509 cert pool: %s", iDevIDCaCertPemReq)
+				}
 			}
+
 			certVerificationOptsReq := x509.VerifyOptions{
 				Roots: roots,
 			}

@@ -39,8 +39,9 @@ message GetIakCertResponse {
   string iak_cert = 2;
 
   // [Optional] PEM-encoded initial DevID certificate signed by the switch
-  // vendor CA. This field should only be populated for standby/secondary
-  // control card when no direct communication to that control card is possible.
+  // vendor CA. This field should always be populated on the primary control
+  // card. It should only be populated for standby/secondary control card when
+  // no direct communication to that control card is possible.
   string idevid_cert = 3;
 }
 
