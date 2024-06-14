@@ -282,11 +282,6 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 			iakCertNotBefore:     time.Now(),
 			iakCertNotAfter:      time.Now().AddDate(0, 1, 0),
 
-			iDevIDCertAsymAlgo:      rsa2048Algo,
-			iDevIDCertSubjectSerial: cardSerial,
-			iDevIDCertNotBefore:     time.Now(),
-			iDevIDCertNotAfter:      time.Now().AddDate(0, 0, 10),
-
 			noIDevID: true,
 		},
 		{
