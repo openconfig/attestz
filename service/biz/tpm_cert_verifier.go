@@ -111,6 +111,32 @@ func (tcv *DefaultTpmCertVerifier) VerifyIakAndIDevIDCerts(ctx context.Context, 
 	}
 	log.InfoContext(ctx, "Successfully verified and parsed IAK cert")
 
+	// Verify IAK cert subject serial and expected control card serial numbers match.
+	if diff := cmp.Diff(iakX509.Subject.SerialNumber, req.ControlCardID.GetControlCardSerial()); diff != "" {
+		err = fmt.Errorf("subject serial number in IAK/IDevID cert and expected control card serial from request do not match: diff = %v", diff)
+		log.ErrorContext(ctx, err)
+		return nil, err
+	}
+	log.InfoContextf(ctx, "Subject serial number in IAK/IDevID cert and expected control card serial from request match: %s", iakX509.Subject.SerialNumber)
+
+	// Verify and convert IAK certs' pub keys to PEM.
+	iakPubPem, err := VerifyAndSerializePubKey(ctx, iakX509)
+	if err != nil {
+		err = fmt.Errorf("failed to verify and serialize IAK pub key: %v", err)
+		log.ErrorContext(ctx, err)
+		return nil, err
+	}
+	log.InfoContextf(ctx, "Successfully verified and parsed IAK pub key PEM %s", iakPubPem)
+
+	// IDevID cert is needed on the primary control card. On the secondary
+	// it is only needed if no direct communication to the primary control card
+	// is possible.
+	if req.IDevIDCertPem == "" {
+		return &VerifyIakAndIDevIDCertsResp{
+			IakPubPem: iakPubPem,
+		}, nil
+	}
+
 	iDevIDX509, err := VerifyAndParsePemCert(ctx, req.IDevIDCertPem, req.CertVerificationOpts)
 	if err != nil {
 		err = fmt.Errorf("failed to verify and parse IDevID cert: %v", err)
@@ -127,23 +153,7 @@ func (tcv *DefaultTpmCertVerifier) VerifyIakAndIDevIDCerts(ctx context.Context, 
 	}
 	log.InfoContextf(ctx, "Subject serial numbers of IAK and IDevID certs match: %s", iakX509.Subject.SerialNumber)
 
-	// Verify IAK/IDevID cert subject serial and expected control card serial numbers match.
-	if diff := cmp.Diff(iakX509.Subject.SerialNumber, req.ControlCardID.GetControlCardSerial()); diff != "" {
-		err = fmt.Errorf("subject serial number in IAK/IDevID cert and expected control card serial from request do not match: diff = %v", diff)
-		log.ErrorContext(ctx, err)
-		return nil, err
-	}
-	log.InfoContextf(ctx, "Subject serial number in IAK/IDevID cert and expected control card serial from request match: %s", iakX509.Subject.SerialNumber)
-
-	// Verify and convert IAK and IDevID certs' pub keys to PEM.
-	iakPubPem, err := VerifyAndSerializePubKey(ctx, iakX509)
-	if err != nil {
-		err = fmt.Errorf("failed to verify and serialize IAK pub key: %v", err)
-		log.ErrorContext(ctx, err)
-		return nil, err
-	}
-	log.InfoContextf(ctx, "Successfully verified and parsed IAK pub key PEM %s", iakPubPem)
-
+	// Verify and convert IDevID certs' pub keys to PEM.
 	iDevIDPubPem, err := VerifyAndSerializePubKey(ctx, iDevIDX509)
 	if err != nil {
 		err = fmt.Errorf("failed to verify and serialize IDevID pub key: %v", err)
