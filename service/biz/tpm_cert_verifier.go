@@ -22,8 +22,6 @@ import (
 	"encoding/pem"
 	"fmt"
 
-	"github.com/google/go-cmp/cmp"
-
 	log "github.com/golang/glog"
 	cpb "github.com/openconfig/attestz/proto/common_definitions"
 )
@@ -112,8 +110,9 @@ func (tcv *DefaultTpmCertVerifier) VerifyIakAndIDevIDCerts(ctx context.Context, 
 	log.InfoContext(ctx, "Successfully verified and parsed IAK cert")
 
 	// Verify IAK cert subject serial and expected control card serial numbers match.
-	if diff := cmp.Diff(iakX509.Subject.SerialNumber, req.ControlCardID.GetControlCardSerial()); diff != "" {
-		err = fmt.Errorf("subject serial number in IAK/IDevID cert and expected control card serial from request do not match: diff = %v", diff)
+	if iakX509.Subject.SerialNumber != req.ControlCardID.GetControlCardSerial() {
+		err = fmt.Errorf("mismatched subject serial number. IAK/IDevID certs' is %v and control card serial from request's is %v",
+			iakX509.Subject.SerialNumber, req.ControlCardID.GetControlCardSerial())
 		log.ErrorContext(ctx, err)
 		return nil, err
 	}
@@ -146,8 +145,9 @@ func (tcv *DefaultTpmCertVerifier) VerifyIakAndIDevIDCerts(ctx context.Context, 
 	log.InfoContext(ctx, "Successfully verified and parsed IDevID cert")
 
 	// Verify IAK and IDevID cert subject serials match.
-	if diff := cmp.Diff(iakX509.Subject.SerialNumber, iDevIDX509.Subject.SerialNumber); diff != "" {
-		err = fmt.Errorf("subject serial numbers of IAK and IDevID certs do not match: diff = %v", diff)
+	if iakX509.Subject.SerialNumber != iDevIDX509.Subject.SerialNumber {
+		err = fmt.Errorf("mismatched subject serial numbers. IAK's is %v and IDevID certs' is %v",
+			iakX509.Subject.SerialNumber, iDevIDX509.Subject.SerialNumber)
 		log.ErrorContext(ctx, err)
 		return nil, err
 	}
@@ -197,8 +197,9 @@ func (tcv *DefaultTpmCertVerifier) VerifyTpmCert(ctx context.Context, req *Verif
 	log.InfoContext(ctx, "Successfully verified and parsed PEM cert into x509 structure")
 
 	// Verify IAK/IDevID cert subject serial and expected control card serial numbers match.
-	if diff := cmp.Diff(certX509.Subject.SerialNumber, req.ControlCardID.GetControlCardSerial()); diff != "" {
-		err = fmt.Errorf("subject serial number in IAK/IDevID cert and expected control card serial from request do not match: diff = %v", diff)
+	if certX509.Subject.SerialNumber != req.ControlCardID.GetControlCardSerial() {
+		err = fmt.Errorf("mismatched subject serial number. IAK/IDevID certs' is %v and expected control card serial from request's is %v",
+			certX509.Subject.SerialNumber, req.ControlCardID.GetControlCardSerial())
 		log.ErrorContext(ctx, err)
 		return nil, err
 	}
