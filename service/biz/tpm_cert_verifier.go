@@ -94,14 +94,15 @@ func validateVerifyIakAndIDevIDCertsReq(req *VerifyIakAndIDevIDCertsReq) error {
 	return nil
 }
 
+// getCertSerialNumber extracts the serial number from the cert subject serial number.
 func getCertSerialNumber(serial string) (string, error) {
 	// iakX509.Subject.SerialNumber comes in the format PID:xxxxxxx SN:1234JF
 	// Extract out the value after SN:
-	sn := strings.Split(serial, " ")
-	if len(sn) != 2 || sn[1][0:3] != "SN:" {
-		return "", fmt.Errorf("Serial number %v is not in expected format", serial)
+	sn := strings.Split(serial, "SN:")
+	if len(sn) != 2 {
+		return "", fmt.Errorf("serial number %v is not in expected format", serial)
 	}
-	return sn[1][3:], nil
+	return sn[1], nil
 }
 
 // VerifyIakAndIDevIDCerts is the default/reference implementation of TpmCertVerifier.VerifyIakAndIDevIDCerts().
