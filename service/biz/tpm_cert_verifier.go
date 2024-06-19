@@ -21,6 +21,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"strings"
 
 	log "github.com/golang/glog"
 	cpb "github.com/openconfig/attestz/proto/common_definitions"
@@ -93,6 +94,17 @@ func validateVerifyIakAndIDevIDCertsReq(req *VerifyIakAndIDevIDCertsReq) error {
 	return nil
 }
 
+// getCertSerialNumber extracts the serial number from the cert subject serial number.
+func getCertSerialNumber(serial string) (string, error) {
+	// iakX509.Subject.SerialNumber comes in the format PID:xxxxxxx SN:1234JF
+	// Extract out the value after SN:
+	sn := strings.Split(serial, "SN:")
+	if len(sn) != 2 {
+		return "", fmt.Errorf("serial number %v is not in expected format", serial)
+	}
+	return sn[1], nil
+}
+
 // VerifyIakAndIDevIDCerts is the default/reference implementation of TpmCertVerifier.VerifyIakAndIDevIDCerts().
 func (tcv *DefaultTpmCertVerifier) VerifyIakAndIDevIDCerts(ctx context.Context, req *VerifyIakAndIDevIDCertsReq) (*VerifyIakAndIDevIDCertsResp, error) {
 	err := validateVerifyIakAndIDevIDCertsReq(req)
@@ -110,9 +122,16 @@ func (tcv *DefaultTpmCertVerifier) VerifyIakAndIDevIDCerts(ctx context.Context, 
 	log.InfoContext(ctx, "Successfully verified and parsed IAK cert")
 
 	// Verify IAK cert subject serial and expected control card serial numbers match.
-	if iakX509.Subject.SerialNumber != req.ControlCardID.GetControlCardSerial() {
+	iakSerialNumber, err := getCertSerialNumber(iakX509.Subject.SerialNumber)
+	if err != nil {
+		err = fmt.Errorf("failed to get serial number from IAK cert subject serial %v: %v", iakX509.Subject.SerialNumber, err)
+		log.ErrorContext(ctx, err)
+		return nil, err
+	}
+
+	if iakSerialNumber != req.ControlCardID.GetControlCardSerial() {
 		err = fmt.Errorf("mismatched subject serial number. IAK/IDevID certs' is %v and control card serial from request's is %v",
-			iakX509.Subject.SerialNumber, req.ControlCardID.GetControlCardSerial())
+			iakSerialNumber, req.ControlCardID.GetControlCardSerial())
 		log.ErrorContext(ctx, err)
 		return nil, err
 	}
@@ -145,13 +164,19 @@ func (tcv *DefaultTpmCertVerifier) VerifyIakAndIDevIDCerts(ctx context.Context, 
 	log.InfoContext(ctx, "Successfully verified and parsed IDevID cert")
 
 	// Verify IAK and IDevID cert subject serials match.
-	if iakX509.Subject.SerialNumber != iDevIDX509.Subject.SerialNumber {
-		err = fmt.Errorf("mismatched subject serial numbers. IAK's is %v and IDevID certs' is %v",
-			iakX509.Subject.SerialNumber, iDevIDX509.Subject.SerialNumber)
+	iDevIDSerialNumber, err := getCertSerialNumber(iDevIDX509.Subject.SerialNumber)
+	if err != nil {
+		err = fmt.Errorf("failed to get serial number from iDevID cert subject serial %v: %v", iakX509.Subject.SerialNumber, err)
 		log.ErrorContext(ctx, err)
 		return nil, err
 	}
-	log.InfoContextf(ctx, "Subject serial numbers of IAK and IDevID certs match: %s", iakX509.Subject.SerialNumber)
+	if iakSerialNumber != iDevIDSerialNumber {
+		err = fmt.Errorf("mismatched subject serial numbers. IAK's is %v and IDevID certs' is %v",
+			iakSerialNumber, iDevIDSerialNumber)
+		log.ErrorContext(ctx, err)
+		return nil, err
+	}
+	log.InfoContextf(ctx, "Subject serial numbers of IAK and IDevID certs match: %s", iakSerialNumber)
 
 	// Verify and convert IDevID certs' pub keys to PEM.
 	iDevIDPubPem, err := VerifyAndSerializePubKey(ctx, iDevIDX509)
