@@ -207,6 +207,7 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 		ChassisSerialNumber: "Some chassis serial",
 	}
 	certSerial := "PID:ZZ-Y-XX SN:ABCD1234"
+	certSerial2 := "ABCD1234"
 
 	tests := []struct {
 		// Test description.
@@ -250,11 +251,11 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 			wantError:               false,
 			cardID:                  cardID,
 			iakCertAsymAlgo:         eccP521Algo,
-			iakCertSubjectSerial:    certSerial,
+			iakCertSubjectSerial:    certSerial2,
 			iakCertNotBefore:        time.Now(),
 			iakCertNotAfter:         time.Now().AddDate(0, 1, 0),
 			iDevIDCertAsymAlgo:      rsa2048Algo,
-			iDevIDCertSubjectSerial: certSerial,
+			iDevIDCertSubjectSerial: certSerial2,
 			iDevIDCertNotBefore:     time.Now(),
 			iDevIDCertNotAfter:      time.Now().AddDate(0, 0, 10),
 		},
