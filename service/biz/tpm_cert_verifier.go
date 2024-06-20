@@ -100,7 +100,7 @@ func getCertSerialNumber(serial string) (string, error) {
 	// Extract out the value after SN:
 	sn := strings.Split(serial, "SN:")
 	if len(sn) != 2 {
-		return "", fmt.Errorf("serial number %v is not in expected format", serial)
+		return sn[0], nil
 	}
 	return sn[1], nil
 }
