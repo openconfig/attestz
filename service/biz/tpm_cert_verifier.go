@@ -96,8 +96,9 @@ func validateVerifyIakAndIDevIDCertsReq(req *VerifyIakAndIDevIDCertsReq) error {
 
 // getCertSerialNumber extracts the serial number from the cert subject serial number.
 func getCertSerialNumber(serial string) (string, error) {
-	// iakX509.Subject.SerialNumber comes in the format PID:xxxxxxx SN:1234JF
-	// Extract out the value after SN:
+	// iakX509.Subject.SerialNumber can come in the format PID:xxxxxxx SN:1234JF or just
+	// the serial number as is.
+	// Try to extract out the value after SN:
 	sn := strings.Split(serial, "SN:")
 	if len(sn) != 2 {
 		return sn[0], nil
