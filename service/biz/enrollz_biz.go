@@ -117,6 +117,8 @@ type EnrollControlCardReq struct {
 	CertVerificationOpts x509.VerifyOptions
 	// SSL profile ID to which newly-issued Owner IDevID cert should be applied.
 	SSLProfileID string
+	// Experimental flag used for lab testing only. Skips oIDevID rotation.
+	SkipOidevidRotate bool
 }
 
 // validateEnrollControlCardReq verifies that EnrollControlCardReq request is valid.
@@ -216,6 +218,9 @@ func EnrollControlCard(ctx context.Context, req *EnrollControlCardReq) error {
 		OiakCert:             issueOwnerIakCertResp.OwnerIakCertPem,
 		OidevidCert:          issueOwnerIDevIDCertResp.OwnerIDevIDCertPem,
 		SslProfileId:         req.SSLProfileID,
+	}
+	if req.SkipOidevidRotate {
+		rotateOIakCertReq.OidevidCert = ""
 	}
 	rotateOIakCertResp, err := req.Deps.RotateOIakCert(ctx, rotateOIakCertReq)
 	if err != nil {
