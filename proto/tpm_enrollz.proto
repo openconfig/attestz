@@ -56,8 +56,9 @@ message RotateOIakCertRequest {
   // switch owner/administrator CA.
   string oiak_cert = 2;
 
-  // PEM-encoded owner initial DevID certificate signed by the
-  // switch owner/administrator CA.
+  // [Optional] PEM-encoded owner initial DevID certificate signed by the
+  // switch owner/administrator CA. Will be empty if `idevid_cert` was not
+  // provided in GetIakCertResponse earlier in the workflow.
   string oidevid_cert = 3;
 
   // SSL profile for which the certs will be assigned.

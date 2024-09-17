@@ -76,8 +76,8 @@ message AttestResponse {
   bytes quote_signature = 5;
 
   // [Optional] PEM-encoded owner initial DevID certificate signed by the
-  // switch owner/administrator CA. This field should only be populated for
-  // standby/secondary control card.
+  // switch owner/administrator CA. This field may only be populated for
+  // the standby/secondary control card.
   string oidevid_cert = 6;
 }
 
