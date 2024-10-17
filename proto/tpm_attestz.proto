@@ -52,7 +52,9 @@ message AttestResponse {
   ControlCardVendorId control_card_id = 1;
 
   // PEM-encoded owner initial attestation key certificate signed by the switch
-  // owner/administrator CA during TPM enrollment workflow.
+  // owner/administrator CA during TPM enrollment workflow. The PEM formatted 
+  // cert string can have more than one certificate block representing a
+  // certificate chain.
   string oiak_cert = 2;
 
   // Final observed unsigned PCR values {pcr_index -> pcr_value}.
@@ -77,7 +79,8 @@ message AttestResponse {
 
   // [Optional] PEM-encoded owner initial DevID certificate signed by the
   // switch owner/administrator CA. This field may only be populated for
-  // the standby/secondary control card.
+  // the standby/secondary control card. The PEM formatted cert string can have
+  // more than one certificate block representing a certificate chain.
   string oidevid_cert = 6;
 }
 
