@@ -97,7 +97,7 @@ message RotateAIKCertRequest {
 
 message RotateAIKCertResponse {
   oneof value {
-    bytes application_identity_key = 1;
+    bytes application_identity_public_key = 1;
     bool finalized = 2;
   }
 }
