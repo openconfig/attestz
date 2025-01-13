@@ -244,6 +244,168 @@ func (*RotateOIakCertResponse) Descriptor() ([]byte, []int) {
 	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{3}
 }
 
+type RotateAIKCertRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Types that are assignable to Value:
+	//
+	//	*RotateAIKCertRequest_IssuerPublicKey
+	//	*RotateAIKCertRequest_AikCert
+	Value isRotateAIKCertRequest_Value `protobuf_oneof:"value"`
+}
+
+func (x *RotateAIKCertRequest) Reset() {
+	*x = RotateAIKCertRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[4]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *RotateAIKCertRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RotateAIKCertRequest) ProtoMessage() {}
+
+func (x *RotateAIKCertRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[4]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RotateAIKCertRequest.ProtoReflect.Descriptor instead.
+func (*RotateAIKCertRequest) Descriptor() ([]byte, []int) {
+	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{4}
+}
+
+func (m *RotateAIKCertRequest) GetValue() isRotateAIKCertRequest_Value {
+	if m != nil {
+		return m.Value
+	}
+	return nil
+}
+
+func (x *RotateAIKCertRequest) GetIssuerPublicKey() []byte {
+	if x, ok := x.GetValue().(*RotateAIKCertRequest_IssuerPublicKey); ok {
+		return x.IssuerPublicKey
+	}
+	return nil
+}
+
+func (x *RotateAIKCertRequest) GetAikCert() string {
+	if x, ok := x.GetValue().(*RotateAIKCertRequest_AikCert); ok {
+		return x.AikCert
+	}
+	return ""
+}
+
+type isRotateAIKCertRequest_Value interface {
+	isRotateAIKCertRequest_Value()
+}
+
+type RotateAIKCertRequest_IssuerPublicKey struct {
+	IssuerPublicKey []byte `protobuf:"bytes,1,opt,name=issuer_public_key,json=issuerPublicKey,proto3,oneof"`
+}
+
+type RotateAIKCertRequest_AikCert struct {
+	AikCert string `protobuf:"bytes,2,opt,name=aik_cert,json=aikCert,proto3,oneof"`
+}
+
+func (*RotateAIKCertRequest_IssuerPublicKey) isRotateAIKCertRequest_Value() {}
+
+func (*RotateAIKCertRequest_AikCert) isRotateAIKCertRequest_Value() {}
+
+type RotateAIKCertResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Types that are assignable to Value:
+	//
+	//	*RotateAIKCertResponse_ApplicationIdentityKey
+	//	*RotateAIKCertResponse_Finalized
+	Value isRotateAIKCertResponse_Value `protobuf_oneof:"value"`
+}
+
+func (x *RotateAIKCertResponse) Reset() {
+	*x = RotateAIKCertResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[5]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *RotateAIKCertResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RotateAIKCertResponse) ProtoMessage() {}
+
+func (x *RotateAIKCertResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[5]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RotateAIKCertResponse.ProtoReflect.Descriptor instead.
+func (*RotateAIKCertResponse) Descriptor() ([]byte, []int) {
+	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{5}
+}
+
+func (m *RotateAIKCertResponse) GetValue() isRotateAIKCertResponse_Value {
+	if m != nil {
+		return m.Value
+	}
+	return nil
+}
+
+func (x *RotateAIKCertResponse) GetApplicationIdentityKey() []byte {
+	if x, ok := x.GetValue().(*RotateAIKCertResponse_ApplicationIdentityKey); ok {
+		return x.ApplicationIdentityKey
+	}
+	return nil
+}
+
+func (x *RotateAIKCertResponse) GetFinalized() bool {
+	if x, ok := x.GetValue().(*RotateAIKCertResponse_Finalized); ok {
+		return x.Finalized
+	}
+	return false
+}
+
+type isRotateAIKCertResponse_Value interface {
+	isRotateAIKCertResponse_Value()
+}
+
+type RotateAIKCertResponse_ApplicationIdentityKey struct {
+	ApplicationIdentityKey []byte `protobuf:"bytes,1,opt,name=application_identity_key,json=applicationIdentityKey,proto3,oneof"`
+}
+
+type RotateAIKCertResponse_Finalized struct {
+	Finalized bool `protobuf:"varint,2,opt,name=finalized,proto3,oneof"`
+}
+
+func (*RotateAIKCertResponse_ApplicationIdentityKey) isRotateAIKCertResponse_Value() {}
+
+func (*RotateAIKCertResponse_Finalized) isRotateAIKCertResponse_Value() {}
+
 var File_github_com_openconfig_attestz_proto_tpm_enrollz_proto protoreflect.FileDescriptor
 
 var file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDesc = []byte{
@@ -288,24 +450,45 @@ var file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDesc = []byte{
 	0x73, 0x73, 0x6c, 0x5f, 0x70, 0x72, 0x6f, 0x66, 0x69, 0x6c, 0x65, 0x5f, 0x69, 0x64, 0x18, 0x04,
 	0x20, 0x01, 0x28, 0x09, 0x52, 0x0c, 0x73, 0x73, 0x6c, 0x50, 0x72, 0x6f, 0x66, 0x69, 0x6c, 0x65,
 	0x49, 0x64, 0x22, 0x18, 0x0a, 0x16, 0x52, 0x6f, 0x74, 0x61, 0x74, 0x65, 0x4f, 0x49, 0x61, 0x6b,
-	0x43, 0x65, 0x72, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x32, 0xd9, 0x01, 0x0a,
-	0x11, 0x54, 0x70, 0x6d, 0x45, 0x6e, 0x72, 0x6f, 0x6c, 0x6c, 0x7a, 0x53, 0x65, 0x72, 0x76, 0x69,
-	0x63, 0x65, 0x12, 0x5b, 0x0a, 0x0a, 0x47, 0x65, 0x74, 0x49, 0x61, 0x6b, 0x43, 0x65, 0x72, 0x74,
-	0x12, 0x25, 0x2e, 0x6f, 0x70, 0x65, 0x6e, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x2e, 0x61, 0x74,
-	0x74, 0x65, 0x73, 0x74, 0x7a, 0x2e, 0x47, 0x65, 0x74, 0x49, 0x61, 0x6b, 0x43, 0x65, 0x72, 0x74,
-	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x26, 0x2e, 0x6f, 0x70, 0x65, 0x6e, 0x63, 0x6f,
-	0x6e, 0x66, 0x69, 0x67, 0x2e, 0x61, 0x74, 0x74, 0x65, 0x73, 0x74, 0x7a, 0x2e, 0x47, 0x65, 0x74,
-	0x49, 0x61, 0x6b, 0x43, 0x65, 0x72, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
-	0x67, 0x0a, 0x0e, 0x52, 0x6f, 0x74, 0x61, 0x74, 0x65, 0x4f, 0x49, 0x61, 0x6b, 0x43, 0x65, 0x72,
-	0x74, 0x12, 0x29, 0x2e, 0x6f, 0x70, 0x65, 0x6e, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x2e, 0x61,
-	0x74, 0x74, 0x65, 0x73, 0x74, 0x7a, 0x2e, 0x52, 0x6f, 0x74, 0x61, 0x74, 0x65, 0x4f, 0x49, 0x61,
-	0x6b, 0x43, 0x65, 0x72, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2a, 0x2e, 0x6f,
-	0x70, 0x65, 0x6e, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x2e, 0x61, 0x74, 0x74, 0x65, 0x73, 0x74,
-	0x7a, 0x2e, 0x52, 0x6f, 0x74, 0x61, 0x74, 0x65, 0x4f, 0x49, 0x61, 0x6b, 0x43, 0x65, 0x72, 0x74,
-	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x1f, 0x5a, 0x1d, 0x67, 0x69, 0x74, 0x68,
-	0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x6f, 0x70, 0x65, 0x6e, 0x63, 0x6f, 0x6e, 0x66, 0x69,
-	0x67, 0x2f, 0x61, 0x74, 0x74, 0x65, 0x73, 0x74, 0x7a, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f,
-	0x33,
+	0x43, 0x65, 0x72, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x6a, 0x0a, 0x14,
+	0x52, 0x6f, 0x74, 0x61, 0x74, 0x65, 0x41, 0x49, 0x4b, 0x43, 0x65, 0x72, 0x74, 0x52, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x12, 0x2c, 0x0a, 0x11, 0x69, 0x73, 0x73, 0x75, 0x65, 0x72, 0x5f, 0x70,
+	0x75, 0x62, 0x6c, 0x69, 0x63, 0x5f, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x48,
+	0x00, 0x52, 0x0f, 0x69, 0x73, 0x73, 0x75, 0x65, 0x72, 0x50, 0x75, 0x62, 0x6c, 0x69, 0x63, 0x4b,
+	0x65, 0x79, 0x12, 0x1b, 0x0a, 0x08, 0x61, 0x69, 0x6b, 0x5f, 0x63, 0x65, 0x72, 0x74, 0x18, 0x02,
+	0x20, 0x01, 0x28, 0x09, 0x48, 0x00, 0x52, 0x07, 0x61, 0x69, 0x6b, 0x43, 0x65, 0x72, 0x74, 0x42,
+	0x07, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x22, 0x7c, 0x0a, 0x15, 0x52, 0x6f, 0x74, 0x61,
+	0x74, 0x65, 0x41, 0x49, 0x4b, 0x43, 0x65, 0x72, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x12, 0x3a, 0x0a, 0x18, 0x61, 0x70, 0x70, 0x6c, 0x69, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e,
+	0x5f, 0x69, 0x64, 0x65, 0x6e, 0x74, 0x69, 0x74, 0x79, 0x5f, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x0c, 0x48, 0x00, 0x52, 0x16, 0x61, 0x70, 0x70, 0x6c, 0x69, 0x63, 0x61, 0x74, 0x69,
+	0x6f, 0x6e, 0x49, 0x64, 0x65, 0x6e, 0x74, 0x69, 0x74, 0x79, 0x4b, 0x65, 0x79, 0x12, 0x1e, 0x0a,
+	0x09, 0x66, 0x69, 0x6e, 0x61, 0x6c, 0x69, 0x7a, 0x65, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x08,
+	0x48, 0x00, 0x52, 0x09, 0x66, 0x69, 0x6e, 0x61, 0x6c, 0x69, 0x7a, 0x65, 0x64, 0x42, 0x07, 0x0a,
+	0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x32, 0xc2, 0x02, 0x0a, 0x11, 0x54, 0x70, 0x6d, 0x45, 0x6e,
+	0x72, 0x6f, 0x6c, 0x6c, 0x7a, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x5b, 0x0a, 0x0a,
+	0x47, 0x65, 0x74, 0x49, 0x61, 0x6b, 0x43, 0x65, 0x72, 0x74, 0x12, 0x25, 0x2e, 0x6f, 0x70, 0x65,
+	0x6e, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x2e, 0x61, 0x74, 0x74, 0x65, 0x73, 0x74, 0x7a, 0x2e,
+	0x47, 0x65, 0x74, 0x49, 0x61, 0x6b, 0x43, 0x65, 0x72, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x1a, 0x26, 0x2e, 0x6f, 0x70, 0x65, 0x6e, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x2e, 0x61,
+	0x74, 0x74, 0x65, 0x73, 0x74, 0x7a, 0x2e, 0x47, 0x65, 0x74, 0x49, 0x61, 0x6b, 0x43, 0x65, 0x72,
+	0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x67, 0x0a, 0x0e, 0x52, 0x6f, 0x74,
+	0x61, 0x74, 0x65, 0x4f, 0x49, 0x61, 0x6b, 0x43, 0x65, 0x72, 0x74, 0x12, 0x29, 0x2e, 0x6f, 0x70,
+	0x65, 0x6e, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x2e, 0x61, 0x74, 0x74, 0x65, 0x73, 0x74, 0x7a,
+	0x2e, 0x52, 0x6f, 0x74, 0x61, 0x74, 0x65, 0x4f, 0x49, 0x61, 0x6b, 0x43, 0x65, 0x72, 0x74, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2a, 0x2e, 0x6f, 0x70, 0x65, 0x6e, 0x63, 0x6f, 0x6e,
+	0x66, 0x69, 0x67, 0x2e, 0x61, 0x74, 0x74, 0x65, 0x73, 0x74, 0x7a, 0x2e, 0x52, 0x6f, 0x74, 0x61,
+	0x74, 0x65, 0x4f, 0x49, 0x61, 0x6b, 0x43, 0x65, 0x72, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x12, 0x67, 0x0a, 0x0d, 0x52, 0x6f, 0x74, 0x61, 0x74, 0x65, 0x41, 0x49, 0x4b, 0x43,
+	0x65, 0x72, 0x74, 0x12, 0x28, 0x2e, 0x6f, 0x70, 0x65, 0x6e, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67,
+	0x2e, 0x61, 0x74, 0x74, 0x65, 0x73, 0x74, 0x7a, 0x2e, 0x52, 0x6f, 0x74, 0x61, 0x74, 0x65, 0x41,
+	0x49, 0x4b, 0x43, 0x65, 0x72, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x28, 0x2e,
+	0x6f, 0x70, 0x65, 0x6e, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x2e, 0x61, 0x74, 0x74, 0x65, 0x73,
+	0x74, 0x7a, 0x2e, 0x52, 0x6f, 0x74, 0x61, 0x74, 0x65, 0x41, 0x49, 0x4b, 0x43, 0x65, 0x72, 0x74,
+	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x28, 0x01, 0x30, 0x01, 0x42, 0x1f, 0x5a, 0x1d, 0x67,
+	0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x6f, 0x70, 0x65, 0x6e, 0x63, 0x6f,
+	0x6e, 0x66, 0x69, 0x67, 0x2f, 0x61, 0x74, 0x74, 0x65, 0x73, 0x74, 0x7a, 0x62, 0x06, 0x70, 0x72,
+	0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -320,25 +503,29 @@ func file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP() []
 	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescData
 }
 
-var file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_goTypes = []interface{}{
 	(*GetIakCertRequest)(nil),                       // 0: openconfig.attestz.GetIakCertRequest
 	(*GetIakCertResponse)(nil),                      // 1: openconfig.attestz.GetIakCertResponse
 	(*RotateOIakCertRequest)(nil),                   // 2: openconfig.attestz.RotateOIakCertRequest
 	(*RotateOIakCertResponse)(nil),                  // 3: openconfig.attestz.RotateOIakCertResponse
-	(*common_definitions.ControlCardSelection)(nil), // 4: openconfig.attestz.ControlCardSelection
-	(*common_definitions.ControlCardVendorId)(nil),  // 5: openconfig.attestz.ControlCardVendorId
+	(*RotateAIKCertRequest)(nil),                    // 4: openconfig.attestz.RotateAIKCertRequest
+	(*RotateAIKCertResponse)(nil),                   // 5: openconfig.attestz.RotateAIKCertResponse
+	(*common_definitions.ControlCardSelection)(nil), // 6: openconfig.attestz.ControlCardSelection
+	(*common_definitions.ControlCardVendorId)(nil),  // 7: openconfig.attestz.ControlCardVendorId
 }
 var file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_depIdxs = []int32{
-	4, // 0: openconfig.attestz.GetIakCertRequest.control_card_selection:type_name -> openconfig.attestz.ControlCardSelection
-	5, // 1: openconfig.attestz.GetIakCertResponse.control_card_id:type_name -> openconfig.attestz.ControlCardVendorId
-	4, // 2: openconfig.attestz.RotateOIakCertRequest.control_card_selection:type_name -> openconfig.attestz.ControlCardSelection
+	6, // 0: openconfig.attestz.GetIakCertRequest.control_card_selection:type_name -> openconfig.attestz.ControlCardSelection
+	7, // 1: openconfig.attestz.GetIakCertResponse.control_card_id:type_name -> openconfig.attestz.ControlCardVendorId
+	6, // 2: openconfig.attestz.RotateOIakCertRequest.control_card_selection:type_name -> openconfig.attestz.ControlCardSelection
 	0, // 3: openconfig.attestz.TpmEnrollzService.GetIakCert:input_type -> openconfig.attestz.GetIakCertRequest
 	2, // 4: openconfig.attestz.TpmEnrollzService.RotateOIakCert:input_type -> openconfig.attestz.RotateOIakCertRequest
-	1, // 5: openconfig.attestz.TpmEnrollzService.GetIakCert:output_type -> openconfig.attestz.GetIakCertResponse
-	3, // 6: openconfig.attestz.TpmEnrollzService.RotateOIakCert:output_type -> openconfig.attestz.RotateOIakCertResponse
-	5, // [5:7] is the sub-list for method output_type
-	3, // [3:5] is the sub-list for method input_type
+	4, // 5: openconfig.attestz.TpmEnrollzService.RotateAIKCert:input_type -> openconfig.attestz.RotateAIKCertRequest
+	1, // 6: openconfig.attestz.TpmEnrollzService.GetIakCert:output_type -> openconfig.attestz.GetIakCertResponse
+	3, // 7: openconfig.attestz.TpmEnrollzService.RotateOIakCert:output_type -> openconfig.attestz.RotateOIakCertResponse
+	4, // 8: openconfig.attestz.TpmEnrollzService.RotateAIKCert:output_type -> openconfig.attestz.RotateAIKCertRequest
+	6, // [6:9] is the sub-list for method output_type
+	3, // [3:6] is the sub-list for method input_type
 	3, // [3:3] is the sub-list for extension type_name
 	3, // [3:3] is the sub-list for extension extendee
 	0, // [0:3] is the sub-list for field type_name
@@ -398,6 +585,38 @@ func file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_init() {
 				return nil
 			}
 		}
+		file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*RotateAIKCertRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*RotateAIKCertResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+	}
+	file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[4].OneofWrappers = []interface{}{
+		(*RotateAIKCertRequest_IssuerPublicKey)(nil),
+		(*RotateAIKCertRequest_AikCert)(nil),
+	}
+	file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[5].OneofWrappers = []interface{}{
+		(*RotateAIKCertResponse_ApplicationIdentityKey)(nil),
+		(*RotateAIKCertResponse_Finalized)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -405,7 +624,7 @@ func file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
@@ -433,6 +652,7 @@ const _ = grpc.SupportPackageIsVersion6
 type TpmEnrollzServiceClient interface {
 	GetIakCert(ctx context.Context, in *GetIakCertRequest, opts ...grpc.CallOption) (*GetIakCertResponse, error)
 	RotateOIakCert(ctx context.Context, in *RotateOIakCertRequest, opts ...grpc.CallOption) (*RotateOIakCertResponse, error)
+	RotateAIKCert(ctx context.Context, opts ...grpc.CallOption) (TpmEnrollzService_RotateAIKCertClient, error)
 }
 
 type tpmEnrollzServiceClient struct {
@@ -461,10 +681,42 @@ func (c *tpmEnrollzServiceClient) RotateOIakCert(ctx context.Context, in *Rotate
 	return out, nil
 }
 
+func (c *tpmEnrollzServiceClient) RotateAIKCert(ctx context.Context, opts ...grpc.CallOption) (TpmEnrollzService_RotateAIKCertClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_TpmEnrollzService_serviceDesc.Streams[0], "/openconfig.attestz.TpmEnrollzService/RotateAIKCert", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &tpmEnrollzServiceRotateAIKCertClient{stream}
+	return x, nil
+}
+
+type TpmEnrollzService_RotateAIKCertClient interface {
+	Send(*RotateAIKCertRequest) error
+	Recv() (*RotateAIKCertRequest, error)
+	grpc.ClientStream
+}
+
+type tpmEnrollzServiceRotateAIKCertClient struct {
+	grpc.ClientStream
+}
+
+func (x *tpmEnrollzServiceRotateAIKCertClient) Send(m *RotateAIKCertRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *tpmEnrollzServiceRotateAIKCertClient) Recv() (*RotateAIKCertRequest, error) {
+	m := new(RotateAIKCertRequest)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // TpmEnrollzServiceServer is the server API for TpmEnrollzService service.
 type TpmEnrollzServiceServer interface {
 	GetIakCert(context.Context, *GetIakCertRequest) (*GetIakCertResponse, error)
 	RotateOIakCert(context.Context, *RotateOIakCertRequest) (*RotateOIakCertResponse, error)
+	RotateAIKCert(TpmEnrollzService_RotateAIKCertServer) error
 }
 
 // UnimplementedTpmEnrollzServiceServer can be embedded to have forward compatible implementations.
@@ -476,6 +728,9 @@ func (*UnimplementedTpmEnrollzServiceServer) GetIakCert(context.Context, *GetIak
 }
 func (*UnimplementedTpmEnrollzServiceServer) RotateOIakCert(context.Context, *RotateOIakCertRequest) (*RotateOIakCertResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RotateOIakCert not implemented")
+}
+func (*UnimplementedTpmEnrollzServiceServer) RotateAIKCert(TpmEnrollzService_RotateAIKCertServer) error {
+	return status.Errorf(codes.Unimplemented, "method RotateAIKCert not implemented")
 }
 
 func RegisterTpmEnrollzServiceServer(s *grpc.Server, srv TpmEnrollzServiceServer) {
@@ -518,6 +773,32 @@ func _TpmEnrollzService_RotateOIakCert_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TpmEnrollzService_RotateAIKCert_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(TpmEnrollzServiceServer).RotateAIKCert(&tpmEnrollzServiceRotateAIKCertServer{stream})
+}
+
+type TpmEnrollzService_RotateAIKCertServer interface {
+	Send(*RotateAIKCertRequest) error
+	Recv() (*RotateAIKCertRequest, error)
+	grpc.ServerStream
+}
+
+type tpmEnrollzServiceRotateAIKCertServer struct {
+	grpc.ServerStream
+}
+
+func (x *tpmEnrollzServiceRotateAIKCertServer) Send(m *RotateAIKCertRequest) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *tpmEnrollzServiceRotateAIKCertServer) Recv() (*RotateAIKCertRequest, error) {
+	m := new(RotateAIKCertRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 var _TpmEnrollzService_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "openconfig.attestz.TpmEnrollzService",
 	HandlerType: (*TpmEnrollzServiceServer)(nil),
@@ -531,6 +812,13 @@ var _TpmEnrollzService_serviceDesc = grpc.ServiceDesc{
 			Handler:    _TpmEnrollzService_RotateOIakCert_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "RotateAIKCert",
+			Handler:       _TpmEnrollzService_RotateAIKCert_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "github.com/openconfig/attestz/proto/tpm_enrollz.proto",
 }
