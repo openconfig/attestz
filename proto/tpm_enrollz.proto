@@ -26,6 +26,7 @@ option go_package = "github.com/openconfig/attestz";
 message GetIakCertRequest {
   // Switch control card selected identifier.
   ControlCardSelection control_card_selection = 1;
+
 }
 
 // Response from the specified control card containing its Initial Attestation
@@ -43,6 +44,7 @@ message GetIakCertResponse {
   // card. It should only be populated for standby/secondary control card when
   // no direct communication to that control card is possible.
   string idevid_cert = 3;
+
 }
 
 // Request for a given control card to rotate/install an owner Initial
@@ -81,6 +83,24 @@ message RotateOIakCertResponse {
   // changes.
 }
 
+// The RotateAIKCertRequest handles the workflow for enrollment of TPM1.2
+// devices. The initial request will include the issuer_public_key to allow
+// the building of the AIK which will then be returned and used to generate the AIK cert.
+// For any updates after initial enrollment the new AIK cert can just be returned.
+message RotateAIKCertRequest {
+  oneof value {
+    bytes issuer_public_key = 1;
+    string aik_cert = 2;
+  }
+}
+
+message RotateAIKCertResponse {
+  oneof value {
+    bytes application_identity_key = 1;
+    bool finalized = 2;
+  }
+}
+
 // The service is responsible for TPM enrollment workflow on the switch
 // owner/administrator side. In this workflow switch owner verifies device's
 // Initial Attestation Key (IAK) and Initial DevID (IDevID) certificates (signed
@@ -106,4 +126,11 @@ service TpmEnrollzService {
   // present on the device, then a new one is persisted. Otherwise, a new oIAK
   // cert should overwrite an existing oIAK cert on the device.
   rpc RotateOIakCert(RotateOIakCertRequest) returns (RotateOIakCertResponse);
+
+  // For TPM1.2 systems the following RPC's are used to enroll the device.
+  // RotateAIKCert takes the public key of the issuer and uses it as input to
+  // generate the AIK. The AIK is then returned to the caller for use in AIK
+  // cert generation then returned to the device for storage and finalization.
+  rpc RotateAIKCert(stream RotateAIKCertRequest) returns (stream RotateAIKCertRequest);
+
 }
