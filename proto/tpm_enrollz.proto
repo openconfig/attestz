@@ -89,16 +89,29 @@ message RotateOIakCertResponse {
 // the AIK cert. For any updates after initial enrollment the new AIK cert
 // can just be returned.
 message RotateAIKCertRequest {
+
+  message IssuerCertPayload {
+    // Symmetric key used to encrypt the AIK Cert blob.
+    // This blob is encrypted with the EK.
+    bytes symmetric_key_blob = 1;
+    // AIK Cert that is encrypted with the provided symmetric key.
+    bytes aik_cert_blob = 2; 
+  }
+  
   oneof value {
     bytes issuer_public_key = 1;
-    string aik_cert = 2;
+    // Encrypted payload that only the targetted device should be able
+    // to decrypt via the EK.
+    IssuerCertPayload issuer_cert_payload =2;
   }
 }
 
 message RotateAIKCertResponse {
   oneof value {
-    bytes application_identity_public_key = 1;
-    bool finalized = 2;
+    bytes application_identity_request = 1;
+    // The decrypted cert is returned so the caller can validate that
+    // the device did in fact have the proper EK.
+    bool aik_cert = 2;
   }
 }
 
