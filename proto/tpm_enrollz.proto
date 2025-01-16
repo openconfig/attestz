@@ -94,13 +94,14 @@ message RotateAIKCertRequest {
     // Symmetric key used to encrypt the AIK Cert blob.
     // This blob is encrypted with the EK.
     bytes symmetric_key_blob = 1;
-    // AIK Cert that is encrypted with the provided symmetric key.
+    // AIK Cert in PEM format that is encrypted with the provided symmetric
+    // key.
     bytes aik_cert_blob = 2; 
   }
   
   oneof value {
     bytes issuer_public_key = 1;
-    // Encrypted payload that only the targetted device should be able
+    // Encrypted payload that only the targeted device should be able
     // to decrypt via the EK.
     IssuerCertPayload issuer_cert_payload =2;
   }
@@ -109,9 +110,9 @@ message RotateAIKCertRequest {
 message RotateAIKCertResponse {
   oneof value {
     bytes application_identity_request = 1;
-    // The decrypted cert is returned so the caller can validate that
-    // the device did in fact have the proper EK.
-    bool aik_cert = 2;
+    // The decrypted cert in PEM format is returned so the caller can validate
+    // that the device did in fact have the proper EK.
+    string aik_cert = 2;
   }
 }
 
