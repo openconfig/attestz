@@ -3,7 +3,7 @@
 * @openconfig/attestz-committers
 
 # Core enrollz and attestz APIs.
-/proto/*.proto @marcushines @morrowc @jenia-grunin
+/proto/*.proto @marcushines @morrowc @betuls
 
 # Core enrollz and attestz workflows definitions and security requirements.
-README.md @marcushines @morrowc @jenia-grunin
+README.md @marcushines @morrowc @betuls
