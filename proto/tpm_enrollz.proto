@@ -26,6 +26,7 @@ option go_package = "github.com/openconfig/attestz";
 message GetIakCertRequest {
   // Switch control card selected identifier.
   ControlCardSelection control_card_selection = 1;
+
 }
 
 // Response from the specified control card containing its Initial Attestation
@@ -43,6 +44,7 @@ message GetIakCertResponse {
   // card. It should only be populated for standby/secondary control card when
   // no direct communication to that control card is possible.
   string idevid_cert = 3;
+
 }
 
 // Request for a given control card to rotate/install an owner Initial
@@ -81,6 +83,41 @@ message RotateOIakCertResponse {
   // changes.
 }
 
+// The RotateAIKCertRequest handles the workflow for enrollment of TPM1.2
+// devices. The initial request will include the issuer_public_key to allow
+// the building of the AIK which will then be returned and used to generate
+// the AIK cert. For any updates after initial enrollment the new AIK cert
+// can just be returned.
+message RotateAIKCertRequest {
+
+  message IssuerCertPayload {
+    // Symmetric key used to encrypt the AIK Cert blob.
+    // This blob is encrypted with the EK.
+    bytes symmetric_key_blob = 1;
+    // AIK Cert in PEM format that is encrypted with the provided symmetric
+    // key.
+    bytes aik_cert_blob = 2; 
+  }
+  
+  oneof value {
+    bytes issuer_public_key = 1;
+    // Encrypted payload that only the targeted device should be able
+    // to decrypt via the EK.
+    IssuerCertPayload issuer_cert_payload = 2;
+    // Finalize tells the server that the AIK cert is correct.
+    bool finalize = 3;
+  }
+}
+
+message RotateAIKCertResponse {
+  oneof value {
+    bytes application_identity_request = 1;
+    // The decrypted cert in PEM format is returned so the caller can validate
+    // that the device did in fact have the proper EK.
+    string aik_cert = 2;
+  }
+}
+
 // The service is responsible for TPM enrollment workflow on the switch
 // owner/administrator side. In this workflow switch owner verifies device's
 // Initial Attestation Key (IAK) and Initial DevID (IDevID) certificates (signed
@@ -106,4 +143,20 @@ service TpmEnrollzService {
   // present on the device, then a new one is persisted. Otherwise, a new oIAK
   // cert should overwrite an existing oIAK cert on the device.
   rpc RotateOIakCert(RotateOIakCertRequest) returns (RotateOIakCertResponse);
+
+  // For TPM1.2 systems the following RPC's are used to enroll the device.
+  // RotateAIKCert takes the public key of the issuer and uses it as input to
+  // generate the AIK. The AIK is then returned to the caller for use in AIK
+  // cert generation then returned to the device for storage and finalization.
+  // Workflow overview:
+  // Client -> Sends request with issuer_public_key
+  // Device -> Takes issuer_public_key and builds an application_identity_request
+  // Client -> Takes application_identity_request and gets AIK cert from CA and encrypts it and
+  //           returns it in issuer_cert_payload
+  // Device -> Unencrypts and installs the new AIK cert and returns the PEM format back to
+  //           caller for verification in aik_cert
+  // Client -> Validate the AIK Cert is as expected and returns a finalize message and closes
+  //           the RPC.
+  rpc RotateAIKCert(stream RotateAIKCertRequest) returns (stream RotateAIKCertRequest);
+
 }
