@@ -103,7 +103,9 @@ message RotateAIKCertRequest {
     bytes issuer_public_key = 1;
     // Encrypted payload that only the targeted device should be able
     // to decrypt via the EK.
-    IssuerCertPayload issuer_cert_payload =2;
+    IssuerCertPayload issuer_cert_payload = 2;
+    // Finalize tells the server that the AIK cert is correct.
+    bool finalize = 3;
   }
 }
 
@@ -146,6 +148,15 @@ service TpmEnrollzService {
   // RotateAIKCert takes the public key of the issuer and uses it as input to
   // generate the AIK. The AIK is then returned to the caller for use in AIK
   // cert generation then returned to the device for storage and finalization.
+  // Workflow overview:
+  // Client -> Sends request with issuer_public_key
+  // Device -> Takes issuer_public_key and builds an application_identity_request
+  // Client -> Takes application_identity_request and gets AIK cert from CA and encrypts it and
+  //           returns it in issuer_cert_payload
+  // Device -> Unencrypts and installs the new AIK cert and returns the PEM format back to
+  //           caller for verification in aik_cert
+  // Client -> Validate the AIK Cert is as expected and returns a finalize message and closes
+  //           the RPC.
   rpc RotateAIKCert(stream RotateAIKCertRequest) returns (stream RotateAIKCertRequest);
 
 }
