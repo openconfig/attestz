@@ -7,11 +7,7 @@
 package attestz
 
 import (
-	context "context"
 	common_definitions "github.com/openconfig/attestz/proto/common_definitions"
-	grpc "google.golang.org/grpc"
-	codes "google.golang.org/grpc/codes"
-	status "google.golang.org/grpc/status"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -395,84 +391,4 @@ func file_github_com_openconfig_attestz_proto_tpm_attestz_proto_init() {
 	file_github_com_openconfig_attestz_proto_tpm_attestz_proto_rawDesc = nil
 	file_github_com_openconfig_attestz_proto_tpm_attestz_proto_goTypes = nil
 	file_github_com_openconfig_attestz_proto_tpm_attestz_proto_depIdxs = nil
-}
-
-// Reference imports to suppress errors if they are not otherwise used.
-var _ context.Context
-var _ grpc.ClientConnInterface
-
-// This is a compile-time assertion to ensure that this generated file
-// is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion6
-
-// TpmAttestzServiceClient is the client API for TpmAttestzService service.
-//
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
-type TpmAttestzServiceClient interface {
-	Attest(ctx context.Context, in *AttestRequest, opts ...grpc.CallOption) (*AttestResponse, error)
-}
-
-type tpmAttestzServiceClient struct {
-	cc grpc.ClientConnInterface
-}
-
-func NewTpmAttestzServiceClient(cc grpc.ClientConnInterface) TpmAttestzServiceClient {
-	return &tpmAttestzServiceClient{cc}
-}
-
-func (c *tpmAttestzServiceClient) Attest(ctx context.Context, in *AttestRequest, opts ...grpc.CallOption) (*AttestResponse, error) {
-	out := new(AttestResponse)
-	err := c.cc.Invoke(ctx, "/openconfig.attestz.TpmAttestzService/Attest", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// TpmAttestzServiceServer is the server API for TpmAttestzService service.
-type TpmAttestzServiceServer interface {
-	Attest(context.Context, *AttestRequest) (*AttestResponse, error)
-}
-
-// UnimplementedTpmAttestzServiceServer can be embedded to have forward compatible implementations.
-type UnimplementedTpmAttestzServiceServer struct {
-}
-
-func (*UnimplementedTpmAttestzServiceServer) Attest(context.Context, *AttestRequest) (*AttestResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Attest not implemented")
-}
-
-func RegisterTpmAttestzServiceServer(s *grpc.Server, srv TpmAttestzServiceServer) {
-	s.RegisterService(&_TpmAttestzService_serviceDesc, srv)
-}
-
-func _TpmAttestzService_Attest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AttestRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TpmAttestzServiceServer).Attest(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/openconfig.attestz.TpmAttestzService/Attest",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TpmAttestzServiceServer).Attest(ctx, req.(*AttestRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-var _TpmAttestzService_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "openconfig.attestz.TpmAttestzService",
-	HandlerType: (*TpmAttestzServiceServer)(nil),
-	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "Attest",
-			Handler:    _TpmAttestzService_Attest_Handler,
-		},
-	},
-	Streams:  []grpc.StreamDesc{},
-	Metadata: "github.com/openconfig/attestz/proto/tpm_attestz.proto",
 }
