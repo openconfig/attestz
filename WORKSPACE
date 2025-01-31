@@ -21,6 +21,21 @@ http_archive(
     urls = ["https://github.com/rules-proto-grpc/rules_proto_grpc/archive/4.6.0.tar.gz"],
 )
 
+# googleapis has not had a release since 2016 - take the master version as of 31-jan-25
+http_archive(
+    name = "com_google_googleapis",
+    sha256 = "79919526bf4a5f65d698bf07ef392c8f2bf3e8bce84217849cf53a8d3ea83b77",
+    strip_prefix = "googleapis-dd1210af5bee414c9e606f5637e0eb0fd9d894e8",
+    urls = ["https://github.com/googleapis/googleapis/archive/dd1210af5bee414c9e606f5637e0eb0fd9d894e8.tar.gz"],
+)
+
+load("@com_google_googleapis//:repository_rules.bzl", "switched_rules_by_language")
+switched_rules_by_language(
+    name = "com_google_googleapis_imports",
+    cc = True,
+    go = True,
+)
+
 load(
     "@rules_proto_grpc//:repositories.bzl",
     "bazel_gazelle",
