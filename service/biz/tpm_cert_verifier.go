@@ -37,6 +37,9 @@ type VerifyIakAndIDevIDCertsReq struct {
 	IakCertPem string
 	// PEM-encoded IDevID x509 TLS cert.
 	IDevIDCertPem string
+	// Whether the certificate comes from a device with one control card only (set to true)
+	// or multiple (set to false).
+	OneControlCard bool
 }
 
 // VerifyIakAndIDevIDCertsResp is the response from VerifyIakAndIDevIDCerts().
@@ -130,15 +133,23 @@ func (tcv *DefaultTpmCertVerifier) VerifyIakAndIDevIDCerts(ctx context.Context, 
 		return nil, err
 	}
 
-	// Some vendors put chassis card ID as the iak serial number. Thus, check against expected control
-	// card serial and chassis ID as well.
-	if iakSerialNumber != req.ControlCardID.GetControlCardSerial() && iakSerialNumber != req.ControlCardID.GetChassisSerialNumber() {
-		err = fmt.Errorf("mismatched subject serial number. IAK certs is %v and control card serial from request's is %v, and chassis serial is %v",
-			iakSerialNumber, req.ControlCardID.GetControlCardSerial(), req.ControlCardID.GetChassisSerialNumber())
-		log.ErrorContext(ctx, err)
-		return nil, err
+	if req.OneControlCard { // Fixed Form Factor - one chassis and control card, so serial number coupled in data model, and chassis serial represents control card serial.
+		if iakSerialNumber != req.ControlCardID.GetChassisSerialNumber() {
+			err := fmt.Errorf("mismatched subject serial number: IAK certs' is %v and chassis card serial from request's is %v",
+				iakSerialNumber, req.ControlCardID.GetChassisSerialNumber())
+			log.ErrorContext(ctx, err)
+			return nil, err
+		}
+	} else { // Modular Form Factor - one chassis to numerous control card, so data encoded in control card struct.
+		if iakSerialNumber != req.ControlCardID.GetControlCardSerial() {
+			err := fmt.Errorf("mismatched subject serial number: IAK certs' is %v and control card serial from request's is %v",
+				iakSerialNumber, req.ControlCardID.GetControlCardSerial())
+			log.ErrorContext(ctx, err)
+			return nil, err
+		}
 	}
-	log.InfoContextf(ctx, "Subject serial number in IAK cert and expected control card serial from request match: %s", iakX509.Subject.SerialNumber)
+
+	log.InfoContextf(ctx, "Subject serial number in IAK cert and expected serial from request match: %s", iakX509.Subject.SerialNumber)
 
 	// Verify and convert IAK certs' pub keys to PEM.
 	iakPubPem, err := VerifyAndSerializePubKey(ctx, iakX509)

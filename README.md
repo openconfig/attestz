@@ -35,7 +35,7 @@ TPM attestation workflow ensures the integrity of networking devices throughout 
 - TPM EnrollZ service (or simply EnrollZ service) is the switch owner's internal infrastructure service responsible for the TPM 2.0 enrollment workflow.
 - TPM AttestZ service (or simply AttestZ service) is switch owner's internal infrastructure service responsible for TPM 2.0 attestation workflow.
 - Switch owner CA is the switch owner's internal Certificate Authority service.
-- Switch chassis consists of one or more *“control cards”* (or *“control cards”*, *“routing engines”*, *“routing processors”*, etc.), each of which is equipped with its own CPU and TPM. The term control card will be used throughout the doc.
+- Switch chassis consists of one or more *“control cards”* (or *“control cards”*, *“routing engines”*, *“routing processors”*, etc.), each of which is equipped with its own CPU and TPM. The term control card will be used throughout the doc. If the device contains one control card, it is referred to as a "Fixed Form Factor" device. If the device contains two or more control cards, it is referred to as a "Modular Form Factor device".
 
 **Differences between various certs** *(more details in the [TCG spec](https://trustedcomputinggroup.org/wp-content/uploads/TPM-2p0-Keys-for-Device-Identity-and-Attestation_v1_r12_pub10082021.pdf))*:
 
@@ -73,7 +73,7 @@ Even though it is strongly preferred to rely on ECC P521 and SHA-512 where possi
    - During initial bootstrapping, an active control card must use its IDevID cert (part of switch's default SSL profile) for securing TLS connection. Once the device is provisioned with switch-owner-issued prod TLS cert in `certz` workflow, the device must always use that cert for all subsequent enrollz RPCs (such as `RotateOIakCert`).
    - Primary/active control card is also responsible for all RPCs directed to the secondary/standby control card. The mechanism of internal communication between the two control cards depends on the switch vendor and is out of scope of this doc.
    Since the switch owner cannot directly TLS authenticate standby card, it is the responsibility of an active card to do an auth handshake with the standby card based on the IDevID key pair/cert as described in [RMA Scenario](#rma-scenario).
-3. EnrollZ service uses the trust bundle/anchor obtained (in advance) from the switch vendor to verify signature over the IAK cert, and ensure that the control card serial number in IAK cert and IDevID cert is the same.
+3. EnrollZ service uses the trust bundle/anchor obtained (in advance) from the switch vendor to verify signature over the IAK cert, and ensure that the serial number in IAK cert and IDevID cert is the same. It also verifies the serial number in the certificates against the chassis serial for Fixed Form Factor devices, or against the control card serial for Modular Form Factor devices.
    - *Note: EnrollZ service must have access to the up-to-date switch vendor trust bundle/anchor needed to verify the signature over the IAK and IDevID certificates. The mechanics of this workflow are out of scope of this doc, but the trust bundle could be retrieved from a trusted vendor portal on a scheduled basis.*
 4. EnrollZ service ensures that device identity fields in IAK and IDevID certs match its expectations.
 5. EnrollZ service asks switch owner CA to issue an oIAK and oIDevID certs based on the IAK and IDevID pub keys, respectively.
@@ -219,7 +219,7 @@ ingest these values and persist them in an internal DB, so that later when Attes
    - PCR Quote structure and signature over it signed by IAK private key.
    - (Optional - only when the call is intended for the standby control card) oIDevID cert of the standby control card.
 3. AttestZ service uses the trust bundle/anchor from switch owner CA to verify oIAK cert and its validity/revocations status.
-4. AttestZ service verifies that the control card serial number in oIAK cert and oIDevID cert is the same.
+4. AttestZ service verifies that the serial number in oIAK cert and oIDevID cert is the same.
 5. AttestZ service uses oIAK cert to verify signature over device’s PCR quote.
 6. AttestZ service recomputes PCR digest and matches it against the one used in PCR quote.
 7. AttestZ service fetches expected final PCR values from its DB and compares those to the observed ones reported by the device.
@@ -273,7 +273,7 @@ Attestation workflow with differences from the proposed approach in **bold**:
    - **Boot log**.
    - (Optional - only when the call is intended for the standby control card) oIDevID cert of the standby control card.
 3. AttestZ service uses the trust bundle/anchor from switch owner CA to verify oIAK cert and its validity/revocations status.
-4. AttestZ service verifies that the control card serial number in oIAK cert and oIDevID cert is the same.
+4. AttestZ service verifies that the serial number in oIAK cert and oIDevID cert is the same.
 5. AttestZ service uses oIAK cert to verify signature over device’s PCR quotes.
 6. AttestZ service recomputes PCR digest and matches it against the one used in PCR quote.
 7. **AttestZ service recomputes final PCR values from the boot log and compares those to the PCR values that the device’s TPM reported. If those match, it can trust the boot log.**

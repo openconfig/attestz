@@ -198,16 +198,20 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 	unknownCaCert := generateCaCert(t)
 
 	cardSerial := "ABCD1234"
+	chassisSerial := "ABCD5678"
 	cardID := &cpb.ControlCardVendorId{
 		ControlCardRole:     cpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE,
 		ControlCardSerial:   cardSerial,
 		ControlCardSlot:     "Some card slot",
 		ChassisManufacturer: "Some manufacturer",
 		ChassisPartNumber:   "Some part",
-		ChassisSerialNumber: "Some chassis serial",
+		ChassisSerialNumber: chassisSerial,
 	}
 	certSerial := "PID:ZZ-Y-XX SN:ABCD1234"
 	certSerial2 := "ABCD1234"
+
+	certChassisSerialMatching := "ABCD5678"
+	certChassisSerialNotMatching := "NOT-MATCHING"
 
 	tests := []struct {
 		// Test description.
@@ -231,7 +235,8 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 		customIakCaRootPem    string
 		customIDevIDCaRootPem string
 		// To simulate a verifying iak for a secondary control card for which IDevID is optional.
-		noIDevID bool
+		noIDevID       bool
+		oneControlCard bool
 	}{
 		{
 			desc:                    "Success: RSA 4096 IAK and ECC P384 IDevID certs",
@@ -245,6 +250,34 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 			iDevIDCertSubjectSerial: certSerial,
 			iDevIDCertNotBefore:     time.Now(),
 			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
+		},
+		{
+			desc:                    "Success: Chassis Serial",
+			wantError:               false,
+			cardID:                  cardID,
+			iakCertAsymAlgo:         rsa4096Algo,
+			iakCertSubjectSerial:    certChassisSerialMatching,
+			iakCertNotBefore:        time.Now(),
+			iakCertNotAfter:         time.Now().AddDate(0, 0, 10),
+			iDevIDCertAsymAlgo:      eccP384Algo,
+			iDevIDCertSubjectSerial: certChassisSerialMatching,
+			iDevIDCertNotBefore:     time.Now(),
+			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
+			oneControlCard:          true,
+		},
+		{
+			desc:                    "Failure: Chassis Serial doesn't match",
+			wantError:               true,
+			cardID:                  cardID,
+			iakCertAsymAlgo:         rsa4096Algo,
+			iakCertSubjectSerial:    certChassisSerialNotMatching,
+			iakCertNotBefore:        time.Now(),
+			iakCertNotAfter:         time.Now().AddDate(0, 0, 10),
+			iDevIDCertAsymAlgo:      eccP384Algo,
+			iDevIDCertSubjectSerial: certChassisSerialNotMatching,
+			iDevIDCertNotBefore:     time.Now(),
+			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
+			oneControlCard:          true,
 		},
 		{
 			desc:                    "Success: ECC P521 IAK and RSA 2048 IDevID certs",
@@ -373,6 +406,7 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 			iDevIDCertNotBefore:     time.Now(),
 			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
 		},
+
 		{
 			desc:                    "Failure: malformed PEM IAK cert",
 			wantError:               true,
@@ -593,6 +627,7 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 				IakCertPem:           iakCertPemReq,
 				IDevIDCertPem:        iDevIDCertPemReq,
 				CertVerificationOpts: certVerificationOptsReq,
+				OneControlCard:       test.oneControlCard,
 			}
 			ctx := context.Background()
 			defTpmCertVerifier := DefaultTpmCertVerifier{}
