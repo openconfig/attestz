@@ -48,6 +48,12 @@ message AttestRequest {
 // Response from the specified control card containing attestation evidence of
 // its boot state.
 message AttestResponse {
+  message AttestationCert {
+    oneof value {
+      string aik_cert = 1;  // TPM 1.2
+      string oiak_cert = 2; // TPM 2.0
+    }
+  }
   // Vendor identity fields of the selected control card.
   ControlCardVendorId control_card_id = 1;
 
@@ -55,7 +61,7 @@ message AttestResponse {
   // owner/administrator CA during TPM enrollment workflow. The PEM formatted 
   // cert string can have more than one certificate block representing a
   // certificate chain.
-  string oiak_cert = 2;
+  string oiak_cert = 2 [deprecated = true];
 
   // Final observed unsigned PCR values {pcr_index -> pcr_value}.
   // PCR bytes are formatted in accordance with section 10.3 of
@@ -82,6 +88,14 @@ message AttestResponse {
   // the standby/secondary control card. The PEM formatted cert string can have
   // more than one certificate block representing a certificate chain.
   string oidevid_cert = 6;
+
+  // PEM-encoded owner attestation key certificate signed by the switch
+  // owner/administrator CA during TOM enrollment workflow. The PEM formatted
+  // cert string can have more than one certificate block representing a
+  // certificate chain. The attestation key certificate depends on the TPM version
+  // TPM 1.2: Attestation Identity Key - aik_cert
+  // TPM 2.0: Owner Initial Attestation Key - oiak_cert
+  AttestationCert attestation_cert = 7;
 }
 
 // The service is responsible for TPM attestation workflow on the switch

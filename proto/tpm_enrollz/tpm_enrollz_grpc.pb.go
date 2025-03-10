@@ -64,7 +64,7 @@ func (c *tpmEnrollzServiceClient) RotateAIKCert(ctx context.Context, opts ...grp
 
 type TpmEnrollzService_RotateAIKCertClient interface {
 	Send(*RotateAIKCertRequest) error
-	Recv() (*RotateAIKCertRequest, error)
+	Recv() (*RotateAIKCertResponse, error)
 	grpc.ClientStream
 }
 
@@ -76,8 +76,8 @@ func (x *tpmEnrollzServiceRotateAIKCertClient) Send(m *RotateAIKCertRequest) err
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *tpmEnrollzServiceRotateAIKCertClient) Recv() (*RotateAIKCertRequest, error) {
-	m := new(RotateAIKCertRequest)
+func (x *tpmEnrollzServiceRotateAIKCertClient) Recv() (*RotateAIKCertResponse, error) {
+	m := new(RotateAIKCertResponse)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -161,7 +161,7 @@ func _TpmEnrollzService_RotateAIKCert_Handler(srv interface{}, stream grpc.Serve
 }
 
 type TpmEnrollzService_RotateAIKCertServer interface {
-	Send(*RotateAIKCertRequest) error
+	Send(*RotateAIKCertResponse) error
 	Recv() (*RotateAIKCertRequest, error)
 	grpc.ServerStream
 }
@@ -170,7 +170,7 @@ type tpmEnrollzServiceRotateAIKCertServer struct {
 	grpc.ServerStream
 }
 
-func (x *tpmEnrollzServiceRotateAIKCertServer) Send(m *RotateAIKCertRequest) error {
+func (x *tpmEnrollzServiceRotateAIKCertServer) Send(m *RotateAIKCertResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 

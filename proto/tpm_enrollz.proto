@@ -163,6 +163,6 @@ service TpmEnrollzService {
   //           caller for verification in aik_cert
   // Client -> Validate the AIK Cert is as expected and returns a finalize message and closes
   //           the RPC.
-  rpc RotateAIKCert(stream RotateAIKCertRequest) returns (stream RotateAIKCertRequest);
+  rpc RotateAIKCert(stream RotateAIKCertRequest) returns (stream RotateAIKCertResponse);
 
 }
