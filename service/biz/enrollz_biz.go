@@ -119,6 +119,9 @@ type EnrollControlCardReq struct {
 	SSLProfileID string
 	// Experimental flag used for lab testing only. Skips oIDevID rotation.
 	SkipOidevidRotate bool
+	// Whether the request comes from a device with one control card only (set to true) or multiple
+	// (set to false).
+	OneControlCard bool
 }
 
 // validateEnrollControlCardReq verifies that EnrollControlCardReq request is valid.
@@ -171,7 +174,9 @@ func EnrollControlCard(ctx context.Context, req *EnrollControlCardReq) error {
 		IakCertPem:           getIakCertResp.IakCert,
 		IDevIDCertPem:        getIakCertResp.IdevidCert,
 		CertVerificationOpts: req.CertVerificationOpts,
+		OneControlCard:       req.OneControlCard,
 	}
+
 	tpmCertVerifierResp, err := req.Deps.VerifyIakAndIDevIDCerts(ctx, tpmCertVerifierReq)
 	if err != nil {
 		err = fmt.Errorf("failed to verify IAK_cert_pem=%s and IDevID_cert_pem=%s: %w",
