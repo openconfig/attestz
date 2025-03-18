@@ -90,7 +90,6 @@ message RotateOIakCertResponse {
 // the AIK cert. For any updates after initial enrollment the new AIK cert
 // can just be returned.
 message RotateAIKCertRequest {
-
   message IssuerCertPayload {
     // Symmetric key used to encrypt the AIK Cert blob.
     // This blob is encrypted with the EK.
@@ -108,6 +107,9 @@ message RotateAIKCertRequest {
     // Finalize tells the server that the AIK cert is correct.
     bool finalize = 3;
   }
+
+  // Switch control card selected identifier.
+  ControlCardSelection control_card_selection = 4;
 }
 
 message RotateAIKCertResponse {
@@ -117,6 +119,9 @@ message RotateAIKCertResponse {
     // that the device did in fact have the proper EK.
     string aik_cert = 2;
   }
+  
+  // Vendor identity fields of the selected control card.
+  ControlCardVendorId control_card_id = 3;
 }
 
 // The service is responsible for TPM enrollment workflow on the network device
