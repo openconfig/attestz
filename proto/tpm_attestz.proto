@@ -66,6 +66,7 @@ message AttestResponse {
   // Final observed unsigned PCR values {pcr_index -> pcr_value}.
   // PCR bytes are formatted in accordance with section 10.3 of
   // https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part2_Structures_pub.pdf#page=111. protolint:disable:this MAX_LINE_LENGTH
+  // Values should be unencoded, raw bytes.
   map<int32, bytes> pcr_values = 3;
 
   // TPM PCR quote `TPM2B_ATTEST` structure - quoted part of `TPM2_Quote()`.
@@ -73,6 +74,7 @@ message AttestResponse {
   // https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part3_Commands_pub.pdf#page=167 protolint:disable:this MAX_LINE_LENGTH
   // and section 10.12.13 of
   // https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part2_Structures_pub.pdf#page=135. protolint:disable:this MAX_LINE_LENGTH
+  // Contents should be unencoded, raw bytes.
   bytes quoted = 4;
 
   // PCR quote signature signed with an IAK private key.
@@ -81,6 +83,7 @@ message AttestResponse {
   // https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part3_Commands_pub.pdf#page=167 protolint:disable:this MAX_LINE_LENGTH
   // and section 11.3.4 of
   // https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part2_Structures_pub.pdf#page=153.  protolint:disable:this MAX_LINE_LENGTH
+  // Contents should be unencoded, raw bytes.
   bytes quote_signature = 5;
 
   // [Optional] PEM-encoded owner initial DevID certificate signed by the
