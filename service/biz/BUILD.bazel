@@ -38,6 +38,7 @@ go_test(
         "//proto:common_definitions_go_proto",
         "//proto:tpm_enrollz_go",
         "@com_github_google_go_cmp//cmp",
+        "@com_github_google_go_cmp//cmp/cmpopts",
         "@org_golang_google_protobuf//encoding/prototext",
         "@org_golang_google_protobuf//testing/protocmp",
     ],
