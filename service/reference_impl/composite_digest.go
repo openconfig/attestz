@@ -1,6 +1,6 @@
-// Package examples contains code snippets representing how the Attestz service
-// does certain Attestation operations.
-package examples
+// Package reference_impl contains code snippets representing how the Attestz
+// service does certain Attestation operations.
+package reference_impl
 
 import "crypto/sha256"
 

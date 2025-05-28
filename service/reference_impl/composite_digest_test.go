@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package examples_test
+package reference_impl_test
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/openconfig/attestz/service/examples"
+	"github.com/openconfig/attestz/service/reference_impl"
 )
 
 func Test_PCRQuoteDigest(t *testing.T) {
@@ -26,7 +26,7 @@ func Test_PCRQuoteDigest(t *testing.T) {
 	// These are the PCR values requested in an Attestz request and returned
 	// in an Attestz response. (i.e. the map<int32, bytes> pcr_values = 3; field
 	// in the Attestz response, sorted.
-	pcrs := []examples.PCR{
+	pcrs := []reference_impl.PCR{
 		{
 			Index: 0,
 			Value: []byte("2cec31ce9b099c75de27d9825e9291e2e4fa0e5be320425b5c202fa8c1cb78b5"),
@@ -48,5 +48,5 @@ func Test_PCRQuoteDigest(t *testing.T) {
 			Value: []byte("4a51aca5d25bcfdcde87b6dae630271b0e84db23fbfbae3fce24e2e22f750470"),
 		},
 	}
-	print(fmt.Sprintf("%x\n", examples.Digest(pcrs)))
+	print(fmt.Sprintf("%x\n", reference_impl.Digest(pcrs)))
 }
