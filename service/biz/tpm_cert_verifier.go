@@ -222,10 +222,18 @@ func (tcv *DefaultTpmCertVerifier) VerifyTpmCert(ctx context.Context, req *Verif
 	}
 	log.InfoContext(ctx, "Successfully verified and parsed PEM cert into x509 structure")
 
+	// Verify cert subject serial and expected control card serial numbers match.
+	certSerialNumber, err := getCertSerialNumber(certX509.Subject.SerialNumber)
+	if err != nil {
+		err = fmt.Errorf("failed to get serial number from IAK cert subject serial %v: %v", certX509.Subject.SerialNumber, err)
+		log.ErrorContext(ctx, err)
+		return nil, err
+	}
+
 	// Verify IAK/IDevID cert subject serial and expected control card serial numbers match.
-	if certX509.Subject.SerialNumber != req.ControlCardID.GetControlCardSerial() {
-		err = fmt.Errorf("mismatched subject serial number. IAK/IDevID certs' is %v and expected control card serial from request's is %v",
-			certX509.Subject.SerialNumber, req.ControlCardID.GetControlCardSerial())
+	if certSerialNumber != req.ControlCardID.GetChassisSerialNumber() && certSerialNumber != req.ControlCardID.GetControlCardSerial() {
+		err = fmt.Errorf("mismatched subject serial number. IAK/IDevID certs' is %v and expected control card serial from request's is %v or %v",
+			certSerialNumber, req.ControlCardID.GetControlCardSerial(), req.ControlCardID.GetChassisSerialNumber())
 		log.ErrorContext(ctx, err)
 		return nil, err
 	}
