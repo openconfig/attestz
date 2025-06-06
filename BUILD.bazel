@@ -14,5 +14,17 @@
 
 load("@bazel_gazelle//:def.bzl", "gazelle")
 
+# gazelle:go_grpc_compilers @io_bazel_rules_go//proto:go_grpc_v2, @io_bazel_rules_go//proto:go_proto
+# gazelle:proto_import_prefix github.com/openconfig/attestz
 # gazelle:prefix github.com/openconfig/attestz
 gazelle(name = "gazelle")
+
+gazelle(
+    name = "gazelle_update_repos",
+    args = [
+        "-from_file=go.mod",
+        "-to_macro=attestz_go_deps.bzl%attestz_go_deps",
+        "-prune",
+    ],
+    command = "update-repos",
+)

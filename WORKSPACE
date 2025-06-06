@@ -12,78 +12,53 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+workspace(name = "com_github_openconfig_attestz")
 
-http_archive(
-    name = "rules_proto_grpc",
-    sha256 = "c0d718f4d892c524025504e67a5bfe83360b3a982e654bc71fed7514eb8ac8ad",
-    strip_prefix = "rules_proto_grpc-4.6.0",
-    urls = ["https://github.com/rules-proto-grpc/rules_proto_grpc/archive/4.6.0.tar.gz"],
-)
+load("//:attestz_deps.bzl", "attestz_deps")
 
-# googleapis has not had a release since 2016 - take the master version as of 31-jan-25
-http_archive(
-    name = "com_google_googleapis",
-    sha256 = "79919526bf4a5f65d698bf07ef392c8f2bf3e8bce84217849cf53a8d3ea83b77",
-    strip_prefix = "googleapis-dd1210af5bee414c9e606f5637e0eb0fd9d894e8",
-    urls = ["https://github.com/googleapis/googleapis/archive/dd1210af5bee414c9e606f5637e0eb0fd9d894e8.tar.gz"],
-)
+attestz_deps()
 
 load("@com_google_googleapis//:repository_rules.bzl", "switched_rules_by_language")
+
 switched_rules_by_language(
     name = "com_google_googleapis_imports",
     cc = True,
     go = True,
+    grpc = True,
 )
 
-load(
-    "@rules_proto_grpc//:repositories.bzl",
-    "bazel_gazelle",
-    "io_bazel_rules_go",
-    "rules_proto_grpc_repos",
-    "rules_proto_grpc_toolchains",
-)
+load("@bazel_features//:deps.bzl", "bazel_features_deps")
 
-rules_proto_grpc_toolchains()
+bazel_features_deps()
 
-rules_proto_grpc_repos()
-
-load("@rules_proto//proto:repositories.bzl", "rules_proto_dependencies", "rules_proto_toolchains")
-
-rules_proto_dependencies()
-
-rules_proto_toolchains()
-
-### Golang
-io_bazel_rules_go()
-
+load("@bazel_gazelle//:deps.bzl", "gazelle_dependencies")
 load("@io_bazel_rules_go//go:deps.bzl", "go_register_toolchains", "go_rules_dependencies")
+load("//:attestz_go_deps.bzl", "attestz_go_deps")
+
+# gazelle:repository_macro attestz_go_deps.bzl%attestz_go_deps
+attestz_go_deps()
 
 go_rules_dependencies()
 
-go_register_toolchains(go_version = "1.20")
+go_register_toolchains(version = "1.24.1")
 
-# gazelle:repo bazel_gazelle
-bazel_gazelle()
-
-load("@bazel_gazelle//:deps.bzl", "gazelle_dependencies")
-
-local_repository(
-    name = "local_repo_root",
-    path = "./",
-)
-
-load("@rules_proto_grpc//go:repositories.bzl", rules_proto_grpc_go_repos = "go_repos")
-load("//:deps.bzl", "go_dependencies")
-
-go_dependencies()
-
-rules_proto_grpc_go_repos()
-
-# Load gazelle_dependencies last, so that the newer version of org_golang_google_grpc is used.
-# see https://github.com/rules-proto-grpc/rules_proto_grpc/issues/160
 gazelle_dependencies()
+
+load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
+
+protobuf_deps()
 
 load("@com_github_grpc_grpc//bazel:grpc_deps.bzl", "grpc_deps")
 
 grpc_deps()
+
+# Required by grpc
+load("@build_bazel_apple_support//lib:repositories.bzl", "apple_support_dependencies")
+load("@build_bazel_rules_apple//apple:repositories.bzl", "apple_rules_dependencies")
+load("@rules_python//python:repositories.bzl", "py_repositories")
+
+py_repositories()
+
+apple_rules_dependencies(ignore_version_differences = False)
+
+apple_support_dependencies()
