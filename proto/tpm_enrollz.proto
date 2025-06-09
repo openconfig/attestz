@@ -18,6 +18,7 @@ syntax = "proto3";
 package openconfig.attestz;
 
 import "github.com/openconfig/attestz/proto/common_definitions.proto";
+import "third_party/openconfig/attestz/proto/tpm_attestz.proto";
 
 option go_package = "github.com/openconfig/attestz";
 
@@ -26,6 +27,12 @@ option go_package = "github.com/openconfig/attestz";
 message GetIakCertRequest {
   // Switch control card selected identifier.
   ControlCardSelection control_card_selection = 1;
+
+  // Random nonce to be used for IAK private key verification.
+  optional bytes nonce = 2;
+
+  // Hash algorithm to be used by the device to hash the nonce
+  optional Tpm20HashAlgo hash_algo = 3;
 
 }
 
@@ -44,6 +51,9 @@ message GetIakCertResponse {
   // control card. It should only be populated for standby/secondary control
   // card when no direct communication to that control card is possible.
   string idevid_cert = 3;
+
+  // [Optional] Signature of the nonce to be created by the IAK private key.
+  optional bytes nonce_signature = 4;
 
 }
 
