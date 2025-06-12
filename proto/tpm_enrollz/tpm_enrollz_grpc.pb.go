@@ -22,6 +22,8 @@ const (
 	TpmEnrollzService_GetIakCert_FullMethodName     = "/openconfig.attestz.TpmEnrollzService/GetIakCert"
 	TpmEnrollzService_RotateOIakCert_FullMethodName = "/openconfig.attestz.TpmEnrollzService/RotateOIakCert"
 	TpmEnrollzService_RotateAIKCert_FullMethodName  = "/openconfig.attestz.TpmEnrollzService/RotateAIKCert"
+	TpmEnrollzService_GetIdevidCsr_FullMethodName   = "/openconfig.attestz.TpmEnrollzService/GetIdevidCsr"
+	TpmEnrollzService_Challenge_FullMethodName      = "/openconfig.attestz.TpmEnrollzService/Challenge"
 )
 
 // TpmEnrollzServiceClient is the client API for TpmEnrollzService service.
@@ -31,6 +33,8 @@ type TpmEnrollzServiceClient interface {
 	GetIakCert(ctx context.Context, in *GetIakCertRequest, opts ...grpc.CallOption) (*GetIakCertResponse, error)
 	RotateOIakCert(ctx context.Context, in *RotateOIakCertRequest, opts ...grpc.CallOption) (*RotateOIakCertResponse, error)
 	RotateAIKCert(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[RotateAIKCertRequest, RotateAIKCertResponse], error)
+	GetIdevidCsr(ctx context.Context, in *GetIdevidCsrRequest, opts ...grpc.CallOption) (*GetIdevidCsrResponse, error)
+	Challenge(ctx context.Context, in *ChallengeRequest, opts ...grpc.CallOption) (*ChallengeResponse, error)
 }
 
 type tpmEnrollzServiceClient struct {
@@ -74,6 +78,26 @@ func (c *tpmEnrollzServiceClient) RotateAIKCert(ctx context.Context, opts ...grp
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type TpmEnrollzService_RotateAIKCertClient = grpc.BidiStreamingClient[RotateAIKCertRequest, RotateAIKCertResponse]
 
+func (c *tpmEnrollzServiceClient) GetIdevidCsr(ctx context.Context, in *GetIdevidCsrRequest, opts ...grpc.CallOption) (*GetIdevidCsrResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetIdevidCsrResponse)
+	err := c.cc.Invoke(ctx, TpmEnrollzService_GetIdevidCsr_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tpmEnrollzServiceClient) Challenge(ctx context.Context, in *ChallengeRequest, opts ...grpc.CallOption) (*ChallengeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChallengeResponse)
+	err := c.cc.Invoke(ctx, TpmEnrollzService_Challenge_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TpmEnrollzServiceServer is the server API for TpmEnrollzService service.
 // All implementations should embed UnimplementedTpmEnrollzServiceServer
 // for forward compatibility.
@@ -81,6 +105,8 @@ type TpmEnrollzServiceServer interface {
 	GetIakCert(context.Context, *GetIakCertRequest) (*GetIakCertResponse, error)
 	RotateOIakCert(context.Context, *RotateOIakCertRequest) (*RotateOIakCertResponse, error)
 	RotateAIKCert(grpc.BidiStreamingServer[RotateAIKCertRequest, RotateAIKCertResponse]) error
+	GetIdevidCsr(context.Context, *GetIdevidCsrRequest) (*GetIdevidCsrResponse, error)
+	Challenge(context.Context, *ChallengeRequest) (*ChallengeResponse, error)
 }
 
 // UnimplementedTpmEnrollzServiceServer should be embedded to have
@@ -98,6 +124,12 @@ func (UnimplementedTpmEnrollzServiceServer) RotateOIakCert(context.Context, *Rot
 }
 func (UnimplementedTpmEnrollzServiceServer) RotateAIKCert(grpc.BidiStreamingServer[RotateAIKCertRequest, RotateAIKCertResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method RotateAIKCert not implemented")
+}
+func (UnimplementedTpmEnrollzServiceServer) GetIdevidCsr(context.Context, *GetIdevidCsrRequest) (*GetIdevidCsrResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetIdevidCsr not implemented")
+}
+func (UnimplementedTpmEnrollzServiceServer) Challenge(context.Context, *ChallengeRequest) (*ChallengeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Challenge not implemented")
 }
 func (UnimplementedTpmEnrollzServiceServer) testEmbeddedByValue() {}
 
@@ -162,6 +194,42 @@ func _TpmEnrollzService_RotateAIKCert_Handler(srv interface{}, stream grpc.Serve
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type TpmEnrollzService_RotateAIKCertServer = grpc.BidiStreamingServer[RotateAIKCertRequest, RotateAIKCertResponse]
 
+func _TpmEnrollzService_GetIdevidCsr_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetIdevidCsrRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TpmEnrollzServiceServer).GetIdevidCsr(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TpmEnrollzService_GetIdevidCsr_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TpmEnrollzServiceServer).GetIdevidCsr(ctx, req.(*GetIdevidCsrRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TpmEnrollzService_Challenge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChallengeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TpmEnrollzServiceServer).Challenge(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TpmEnrollzService_Challenge_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TpmEnrollzServiceServer).Challenge(ctx, req.(*ChallengeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TpmEnrollzService_ServiceDesc is the grpc.ServiceDesc for TpmEnrollzService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -176,6 +244,14 @@ var TpmEnrollzService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RotateOIakCert",
 			Handler:    _TpmEnrollzService_RotateOIakCert_Handler,
+		},
+		{
+			MethodName: "GetIdevidCsr",
+			Handler:    _TpmEnrollzService_GetIdevidCsr_Handler,
+		},
+		{
+			MethodName: "Challenge",
+			Handler:    _TpmEnrollzService_Challenge_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
