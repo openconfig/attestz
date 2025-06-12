@@ -132,6 +132,34 @@ message RotateAIKCertResponse {
   ControlCardVendorId control_card_id = 3;
 }
 
+// Request to get the TCG-CSR-IDEVID structure from the TPM. This is a part of
+// the TPM 2.0 flow for devices without idevid provisioned.
+message GetIdevidCsrRequest {
+  // Switch control card selected identifier.
+  ControlCardSelection control_card_selection = 1;
+}
+
+// Response containing the TCG-CSR-IDEVID structure.
+message GetIdevidCsrResponse {
+  // Vendor identity fields of the selected control card.
+  ControlCardVendorId control_card_id = 1;
+  bytes csr_contents = 2;
+  bytes idevid_signature_csr = 7;
+  bytes struct_version = 9;
+}
+
+// Request to challenge the TPM with a nonce encrypted with the EK public key.
+message ChallengeRequest {
+  // Switch control card selected identifier.
+  ControlCardSelection control_card_selection = 1;
+  bytes encrypted_nonce = 2;
+}
+
+// Response containing the decrypted nonce from the TPM.
+message ChallengeResponse {
+  bytes nonce = 2;
+}
+
 // The service is responsible for TPM enrollment workflow on the network device
 // owner/administrator side. In this workflow the network device owner verifies
 // a device's Initial Attestation Key (IAK) and Initial DevID (IDevID)
@@ -178,4 +206,9 @@ service TpmEnrollzService {
   //           the RPC.
   rpc RotateAIKCert(stream RotateAIKCertRequest) returns (stream RotateAIKCertResponse);
 
+  // Get the TCG-CSR-IDEVID structure from the TPM.
+  rpc GetIdevidCsr(GetIdevidCsrRequest) returns (GetIdevidCsrResponse);
+
+  // Challenge the TPM with an encrypted nonce.
+  rpc Challenge(ChallengeRequest) returns (ChallengeResponse);
 }
