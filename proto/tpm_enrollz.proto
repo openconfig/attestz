@@ -144,14 +144,14 @@ message GetIdevidCsrResponse {
   // Vendor identity fields of the selected control card.
   ControlCardVendorId control_card_id = 1;
   bytes csr_contents = 2;
-  bytes idevid_signature_csr = 7;
-  bytes struct_version = 9;
+  bytes idevid_signature_csr = 3;
 }
 
 // Request to challenge the TPM with a nonce encrypted with the EK public key.
 message ChallengeRequest {
   // Switch control card selected identifier.
   ControlCardSelection control_card_selection = 1;
+  // Random 16-byte nonce.
   bytes encrypted_nonce = 2;
 }
 
