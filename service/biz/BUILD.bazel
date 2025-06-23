@@ -22,7 +22,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//proto:common_definitions_go_proto",
-        "//proto:tpm_attestz_go_proto",
         "//proto:tpm_enrollz_go",
         "@com_github_golang_glog//:glog",
         "@org_golang_google_grpc//:go_default_library",
@@ -37,7 +36,6 @@ go_test(
     embed = [":enrollz_biz"],
     deps = [
         "//proto:common_definitions_go_proto",
-        "//proto:tpm_attestz_go_proto",
         "//proto:tpm_enrollz_go",
         "@com_github_google_go_cmp//cmp",
         "@com_github_google_go_cmp//cmp/cmpopts",
