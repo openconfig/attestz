@@ -21,14 +21,6 @@ import "github.com/openconfig/attestz/proto/common_definitions.proto";
 
 option go_package = "github.com/openconfig/attestz";
 
-// Cryptographic hash algorithms supported by TPM 2.0.
-enum Tpm20HashAlgo {
-  TPM20HASH_ALGO_UNSPECIFIED = 0;
-  TPM20HASH_ALGO_SHA1 = 1;
-  TPM20HASH_ALGO_SHA256 = 2;
-  TPM20HASH_ALGO_SHA384 = 3;
-  TPM20HASH_ALGO_SHA512 = 4;
-}
 
 // Request for a given control card to attest its boot state.
 message AttestRequest {

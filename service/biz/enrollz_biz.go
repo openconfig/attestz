@@ -24,7 +24,6 @@ import (
 	log "github.com/golang/glog"
 
 	cpb "github.com/openconfig/attestz/proto/common_definitions"
-	apb "github.com/openconfig/attestz/proto/tpm_attestz"
 	epb "github.com/openconfig/attestz/proto/tpm_enrollz"
 
 	"google.golang.org/protobuf/encoding/prototext"
@@ -168,7 +167,7 @@ func EnrollControlCard(ctx context.Context, req *EnrollControlCardReq) error {
 			return err
 		}
 		getIakCertReq.Nonce = nonce
-		getIakCertReq.HashAlgo = apb.Tpm20HashAlgo_TPM20HASH_ALGO_SHA256.Enum()
+		getIakCertReq.HashAlgo = cpb.Tpm20HashAlgo_TPM20HASH_ALGO_SHA256.Enum()
 	}
 	getIakCertResp, err := req.Deps.GetIakCert(ctx, getIakCertReq)
 	if err != nil {
@@ -328,7 +327,7 @@ func RotateOwnerIakCert(ctx context.Context, req *RotateOwnerIakCertReq) error {
 			return err
 		}
 		getIakCertReq.Nonce = nonce
-		getIakCertReq.HashAlgo = apb.Tpm20HashAlgo_TPM20HASH_ALGO_SHA256.Enum()
+		getIakCertReq.HashAlgo = cpb.Tpm20HashAlgo_TPM20HASH_ALGO_SHA256.Enum()
 	}
 	getIakCertResp, err := req.Deps.GetIakCert(ctx, getIakCertReq)
 	if err != nil {

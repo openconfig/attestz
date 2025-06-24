@@ -29,7 +29,6 @@ import (
 
 	log "github.com/golang/glog"
 	cpb "github.com/openconfig/attestz/proto/common_definitions"
-	apb "github.com/openconfig/attestz/proto/tpm_attestz"
 )
 
 // VerifyIakAndIDevIDCertsReq is the request to VerifyIakAndIDevIDCerts().
@@ -77,7 +76,7 @@ type VerifyNonceSignatureReq struct {
 	// Nonce to be verified.
 	Nonce []byte
 	// Hash algorithm used to hash the nonce.
-	HashAlgo apb.Tpm20HashAlgo
+	HashAlgo cpb.Tpm20HashAlgo
 }
 
 // VerifyNonceSignatureResp is the response from VerifyNonceSignature().
@@ -349,13 +348,13 @@ func VerifyAndSerializePubKey(ctx context.Context, cert *x509.Certificate) (stri
 	return string(pubKeyPem), nil
 }
 
-func getHashFunctions(hashAlgo apb.Tpm20HashAlgo) (crypto.Hash, hash.Hash, error) {
+func getHashFunctions(hashAlgo cpb.Tpm20HashAlgo) (crypto.Hash, hash.Hash, error) {
 	switch hashAlgo {
-	case apb.Tpm20HashAlgo_TPM20HASH_ALGO_SHA256:
+	case cpb.Tpm20HashAlgo_TPM20HASH_ALGO_SHA256:
 		return crypto.SHA256, sha256.New(), nil
-	case apb.Tpm20HashAlgo_TPM20HASH_ALGO_SHA384:
+	case cpb.Tpm20HashAlgo_TPM20HASH_ALGO_SHA384:
 		return crypto.SHA384, sha512.New384(), nil
-	case apb.Tpm20HashAlgo_TPM20HASH_ALGO_SHA512:
+	case cpb.Tpm20HashAlgo_TPM20HASH_ALGO_SHA512:
 		return crypto.SHA512, sha512.New(), nil
 	default:
 		return 0, nil, fmt.Errorf("unsupported hash algorithm: %v", hashAlgo)
