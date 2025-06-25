@@ -335,7 +335,7 @@
     },
     "@@cel-spec+//:googleapis_ext.bzl%googleapis_ext": {
       "general": {
-        "bzlTransitiveDigest": "yun2jmsomFi3bs5bjQWXApBzqQf66zBJ39JEBYigzdc=",
+        "bzlTransitiveDigest": "yun2jmsomFi3bs5bjQWXcpbzqQf66zBJ39JEBYigzdc=",
         "usagesDigest": "Ek7VfZ+tuyRBx/1h5wcmtnW9EGpOb0dkXUwBluZbD8k=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},

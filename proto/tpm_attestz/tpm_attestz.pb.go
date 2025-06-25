@@ -21,66 +21,11 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type Tpm20HashAlgo int32
-
-const (
-	Tpm20HashAlgo_TPM20HASH_ALGO_UNSPECIFIED Tpm20HashAlgo = 0
-	Tpm20HashAlgo_TPM20HASH_ALGO_SHA1        Tpm20HashAlgo = 1
-	Tpm20HashAlgo_TPM20HASH_ALGO_SHA256      Tpm20HashAlgo = 2
-	Tpm20HashAlgo_TPM20HASH_ALGO_SHA384      Tpm20HashAlgo = 3
-	Tpm20HashAlgo_TPM20HASH_ALGO_SHA512      Tpm20HashAlgo = 4
-)
-
-// Enum value maps for Tpm20HashAlgo.
-var (
-	Tpm20HashAlgo_name = map[int32]string{
-		0: "TPM20HASH_ALGO_UNSPECIFIED",
-		1: "TPM20HASH_ALGO_SHA1",
-		2: "TPM20HASH_ALGO_SHA256",
-		3: "TPM20HASH_ALGO_SHA384",
-		4: "TPM20HASH_ALGO_SHA512",
-	}
-	Tpm20HashAlgo_value = map[string]int32{
-		"TPM20HASH_ALGO_UNSPECIFIED": 0,
-		"TPM20HASH_ALGO_SHA1":        1,
-		"TPM20HASH_ALGO_SHA256":      2,
-		"TPM20HASH_ALGO_SHA384":      3,
-		"TPM20HASH_ALGO_SHA512":      4,
-	}
-)
-
-func (x Tpm20HashAlgo) Enum() *Tpm20HashAlgo {
-	p := new(Tpm20HashAlgo)
-	*p = x
-	return p
-}
-
-func (x Tpm20HashAlgo) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (Tpm20HashAlgo) Descriptor() protoreflect.EnumDescriptor {
-	return file_github_com_openconfig_attestz_proto_tpm_attestz_proto_enumTypes[0].Descriptor()
-}
-
-func (Tpm20HashAlgo) Type() protoreflect.EnumType {
-	return &file_github_com_openconfig_attestz_proto_tpm_attestz_proto_enumTypes[0]
-}
-
-func (x Tpm20HashAlgo) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use Tpm20HashAlgo.Descriptor instead.
-func (Tpm20HashAlgo) EnumDescriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_tpm_attestz_proto_rawDescGZIP(), []int{0}
-}
-
 type AttestRequest struct {
 	state                protoimpl.MessageState                   `protogen:"open.v1"`
 	ControlCardSelection *common_definitions.ControlCardSelection `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
 	Nonce                []byte                                   `protobuf:"bytes,2,opt,name=nonce,proto3" json:"nonce,omitempty"`
-	HashAlgo             Tpm20HashAlgo                            `protobuf:"varint,3,opt,name=hash_algo,json=hashAlgo,proto3,enum=openconfig.attestz.Tpm20HashAlgo" json:"hash_algo,omitempty"`
+	HashAlgo             common_definitions.Tpm20HashAlgo         `protobuf:"varint,3,opt,name=hash_algo,json=hashAlgo,proto3,enum=openconfig.attestz.Tpm20HashAlgo" json:"hash_algo,omitempty"`
 	PcrIndices           []int32                                  `protobuf:"varint,4,rep,packed,name=pcr_indices,json=pcrIndices,proto3" json:"pcr_indices,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
@@ -130,11 +75,11 @@ func (x *AttestRequest) GetNonce() []byte {
 	return nil
 }
 
-func (x *AttestRequest) GetHashAlgo() Tpm20HashAlgo {
+func (x *AttestRequest) GetHashAlgo() common_definitions.Tpm20HashAlgo {
 	if x != nil {
 		return x.HashAlgo
 	}
-	return Tpm20HashAlgo_TPM20HASH_ALGO_UNSPECIFIED
+	return common_definitions.Tpm20HashAlgo(0)
 }
 
 func (x *AttestRequest) GetPcrIndices() []int32 {
@@ -381,25 +326,16 @@ var file_github_com_openconfig_attestz_proto_tpm_attestz_proto_rawDesc = []byte{
 	0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20,
 	0x01, 0x28, 0x05, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75,
 	0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02,
-	0x38, 0x01, 0x2a, 0x99, 0x01, 0x0a, 0x0d, 0x54, 0x70, 0x6d, 0x32, 0x30, 0x48, 0x61, 0x73, 0x68,
-	0x41, 0x6c, 0x67, 0x6f, 0x12, 0x1e, 0x0a, 0x1a, 0x54, 0x50, 0x4d, 0x32, 0x30, 0x48, 0x41, 0x53,
-	0x48, 0x5f, 0x41, 0x4c, 0x47, 0x4f, 0x5f, 0x55, 0x4e, 0x53, 0x50, 0x45, 0x43, 0x49, 0x46, 0x49,
-	0x45, 0x44, 0x10, 0x00, 0x12, 0x17, 0x0a, 0x13, 0x54, 0x50, 0x4d, 0x32, 0x30, 0x48, 0x41, 0x53,
-	0x48, 0x5f, 0x41, 0x4c, 0x47, 0x4f, 0x5f, 0x53, 0x48, 0x41, 0x31, 0x10, 0x01, 0x12, 0x19, 0x0a,
-	0x15, 0x54, 0x50, 0x4d, 0x32, 0x30, 0x48, 0x41, 0x53, 0x48, 0x5f, 0x41, 0x4c, 0x47, 0x4f, 0x5f,
-	0x53, 0x48, 0x41, 0x32, 0x35, 0x36, 0x10, 0x02, 0x12, 0x19, 0x0a, 0x15, 0x54, 0x50, 0x4d, 0x32,
-	0x30, 0x48, 0x41, 0x53, 0x48, 0x5f, 0x41, 0x4c, 0x47, 0x4f, 0x5f, 0x53, 0x48, 0x41, 0x33, 0x38,
-	0x34, 0x10, 0x03, 0x12, 0x19, 0x0a, 0x15, 0x54, 0x50, 0x4d, 0x32, 0x30, 0x48, 0x41, 0x53, 0x48,
-	0x5f, 0x41, 0x4c, 0x47, 0x4f, 0x5f, 0x53, 0x48, 0x41, 0x35, 0x31, 0x32, 0x10, 0x04, 0x32, 0x64,
-	0x0a, 0x11, 0x54, 0x70, 0x6d, 0x41, 0x74, 0x74, 0x65, 0x73, 0x74, 0x7a, 0x53, 0x65, 0x72, 0x76,
-	0x69, 0x63, 0x65, 0x12, 0x4f, 0x0a, 0x06, 0x41, 0x74, 0x74, 0x65, 0x73, 0x74, 0x12, 0x21, 0x2e,
-	0x6f, 0x70, 0x65, 0x6e, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x2e, 0x61, 0x74, 0x74, 0x65, 0x73,
-	0x74, 0x7a, 0x2e, 0x41, 0x74, 0x74, 0x65, 0x73, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
-	0x1a, 0x22, 0x2e, 0x6f, 0x70, 0x65, 0x6e, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x2e, 0x61, 0x74,
-	0x74, 0x65, 0x73, 0x74, 0x7a, 0x2e, 0x41, 0x74, 0x74, 0x65, 0x73, 0x74, 0x52, 0x65, 0x73, 0x70,
-	0x6f, 0x6e, 0x73, 0x65, 0x42, 0x1f, 0x5a, 0x1d, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63,
-	0x6f, 0x6d, 0x2f, 0x6f, 0x70, 0x65, 0x6e, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x2f, 0x61, 0x74,
-	0x74, 0x65, 0x73, 0x74, 0x7a, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x38, 0x01, 0x32, 0x64, 0x0a, 0x11, 0x54, 0x70, 0x6d, 0x41, 0x74, 0x74, 0x65, 0x73, 0x74, 0x7a,
+	0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x4f, 0x0a, 0x06, 0x41, 0x74, 0x74, 0x65, 0x73,
+	0x74, 0x12, 0x21, 0x2e, 0x6f, 0x70, 0x65, 0x6e, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x2e, 0x61,
+	0x74, 0x74, 0x65, 0x73, 0x74, 0x7a, 0x2e, 0x41, 0x74, 0x74, 0x65, 0x73, 0x74, 0x52, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x1a, 0x22, 0x2e, 0x6f, 0x70, 0x65, 0x6e, 0x63, 0x6f, 0x6e, 0x66, 0x69,
+	0x67, 0x2e, 0x61, 0x74, 0x74, 0x65, 0x73, 0x74, 0x7a, 0x2e, 0x41, 0x74, 0x74, 0x65, 0x73, 0x74,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x1f, 0x5a, 0x1d, 0x67, 0x69, 0x74, 0x68,
+	0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x6f, 0x70, 0x65, 0x6e, 0x63, 0x6f, 0x6e, 0x66, 0x69,
+	0x67, 0x2f, 0x61, 0x74, 0x74, 0x65, 0x73, 0x74, 0x7a, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f,
+	0x33,
 }
 
 var (
@@ -414,25 +350,24 @@ func file_github_com_openconfig_attestz_proto_tpm_attestz_proto_rawDescGZIP() []
 	return file_github_com_openconfig_attestz_proto_tpm_attestz_proto_rawDescData
 }
 
-var file_github_com_openconfig_attestz_proto_tpm_attestz_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_github_com_openconfig_attestz_proto_tpm_attestz_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_github_com_openconfig_attestz_proto_tpm_attestz_proto_goTypes = []any{
-	(Tpm20HashAlgo)(0),                     // 0: openconfig.attestz.Tpm20HashAlgo
-	(*AttestRequest)(nil),                  // 1: openconfig.attestz.AttestRequest
-	(*AttestResponse)(nil),                 // 2: openconfig.attestz.AttestResponse
-	(*AttestResponse_AttestationCert)(nil), // 3: openconfig.attestz.AttestResponse.AttestationCert
-	nil,                                    // 4: openconfig.attestz.AttestResponse.PcrValuesEntry
-	(*common_definitions.ControlCardSelection)(nil), // 5: openconfig.attestz.ControlCardSelection
+	(*AttestRequest)(nil),                  // 0: openconfig.attestz.AttestRequest
+	(*AttestResponse)(nil),                 // 1: openconfig.attestz.AttestResponse
+	(*AttestResponse_AttestationCert)(nil), // 2: openconfig.attestz.AttestResponse.AttestationCert
+	nil,                                    // 3: openconfig.attestz.AttestResponse.PcrValuesEntry
+	(*common_definitions.ControlCardSelection)(nil), // 4: openconfig.attestz.ControlCardSelection
+	(common_definitions.Tpm20HashAlgo)(0),           // 5: openconfig.attestz.Tpm20HashAlgo
 	(*common_definitions.ControlCardVendorId)(nil),  // 6: openconfig.attestz.ControlCardVendorId
 }
 var file_github_com_openconfig_attestz_proto_tpm_attestz_proto_depIdxs = []int32{
-	5, // 0: openconfig.attestz.AttestRequest.control_card_selection:type_name -> openconfig.attestz.ControlCardSelection
-	0, // 1: openconfig.attestz.AttestRequest.hash_algo:type_name -> openconfig.attestz.Tpm20HashAlgo
+	4, // 0: openconfig.attestz.AttestRequest.control_card_selection:type_name -> openconfig.attestz.ControlCardSelection
+	5, // 1: openconfig.attestz.AttestRequest.hash_algo:type_name -> openconfig.attestz.Tpm20HashAlgo
 	6, // 2: openconfig.attestz.AttestResponse.control_card_id:type_name -> openconfig.attestz.ControlCardVendorId
-	4, // 3: openconfig.attestz.AttestResponse.pcr_values:type_name -> openconfig.attestz.AttestResponse.PcrValuesEntry
-	3, // 4: openconfig.attestz.AttestResponse.attestation_cert:type_name -> openconfig.attestz.AttestResponse.AttestationCert
-	1, // 5: openconfig.attestz.TpmAttestzService.Attest:input_type -> openconfig.attestz.AttestRequest
-	2, // 6: openconfig.attestz.TpmAttestzService.Attest:output_type -> openconfig.attestz.AttestResponse
+	3, // 3: openconfig.attestz.AttestResponse.pcr_values:type_name -> openconfig.attestz.AttestResponse.PcrValuesEntry
+	2, // 4: openconfig.attestz.AttestResponse.attestation_cert:type_name -> openconfig.attestz.AttestResponse.AttestationCert
+	0, // 5: openconfig.attestz.TpmAttestzService.Attest:input_type -> openconfig.attestz.AttestRequest
+	1, // 6: openconfig.attestz.TpmAttestzService.Attest:output_type -> openconfig.attestz.AttestResponse
 	6, // [6:7] is the sub-list for method output_type
 	5, // [5:6] is the sub-list for method input_type
 	5, // [5:5] is the sub-list for extension type_name
@@ -454,14 +389,13 @@ func file_github_com_openconfig_attestz_proto_tpm_attestz_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_github_com_openconfig_attestz_proto_tpm_attestz_proto_rawDesc,
-			NumEnums:      1,
+			NumEnums:      0,
 			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_github_com_openconfig_attestz_proto_tpm_attestz_proto_goTypes,
 		DependencyIndexes: file_github_com_openconfig_attestz_proto_tpm_attestz_proto_depIdxs,
-		EnumInfos:         file_github_com_openconfig_attestz_proto_tpm_attestz_proto_enumTypes,
 		MessageInfos:      file_github_com_openconfig_attestz_proto_tpm_attestz_proto_msgTypes,
 	}.Build()
 	File_github_com_openconfig_attestz_proto_tpm_attestz_proto = out.File

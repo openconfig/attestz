@@ -17,6 +17,7 @@ package biz
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/x509"
 	"fmt"
 
@@ -119,6 +120,8 @@ type EnrollControlCardReq struct {
 	SSLProfileID string
 	// Experimental flag used for lab testing only. Skips oIDevID rotation.
 	SkipOidevidRotate bool
+	// Flag used to set the optional nonce and hash algorithm fields for nonce signature verification.
+	SkipNonceExchange *bool
 }
 
 // validateEnrollControlCardReq verifies that EnrollControlCardReq request is valid.
@@ -155,6 +158,17 @@ func EnrollControlCard(ctx context.Context, req *EnrollControlCardReq) error {
 
 	// 1. Call device's GetIakCert API for the specified control card.
 	getIakCertReq := &epb.GetIakCertRequest{ControlCardSelection: req.ControlCardSelection}
+	// Generate a nonce.
+	if req.SkipNonceExchange != nil && !*req.SkipNonceExchange {
+		nonce := make([]byte, 16)
+		if _, err := rand.Read(nonce); err != nil {
+			err = fmt.Errorf("failed to generate nonce: %w", err)
+			log.ErrorContext(ctx, err)
+			return err
+		}
+		getIakCertReq.Nonce = nonce
+		getIakCertReq.HashAlgo = cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256.Enum()
+	}
 	getIakCertResp, err := req.Deps.GetIakCert(ctx, getIakCertReq)
 	if err != nil {
 		err = fmt.Errorf("failed to retrieve IAK cert from the device with req=%s: %w",
@@ -181,6 +195,27 @@ func EnrollControlCard(ctx context.Context, req *EnrollControlCardReq) error {
 	}
 	log.InfoContextf(ctx, "Successfully verified IAK and IDevID certs and parsed IAK_pub_pem=%s and IDevID_pub_pem=%s",
 		tpmCertVerifierResp.IakPubPem, tpmCertVerifierResp.IDevIDPubPem)
+
+	// Verify nonce signature if present.
+	if len(getIakCertResp.NonceSignature) > 0 {
+		resp, err := req.Deps.VerifyNonceSignature(
+			ctx, &VerifyNonceSignatureReq{
+				Nonce:     getIakCertReq.Nonce,
+				Signature: getIakCertResp.NonceSignature,
+				HashAlgo:  *getIakCertReq.HashAlgo,
+				IAKPubPem: tpmCertVerifierResp.IakPubPem,
+			})
+		if err != nil {
+			err = fmt.Errorf("failed to verify nonce signature: %w", err)
+			log.ErrorContext(ctx, err)
+			return err
+		}
+		if !resp.IsValid {
+			err = fmt.Errorf("nonce signature verification failed")
+			log.ErrorContext(ctx, err)
+			return err
+		}
+	}
 
 	// 3. Call Switch Owner CA to issue oIAK and oIDevID certs.
 	issueOwnerIakCertReq := &IssueOwnerIakCertReq{
@@ -244,6 +279,8 @@ type RotateOwnerIakCertReq struct {
 	Deps EnrollzInfraDeps
 	// Verification options for IAK cert.
 	CertVerificationOpts x509.VerifyOptions
+	// Flag used to set the optional nonce and hash algorithm fields for nonce signature verification.
+	SkipNonceExchange *bool
 }
 
 // validateRotateOwnerIakCert verifies that RotateOwnerIakCertReq request is valid.
@@ -281,6 +318,17 @@ func RotateOwnerIakCert(ctx context.Context, req *RotateOwnerIakCertReq) error {
 
 	// 1. Call device's GetIakCert API for the specified control card.
 	getIakCertReq := &epb.GetIakCertRequest{ControlCardSelection: req.ControlCardSelection}
+	// Generate a nonce.
+	if req.SkipNonceExchange != nil && !*req.SkipNonceExchange {
+		nonce := make([]byte, 16)
+		if _, err := rand.Read(nonce); err != nil {
+			err = fmt.Errorf("failed to generate nonce: %w", err)
+			log.ErrorContext(ctx, err)
+			return err
+		}
+		getIakCertReq.Nonce = nonce
+		getIakCertReq.HashAlgo = cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256.Enum()
+	}
 	getIakCertResp, err := req.Deps.GetIakCert(ctx, getIakCertReq)
 	if err != nil {
 		err = fmt.Errorf("failed to retrieve IAK cert from the device with req=%s: %w",
@@ -306,6 +354,27 @@ func RotateOwnerIakCert(ctx context.Context, req *RotateOwnerIakCertReq) error {
 	}
 	log.InfoContextf(ctx, "Successfully verified IAK cert and parsed IAK_pub_pem=%s",
 		tpmCertVerifierResp.PubPem)
+
+	// Verify nonce signature if present.
+	if len(getIakCertResp.NonceSignature) > 0 {
+		resp, err := req.Deps.VerifyNonceSignature(
+			ctx, &VerifyNonceSignatureReq{
+				Nonce:     getIakCertReq.Nonce,
+				Signature: getIakCertResp.NonceSignature,
+				HashAlgo:  *getIakCertReq.HashAlgo,
+				IAKPubPem: tpmCertVerifierResp.PubPem,
+			})
+		if err != nil {
+			err = fmt.Errorf("failed to verify nonce signature: %w", err)
+			log.ErrorContext(ctx, err)
+			return err
+		}
+		if !resp.IsValid {
+			err = fmt.Errorf("nonce signature verification failed")
+			log.ErrorContext(ctx, err)
+			return err
+		}
+	}
 
 	// 3. Call Switch Owner CA to issue a new oIAK cert.
 	issueOwnerIakCertReq := &IssueOwnerIakCertReq{

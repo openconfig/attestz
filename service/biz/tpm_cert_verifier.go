@@ -16,11 +16,15 @@ package biz
 
 import (
 	"context"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/sha512"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"hash"
 	"strings"
 
 	log "github.com/golang/glog"
@@ -63,6 +67,24 @@ type VerifyTpmCertResp struct {
 	PubPem string
 }
 
+// VerifyNonceSignatureReq is the request to VerifyNonceSignature().
+type VerifyNonceSignatureReq struct {
+	// PEM-encoded IAK public key.
+	IAKPubPem string
+	// PEM-encoded signature of the nonce.
+	Signature []byte
+	// Nonce to be verified.
+	Nonce []byte
+	// Hash algorithm used to hash the nonce.
+	HashAlgo cpb.Tpm20HashAlgo
+}
+
+// VerifyNonceSignatureResp is the response from VerifyNonceSignature().
+type VerifyNonceSignatureResp struct {
+	// True if the signature is valid.
+	IsValid bool
+}
+
 // TpmCertVerifier parses and verifies IAK and IDevID certs.
 type TpmCertVerifier interface {
 	// Performs the following:
@@ -77,6 +99,10 @@ type TpmCertVerifier interface {
 	// 1. Validate (signature and expiration) a TPM-based cert such as IAK or IDevID.
 	// 2. Parse pub key from the cert and validate it (accepted crypto algo and key length).
 	VerifyTpmCert(ctx context.Context, req *VerifyTpmCertReq) (*VerifyTpmCertResp, error)
+
+	// Performs the following:
+	// 1. Validate the signature of the nonce.
+	VerifyNonceSignature(ctx context.Context, req *VerifyNonceSignatureReq) (*VerifyNonceSignatureResp, error)
 }
 
 // DefaultTpmCertVerifier is the default/reference implementation of TpmCertVerifier.
@@ -320,4 +346,76 @@ func VerifyAndSerializePubKey(ctx context.Context, cert *x509.Certificate) (stri
 			Bytes: derPub,
 		})
 	return string(pubKeyPem), nil
+}
+
+func getHashFunctions(hashAlgo cpb.Tpm20HashAlgo) (crypto.Hash, hash.Hash, error) {
+	switch hashAlgo {
+	case cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256:
+		return crypto.SHA256, sha256.New(), nil
+	case cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384:
+		return crypto.SHA384, sha512.New384(), nil
+	case cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA512:
+		return crypto.SHA512, sha512.New(), nil
+	default:
+		return 0, nil, fmt.Errorf("unsupported hash algorithm: %v", hashAlgo)
+	}
+}
+
+// VerifyNonceSignature is the default/reference implementation of TpmCertVerifier.VerifyNonceSignature().
+func (tcv *DefaultTpmCertVerifier) VerifyNonceSignature(ctx context.Context, req *VerifyNonceSignatureReq) (*VerifyNonceSignatureResp, error) {
+	if req == nil {
+		return nil, fmt.Errorf("request VerifyNonceSignatureReq is nil")
+	}
+	if req.IAKPubPem == "" {
+		return nil, fmt.Errorf("field IAKPubPem in VerifyNonceSignatureReq request is empty")
+	}
+	if req.Signature == nil {
+		return nil, fmt.Errorf("field Signature in VerifyNonceSignatureReq request is nil")
+	}
+	if req.Nonce == nil {
+		return nil, fmt.Errorf("field Nonce in VerifyNonceSignatureReq request is nil")
+	}
+
+	// 1. Parse IAK Pub Key
+	iakPubKeyBlock, _ := pem.Decode([]byte(req.IAKPubPem))
+	if iakPubKeyBlock == nil {
+		err := fmt.Errorf("failed to decode IAK pub key PEM: %s", req.IAKPubPem)
+		log.ErrorContext(ctx, err)
+		return nil, err
+	}
+	iakPubKey, err := x509.ParsePKIXPublicKey(iakPubKeyBlock.Bytes)
+	if err != nil {
+		err = fmt.Errorf("failed to parse IAK pub key: %v", err)
+		log.ErrorContext(ctx, err)
+		return nil, err
+	}
+
+	// 2. Determine the Signing Algorithm
+	var digest []byte
+	hashFunc, hashGenerator, err := getHashFunctions(req.HashAlgo)
+	if err != nil {
+		return nil, err
+	}
+	hashGenerator.Write(req.Nonce)
+	digest = hashGenerator.Sum(nil)
+	switch pub := iakPubKey.(type) {
+	case *rsa.PublicKey:
+		err = rsa.VerifyPSS(pub, hashFunc, digest, req.Signature, nil)
+		if err != nil {
+			err = fmt.Errorf("invalid signature: %v", err)
+			log.ErrorContext(ctx, err)
+			return &VerifyNonceSignatureResp{IsValid: false}, nil
+		}
+	case *ecdsa.PublicKey:
+		isValid := ecdsa.VerifyASN1(pub, digest, req.Signature)
+		if !isValid {
+			log.ErrorContext(ctx, "invalid signature")
+			return &VerifyNonceSignatureResp{IsValid: isValid}, nil
+		}
+	default:
+		return nil, fmt.Errorf("unsupported public key type: %T", iakPubKey)
+	}
+
+	log.InfoContext(ctx, "valid signature")
+	return &VerifyNonceSignatureResp{IsValid: true}, nil
 }

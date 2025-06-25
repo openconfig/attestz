@@ -87,7 +87,7 @@ def attestz_go_deps():
     go_repository(
         name = "com_github_googlecloudplatform_opentelemetry_operations_go_detectors_gcp",
         importpath = "github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp",
-        sum = "h1:cZpsGsWTIFKymTA0je7IIvi1O7Es7apb9CF3EQlOcfE=",
+        sum = "h1:cZpsGsWTIFKymTA0je7IIvi1O7Es7cpb9CF3EQlOcfE=",
         version = "v1.24.2",
     )
     go_repository(

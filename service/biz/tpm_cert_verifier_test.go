@@ -16,6 +16,7 @@ package biz
 
 import (
 	"context"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
@@ -30,6 +31,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	cpb "github.com/openconfig/attestz/proto/common_definitions"
 )
@@ -879,6 +881,232 @@ func TestVerifyTpmCert(t *testing.T) {
 				if diff := cmp.Diff(gotResp.PubPem, wantCertPubPem); diff != "" {
 					t.Errorf("Cert pub PEM does not match expectations: diff = %v", diff)
 				}
+			}
+		})
+	}
+}
+
+func generateRSAKeyPair(t *testing.T, keySize int) (*rsa.PrivateKey, string) {
+	t.Helper()
+	privKey, err := rsa.GenerateKey(rand.Reader, keySize)
+	if err != nil {
+		t.Fatalf("Failed to generate RSA key: %v", err)
+	}
+	derBytes, err := x509.MarshalPKIXPublicKey(&privKey.PublicKey)
+	if err != nil {
+		t.Fatalf("Failed to marshal RSA public key: %v", err)
+	}
+	pubKeyPem := pem.EncodeToMemory(
+		&pem.Block{
+			Type:  "PUBLIC KEY",
+			Bytes: derBytes,
+		})
+	return privKey, string(pubKeyPem)
+}
+
+func generateECDSAKeyPair(t *testing.T, curve elliptic.Curve) (*ecdsa.PrivateKey, string) {
+	t.Helper()
+	privKey, err := ecdsa.GenerateKey(curve, rand.Reader)
+	if err != nil {
+		t.Fatalf("Failed to generate ECDSA key: %v", err)
+	}
+	derBytes, err := x509.MarshalPKIXPublicKey(&privKey.PublicKey)
+	if err != nil {
+		t.Fatalf("Failed to marshal ECDSA public key: %v", err)
+	}
+	pubKeyPem := pem.EncodeToMemory(
+		&pem.Block{
+			Type:  "PUBLIC KEY",
+			Bytes: derBytes,
+		})
+	return privKey, string(pubKeyPem)
+}
+
+func signRSA(t *testing.T, privKey *rsa.PrivateKey, nonce []byte, hash crypto.Hash) []byte {
+	t.Helper()
+	hashed := hash.New()
+	hashed.Write(nonce)
+	signature, err := rsa.SignPSS(rand.Reader, privKey, hash, hashed.Sum(nil), nil)
+	if err != nil {
+		t.Fatalf("Failed to sign RSA: %v", err)
+	}
+	return signature
+}
+
+func signECDSA(t *testing.T, privKey *ecdsa.PrivateKey, nonce []byte, hash crypto.Hash) []byte {
+	t.Helper()
+	hashed := hash.New()
+	hashed.Write(nonce)
+	signature, err := ecdsa.SignASN1(rand.Reader, privKey, hashed.Sum(nil))
+	if err != nil {
+		t.Fatalf("Failed to sign ECDSA: %v", err)
+	}
+	return signature
+}
+func TestVerifyNonceSignature(t *testing.T) {
+	ctx := context.Background()
+	tpmCertVerifier := &DefaultTpmCertVerifier{}
+
+	// Generate RSA key pair
+	rsaPrivKey, rsaPubKeyPem := generateRSAKeyPair(t, 3072)
+	// Generate ECDSA key pair
+	ecdsaPrivKey, ecdsaPubKeyPem := generateECDSAKeyPair(t, elliptic.P384())
+	ecdsaP256PrivKey, ecdsaP256PubKeyPem := generateECDSAKeyPair(t, elliptic.P256())
+
+	// Generate Nonce
+	nonce := []byte("test-nonce")
+
+	// Generate valid signatures
+	rsaSHA256Sig := signRSA(t, rsaPrivKey, nonce, crypto.SHA256)
+	ecdsaSHA384Sig := signECDSA(t, ecdsaPrivKey, nonce, crypto.SHA384)
+	ecdsaSHA256Sig := signECDSA(t, ecdsaP256PrivKey, nonce, crypto.SHA256)
+	ecdsaSHA512Sig := signECDSA(t, ecdsaPrivKey, nonce, crypto.SHA512)
+
+	// Generate invalid signature
+	invalidSig := []byte("invalid-signature")
+
+	tests := []struct {
+		name     string
+		req      *VerifyNonceSignatureReq
+		wantResp *VerifyNonceSignatureResp
+		wantErr  bool
+	}{
+		{
+			name: "Valid RSA SHA256 Signature",
+			req: &VerifyNonceSignatureReq{
+				IAKPubPem: rsaPubKeyPem,
+				Signature: rsaSHA256Sig,
+				Nonce:     nonce,
+				HashAlgo:  cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
+			},
+			wantResp: &VerifyNonceSignatureResp{IsValid: true},
+			wantErr:  false,
+		},
+		{
+			name: "Valid ECDSA SHA384 Signature",
+			req: &VerifyNonceSignatureReq{
+				IAKPubPem: ecdsaPubKeyPem,
+				Signature: ecdsaSHA384Sig,
+				Nonce:     nonce,
+				HashAlgo:  cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384,
+			},
+			wantResp: &VerifyNonceSignatureResp{IsValid: true},
+			wantErr:  false,
+		},
+		{
+			name: "Valid ECDSA SHA256 Signature",
+			req: &VerifyNonceSignatureReq{
+				IAKPubPem: ecdsaP256PubKeyPem,
+				Signature: ecdsaSHA256Sig,
+				Nonce:     nonce,
+				HashAlgo:  cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
+			},
+			wantResp: &VerifyNonceSignatureResp{IsValid: true},
+			wantErr:  false,
+		},
+		{
+			name: "Valid ECDSA SHA512 Signature",
+			req: &VerifyNonceSignatureReq{
+				IAKPubPem: ecdsaPubKeyPem,
+				Signature: ecdsaSHA512Sig,
+				Nonce:     nonce,
+				HashAlgo:  cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA512,
+			},
+			wantResp: &VerifyNonceSignatureResp{IsValid: true},
+			wantErr:  false,
+		},
+		{
+			name: "Invalid Signature",
+			req: &VerifyNonceSignatureReq{
+				IAKPubPem: rsaPubKeyPem,
+				Signature: invalidSig,
+				Nonce:     nonce,
+				HashAlgo:  cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
+			},
+			wantResp: &VerifyNonceSignatureResp{IsValid: false},
+			wantErr:  false,
+		},
+		{
+			name: "Invalid Hash Algorithm",
+			req: &VerifyNonceSignatureReq{
+				IAKPubPem: rsaPubKeyPem,
+				Signature: rsaSHA256Sig,
+				Nonce:     nonce,
+				HashAlgo:  cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_UNSPECIFIED,
+			},
+			wantResp: nil,
+			wantErr:  true,
+		},
+		{
+			name: "Invalid IAK Public Key (Malformed PEM)",
+			req: &VerifyNonceSignatureReq{
+				IAKPubPem: "invalid-pem",
+				Signature: rsaSHA256Sig,
+				Nonce:     nonce,
+				HashAlgo:  cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
+			},
+			wantResp: nil,
+			wantErr:  true,
+		},
+		{
+			name: "Invalid IAK Public Key (Unsupported Key Type)",
+			req: &VerifyNonceSignatureReq{
+				IAKPubPem: string(pem.EncodeToMemory(&pem.Block{Type: "INVALID KEY", Bytes: []byte("invalid-key")})),
+				Signature: rsaSHA256Sig,
+				Nonce:     nonce,
+				HashAlgo:  cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
+			},
+			wantResp: nil,
+			wantErr:  true,
+		},
+		{
+			name:     "Nil Request",
+			req:      nil,
+			wantResp: nil,
+			wantErr:  true,
+		},
+		{
+			name: "Empty IAKPubPem",
+			req: &VerifyNonceSignatureReq{
+				IAKPubPem: "",
+				Signature: rsaSHA256Sig,
+				Nonce:     nonce,
+				HashAlgo:  cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
+			},
+			wantResp: nil,
+			wantErr:  true,
+		},
+		{
+			name: "Nil Signature",
+			req: &VerifyNonceSignatureReq{
+				IAKPubPem: rsaPubKeyPem,
+				Signature: nil,
+				Nonce:     nonce,
+				HashAlgo:  cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
+			},
+			wantResp: nil,
+			wantErr:  true,
+		},
+		{
+			name: "Nil Nonce",
+			req: &VerifyNonceSignatureReq{
+				IAKPubPem: rsaPubKeyPem,
+				Signature: rsaSHA256Sig,
+				Nonce:     nil,
+				HashAlgo:  cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
+			},
+			wantResp: nil,
+			wantErr:  true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			gotResp, err := tpmCertVerifier.VerifyNonceSignature(ctx, tc.req)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("VerifyNonceSignature(%v) error = %v, wantErr %v", tc.req, err, tc.wantErr)
+			}
+			if diff := cmp.Diff(tc.wantResp, gotResp, protocmp.Transform()); diff != "" {
+				t.Errorf("VerifyNonceSignature(%v) returned an unexpected diff (-want +got): %v", tc.req, diff)
 			}
 		})
 	}

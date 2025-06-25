@@ -18,7 +18,6 @@ syntax = "proto3";
 package openconfig.attestz;
 
 import "github.com/openconfig/attestz/proto/common_definitions.proto";
-import "github.com/openconfig/attestz/proto/tpm_attestz.proto";
 
 option go_package = "github.com/openconfig/attestz";
 
