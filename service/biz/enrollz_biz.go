@@ -167,7 +167,7 @@ func EnrollControlCard(ctx context.Context, req *EnrollControlCardReq) error {
 			return err
 		}
 		getIakCertReq.Nonce = nonce
-		getIakCertReq.HashAlgo = cpb.Tpm20HashAlgo_TPM20HASH_ALGO_SHA256.Enum()
+		getIakCertReq.HashAlgo = cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256.Enum()
 	}
 	getIakCertResp, err := req.Deps.GetIakCert(ctx, getIakCertReq)
 	if err != nil {
@@ -327,7 +327,7 @@ func RotateOwnerIakCert(ctx context.Context, req *RotateOwnerIakCertReq) error {
 			return err
 		}
 		getIakCertReq.Nonce = nonce
-		getIakCertReq.HashAlgo = cpb.Tpm20HashAlgo_TPM20HASH_ALGO_SHA256.Enum()
+		getIakCertReq.HashAlgo = cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256.Enum()
 	}
 	getIakCertResp, err := req.Deps.GetIakCert(ctx, getIakCertReq)
 	if err != nil {

@@ -87,7 +87,8 @@ message AttestResponse {
   // PEM-encoded owner attestation key certificate signed by the switch
   // owner/administrator CA during TOM enrollment workflow. The PEM formatted
   // cert string can have more than one certificate block representing a
-  // certificate chain. The attestation key certificate depends on the TPM version
+  // certificate chain. The attestation key certificate depends on the TPM 
+  // version
   // TPM 1.2: Attestation Identity Key - aik_cert
   // TPM 2.0: Owner Initial Attestation Key - oiak_cert
   AttestationCert attestation_cert = 7;
