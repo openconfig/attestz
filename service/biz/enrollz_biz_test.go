@@ -795,6 +795,7 @@ func TestNonceVerification(t *testing.T) {
 			if test.wantErrResp != nil && test.wantErrResp != errors.Unwrap(got) {
 				t.Errorf("Expected error response %v, but got error response %v", test.wantErrResp, errors.Unwrap(got))
 			} else if test.wantErrResp == nil && got != nil {
+				
 				t.Errorf("Expected no-error response, but got error response %v", got)
 			}
 
