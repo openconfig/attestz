@@ -46,9 +46,9 @@ message ControlCardSelection {
 
 // Cryptographic hash algorithms supported by TPM 2.0.
 enum Tpm20HashAlgo {
-  TPM_2_0_HASH_ALGO_UNSPECIFIED = 0;
-  TPM_2_0_HASH_ALGO_SHA1 = 1;
-  TPM_2_0_HASH_ALGO_SHA256 = 2;
-  TPM_2_0_HASH_ALGO_SHA384 = 3;
-  TPM_2_0_HASH_ALGO_SHA512 = 4;
+  TPM20HASH_ALGO_UNSPECIFIED = 0;
+  TPM20HASH_ALGO_SHA1 = 1;
+  TPM20HASH_ALGO_SHA256 = 2;
+  TPM20HASH_ALGO_SHA384 = 3;
+  TPM20HASH_ALGO_SHA512 = 4;
 }

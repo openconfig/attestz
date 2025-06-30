@@ -350,11 +350,11 @@ func VerifyAndSerializePubKey(ctx context.Context, cert *x509.Certificate) (stri
 
 func getHashFunctions(hashAlgo cpb.Tpm20HashAlgo) (crypto.Hash, hash.Hash, error) {
 	switch hashAlgo {
-	case cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256:
+	case cpb.Tpm20HashAlgo_TPM20HASH_ALGO_SHA256:
 		return crypto.SHA256, sha256.New(), nil
-	case cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384:
+	case cpb.Tpm20HashAlgo_TPM20HASH_ALGO_SHA384:
 		return crypto.SHA384, sha512.New384(), nil
-	case cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA512:
+	case cpb.Tpm20HashAlgo_TPM20HASH_ALGO_SHA512:
 		return crypto.SHA512, sha512.New(), nil
 	default:
 		return 0, nil, fmt.Errorf("unsupported hash algorithm: %v", hashAlgo)
