@@ -79,6 +79,12 @@ def attestz_go_deps():
         version = "v0.6.0",
     )
     go_repository(
+        name = "com_github_google_go_tpm",
+        importpath = "github.com/google/go-tpm",
+        sum = "h1:ocUmnDebX54dnW+MQWGQRbdaAcJELsa6PqZhJ48KwVU="
+        version = "v0.9.5",
+    )
+    go_repository(
         name = "com_github_google_uuid",
         importpath = "github.com/google/uuid",
         sum = "h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=",
