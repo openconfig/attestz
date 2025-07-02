@@ -17,7 +17,9 @@ package biz
 
 import (
 	"bytes"
+	"crypto/x509"
 	"encoding/binary"
+	"encoding/pem"
 	"fmt"
 
 	log "github.com/golang/glog"
@@ -35,7 +37,7 @@ type TCGCSRIDevIDContents struct {
 	EKCert                   string             // Endorsement Key Certificate PEM encoded(X.509)
 	IAKPub                   tpm2.TPMTPublic    // Attestation Key public key (IAK)(TPMT_PUBLIC structure)
 	IDevIDPub                tpm2.TPMTPublic    // Signing Key public key (TPMT_PUBLIC structure)
-	SignCertifyInfo          tpm2.TPMSAttest    // IDevID certification data by IAK (TPMS_ATTEST structure)
+	SignCertifyInfo          tpm2.TPMSAttest    // IDevID certification data(TPMS_ATTEST structure)
 	SignCertifyInfoSignature tpm2.TPMTSignature // Signature of the SignCertifyInfo field (TPMTSignature structure)
 }
 
@@ -74,6 +76,23 @@ func readBytes(r *bytes.Reader, size uint32) ([]byte, error) {
 	return buf, nil
 }
 
+// certificateDerToPem converts DER-encoded X.509 certificate bytes to PEM format.
+func certificateDerToPem(derBytes []byte) (string, error) {
+	if len(derBytes) == 0 {
+		return "", nil // Return empty string for empty input
+	}
+	// Attempt to parse as an X.509 certificate to validate
+	if _, err := x509.ParseCertificate(derBytes); err != nil {
+		// Log a warning if parsing fails, but still encode to PEM
+		return "", fmt.Errorf("Failed to parse DER certificate with x509: %v", err)
+	}
+	block := &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: derBytes,
+	}
+	return string(pem.EncodeToMemory(block)), nil
+}
+
 // ParseTCGCSRIDevIDContent parses the TCG_CSR_IDEVID_CONTENT structure from a byte slice
 // and returns a TCGCSRIDevIDContents struct.
 // Ref: https://trustedcomputinggroup.org/wp-content/uploads/TPM-2.0-Keys-for-Device-Identity-and-Attestation-v1.10r9_pub.pdf#page=71
@@ -83,14 +102,14 @@ func ParseTCGCSRIDevIDContent(csrBytes []byte) (*TCGCSRIDevIDContents, error) {
 
 	// Read the first few fields and the sizes of the fields in the TCG_CSR_IDEVID_CONTENT structure.
 
-	// structVer (4 bytes)
+	// structVer (4 bytes) - Version of the TCG_CSR_IDEVID_CONTENT structure
 	structVer, err := readUint32(reader, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read TCG_CSR_IDEVID_CONTENT.structVer: %w", err)
 	}
 	result.StructVer = structVer
 
-	// hashAlgoId (4 bytes)
+	// hashAlgoId (4 bytes) - TCG algorithm identifier for the hash field
 	hashAlgoID, err := readUint32(reader, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read TCG_CSR_IDEVID_CONTENT.hashAlgoId: %w", err)
@@ -102,6 +121,7 @@ func ParseTCGCSRIDevIDContent(csrBytes []byte) (*TCGCSRIDevIDContents, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read TCG_CSR_IDEVID_CONTENT.hashSize: %w", err)
 	}
+	// hash - Hash of everything that follows in TCG_CSR_IDEVID_CONTENT
 	hash, err := readBytes(reader, hashSize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read TCG_CSR_IDEVID_CONTENT.hash (size %d): %w", hashSize, err)
@@ -169,13 +189,13 @@ func ParseTCGCSRIDevIDContent(csrBytes []byte) (*TCGCSRIDevIDContents, error) {
 	}
 
 	// SignCertifyInfoSize (4 bytes)
-	SignCertifyInfoSize, err := readUint32(reader, true)
+	signCertifyInfoSize, err := readUint32(reader, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read TCG_CSR_IDEVID_CONTENT.SignCertifyInfoSize: %w", err)
 	}
 
 	// SignCertifyInfoSignatureSize (4 bytes)
-	SignCertifyInfoSignatureSize, err := readUint32(reader, true)
+	signCertifyInfoSignatureSize, err := readUint32(reader, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read TCG_CSR_IDEVID_CONTENT.SignCertifyInfoSignatureSize: %w", err)
 	}
@@ -186,10 +206,88 @@ func ParseTCGCSRIDevIDContent(csrBytes []byte) (*TCGCSRIDevIDContents, error) {
 		return nil, fmt.Errorf("failed to read TCG_CSR_IDEVID_CONTENT.padSize: %w", err)
 	}
 
-	// TODO: gsaloni - Implement the parsing of fields based on their sizes and remove this log.
-	log.Infof("TCG_CSR_IDEVID_CONTENT sizes: prodModelSize=%d, prodSerialSize=%d, ekCertSize=%d,"+
-		" attestPubSize=%d, signingPubSize=%d, SignCertifyInfoSize=%d, SignCertifyInfoSignatureSize=%d, padSize=%d",
-		prodModelSize, prodSerialSize, ekCertSize, attestPubSize, signingPubSize,
-		SignCertifyInfoSize, SignCertifyInfoSignatureSize, padSize)
+	// prodModel - product model string
+	prodModelBytes, err := readBytes(reader, prodModelSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read TCG_CSR_IDEVID_CONTENT.prodModel (size %d): %w", prodModelSize, err)
+	}
+	result.ProdModel = string(prodModelBytes)
+
+	// prodSerial - product serial string
+	prodSerialBytes, err := readBytes(reader, prodSerialSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read TCG_CSR_IDEVID_CONTENT.prodSerial (size %d): %w", prodSerialSize, err)
+	}
+	result.ProdSerial = string(prodSerialBytes)
+
+	// ekCert - Endorsement Key Certificate PEM encoded(X.509)
+	ekCertBytes, err := readBytes(reader, ekCertSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read TCG_CSR_IDEVID_CONTENT.ekCert (size %d): %w", ekCertSize, err)
+	}
+	ekCert, err := certificateDerToPem(ekCertBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert EK Cert to PEM: %w", err)
+	}
+	result.EKCert = ekCert
+
+	// attestPub - Attestation Key public key (IAK)
+	attestPubBytes, err := readBytes(reader, attestPubSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read TCG_CSR_IDEVID_CONTENT.attestPub (size %d): %w", attestPubSize, err)
+	}
+	attestPubTPMT, err := tpm2.Unmarshal[tpm2.TPMTPublic](attestPubBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal attestPubBytes to TPMTPublic: %w", err)
+	}
+	result.IAKPub = *attestPubTPMT
+
+	// signingPub - Signing Key public key (IDevID)
+	signingPubBytes, err := readBytes(reader, signingPubSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read TCG_CSR_IDEVID_CONTENT.signingPub (size %d): %w", signingPubSize, err)
+	}
+	signingPubTPMT, err := tpm2.Unmarshal[tpm2.TPMTPublic](signingPubBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal signingPubBytes to TPMTPublic: %w", err)
+	}
+	result.IDevIDPub = *signingPubTPMT
+
+	// sgnCertifyInfo - IDevID certification data
+	sgnCertifyInfo, err := readBytes(reader, signCertifyInfoSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read TCG_CSR_IDEVID_CONTENT.sgnCertifyInfo (size %d): %w", signCertifyInfoSize, err)
+	}
+	log.Infof("sgnCertifyInfo: %x", sgnCertifyInfo)
+	sgnCertifyInfoTPMS, err := tpm2.Unmarshal[tpm2.TPMSAttest](sgnCertifyInfo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal sgnCertifyInfo to TPMSAttest: %w", err)
+	}
+	result.SignCertifyInfo = *sgnCertifyInfoTPMS
+
+	// sgnCertifyInfoSignature - Signature of the SignCertifyInfo field by IAK
+	sgnCertifyInfoSignature, err := readBytes(reader, signCertifyInfoSignatureSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read TCG_CSR_IDEVID_CONTENT.sgnCertifyInfoSignature (size %d): %w", signCertifyInfoSignatureSize, err)
+	}
+	sgnCertifyInfoSignatureTPMTS, err := tpm2.Unmarshal[tpm2.TPMTSignature](sgnCertifyInfoSignature)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal sgnCertifyInfoSignature to TPMTSignature: %w", err)
+	}
+	log.Infof("sgnCertifyInfoSignatureTPMTS: %#+v", tpm2.Marshal(sgnCertifyInfoSignatureTPMTS))
+	result.SignCertifyInfoSignature = *sgnCertifyInfoSignatureTPMTS
+
+	// pad - empty bytes to make the size struct a multiple of 16 bytes
+	_, err = readBytes(reader, padSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read TCG_CSR_IDEVID_CONTENT.pad (size %d): %w", padSize, err)
+	}
+	log.Infof("padSize: %d", padSize)
+
+	// Final check: ensure no unread bytes in the TCG_CSR_IDEVID_CONTENT block
+	if reader.Len() > 0 {
+		return nil, fmt.Errorf("leftover bytes in TCG_CSR_IDEVID_CONTENT block after parsing: %d", reader.Len())
+	}
+
 	return result, nil
 }

@@ -5,3 +5,9 @@ check-file = false
 [type.png]
 extend-glob = ["*.png"]
 check-file = false
+
+[default]
+extend-ignore-re = [
+    # Ignore the next line if it's preceded by a comment like "// typos-ignore-next-line"
+    "(?Rm)^.*(#|//)\\s*typos-ignore-next-line\\n.*",
+]
