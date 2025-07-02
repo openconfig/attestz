@@ -5,3 +5,11 @@ check-file = false
 [type.png]
 extend-glob = ["*.png"]
 check-file = false
+
+[default.extend-words]
+"Parms" = "Parms"
+"PARMS" = "PARMS"
+
+[default.extend-identifiers]
+"Parms" = "Parms"
+"PARMS" = "PARMS"
