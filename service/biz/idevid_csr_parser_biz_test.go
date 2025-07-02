@@ -2,13 +2,78 @@ package biz
 
 import (
 	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/binary"
-	"encoding/hex"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"math/big"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/go-tpm/tpm2"
+)
+
+var (
+	// Constants to be used in request params and stubbing.
+	validTPMTPublic = tpm2.TPMTPublic{
+		Type:             tpm2.TPMAlgECC,
+		NameAlg:          tpm2.TPMAlgSHA256,
+		ObjectAttributes: tpm2.TPMAObject{},
+		AuthPolicy: tpm2.TPM2BDigest{
+			Buffer: []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a},
+		},
+		// typos-ignore-next-line
+		Parameters: tpm2.NewTPMUPublicParms(tpm2.TPMAlgECC, &tpm2.TPMSECCParms{
+			Symmetric: tpm2.TPMTSymDefObject{Algorithm: tpm2.TPMAlgNull},
+			Scheme: tpm2.TPMTECCScheme{
+				Scheme: tpm2.TPMAlgECDSA,
+				Details: tpm2.NewTPMUAsymScheme(tpm2.TPMAlgECDSA, &tpm2.TPMSSigSchemeECDSA{
+					HashAlg: tpm2.TPMAlgSHA256,
+				}),
+			},
+			CurveID: tpm2.TPMECCNistP256,
+			KDF:     tpm2.TPMTKDFScheme{Scheme: tpm2.TPMAlgNull},
+		}),
+	}
+	validTPMSAttest = tpm2.TPMSAttest{
+		Magic:           0xff544347,
+		Type:            tpm2.TPMSTAttestCertify,
+		QualifiedSigner: tpm2.TPM2BName{Buffer: []byte{0x0, 0xc, 0x35, 0xb9, 0x3b, 0xa2, 0xd6, 0x55, 0x96, 0x7, 0x80, 0xa7, 0x4, 0x48, 0x6b, 0xf, 0xd3, 0xce, 0xfb, 0xa9, 0x12, 0x49, 0x35, 0x7, 0xa1, 0xfc, 0x10, 0xae, 0xa9, 0x43, 0x82, 0xda, 0xd4, 0x72, 0x94, 0x97, 0xad, 0x55, 0xdf, 0x14, 0x78, 0x6d, 0xc4, 0x32, 0xc1, 0xb1, 0x9, 0x4d, 0xed, 0x3b}},
+		ExtraData:       tpm2.TPM2BData{Buffer: []byte{}},
+		ClockInfo:       tpm2.TPMSClockInfo{Clock: 0x3566eb68, ResetCount: 0x5d2, RestartCount: 0x0, Safe: true},
+		FirmwareVersion: 0x1020000000000,
+		Attested:        tpm2.NewTPMUAttest(tpm2.TPMSTAttestCertify, &tpm2.TPMSCertifyInfo{}),
+	}
+
+	validTPMTSignature = tpm2.TPMTSignature{
+		SigAlg: tpm2.TPMAlgRSASSA,
+	}
+	defaultEkCertDerBytes, defaultEkCertPEM = generateX509Cert()
+	defaultCsrOptions                       = CsrOptions{
+		StructVer:                   ptrUint32(1),
+		HashAlgoID:                  ptrUint32(2),
+		Hash:                        []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a},
+		ProdModel:                   ptrString("MyProductModel"),
+		ProdSerial:                  ptrString("MyProductSerial"),
+		EKCert:                      defaultEkCertDerBytes,
+		PadSize:                     ptrUint32(0),
+		ProdCaDataSize:              ptrUint32(0),
+		BootEvntLogSize:             ptrUint32(0),
+		AttestPub:                   &validTPMTPublic,
+		SigningPub:                  &validTPMTPublic,
+		SignCertifyInfo:             &validTPMSAttest,
+		SignCertifyInfoSignature:    &validTPMTSignature,
+		AtCreateTktSize:             ptrUint32(0),
+		AtCertifyInfoSize:           ptrUint32(0),
+		AtCertifiyInfoSignatureSize: ptrUint32(0),
+	}
 )
 
 type CsrOptions struct {
@@ -17,17 +82,49 @@ type CsrOptions struct {
 	Hash                         []byte
 	ProdModel                    *string
 	ProdSerial                   *string
-	EKCert                       *string
+	EKCert                       []byte
 	PadSize                      *uint32
 	ProdCaDataSize               *uint32
 	BootEvntLogSize              *uint32
+	AttestPub                    *tpm2.TPMTPublic
 	AttestPubSize                *uint32
+	SigningPub                   *tpm2.TPMTPublic
 	SigningPubSize               *uint32
+	SignCertifyInfo              *tpm2.TPMSAttest
 	SignCertifyInfoSize          *uint32
+	SignCertifyInfoSignature     *tpm2.TPMTSignature
 	SignCertifyInfoSignatureSize *uint32
 	AtCreateTktSize              *uint32
 	AtCertifyInfoSize            *uint32
 	AtCertifiyInfoSignatureSize  *uint32
+}
+
+func generateX509Cert() ([]byte, string) {
+	// Create a self-signed certificate for testing
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		panic(err)
+	}
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			Organization: []string{"Google"},
+		},
+		NotBefore:   time.Now(),
+		NotAfter:    time.Now().Add(time.Hour * 24 * 365),
+		KeyUsage:    x509.KeyUsageDigitalSignature,
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	}
+	derBytes, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	if err != nil {
+		panic(err)
+	}
+
+	block := &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: derBytes,
+	}
+	return derBytes, string(pem.EncodeToMemory(block))
 }
 
 // Helper function to generate valid csrBytes for testing, this will be useful when adding new fields to the structure
@@ -35,24 +132,7 @@ func generateCsrBytes(options CsrOptions) []byte {
 	var buffer bytes.Buffer
 
 	// Set default values
-	defaultOptions := CsrOptions{
-		StructVer:                    ptrUint32(1),
-		HashAlgoID:                   ptrUint32(2),
-		Hash:                         []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a},
-		ProdModel:                    ptrString("MyProductModel"),
-		ProdSerial:                   ptrString("MyProductSerial"),
-		EKCert:                       ptrString("MyEkCert"),
-		PadSize:                      ptrUint32(0),
-		ProdCaDataSize:               ptrUint32(0),
-		BootEvntLogSize:              ptrUint32(0),
-		AttestPubSize:                ptrUint32(10),
-		SigningPubSize:               ptrUint32(10),
-		SignCertifyInfoSize:          ptrUint32(10),
-		SignCertifyInfoSignatureSize: ptrUint32(10),
-		AtCreateTktSize:              ptrUint32(0),
-		AtCertifyInfoSize:            ptrUint32(0),
-		AtCertifiyInfoSignatureSize:  ptrUint32(0),
-	}
+	defaultOptions := defaultCsrOptions
 
 	// Apply options
 	if options.StructVer != nil {
@@ -82,17 +162,37 @@ func generateCsrBytes(options CsrOptions) []byte {
 	if options.BootEvntLogSize != nil {
 		defaultOptions.BootEvntLogSize = options.BootEvntLogSize
 	}
+	if options.AttestPub != nil {
+		defaultOptions.AttestPub = options.AttestPub
+	}
 	if options.AttestPubSize != nil {
 		defaultOptions.AttestPubSize = options.AttestPubSize
+	} else {
+		defaultOptions.AttestPubSize = ptrUint32(uint32(len(tpm2.Marshal(*defaultOptions.AttestPub))))
+	}
+	if options.SigningPub != nil {
+		defaultOptions.SigningPub = options.SigningPub
 	}
 	if options.SigningPubSize != nil {
 		defaultOptions.SigningPubSize = options.SigningPubSize
+	} else {
+		defaultOptions.SigningPubSize = ptrUint32(uint32(len(tpm2.Marshal(*defaultOptions.SigningPub))))
+	}
+	if options.SignCertifyInfo != nil {
+		defaultOptions.SignCertifyInfo = options.SignCertifyInfo
 	}
 	if options.SignCertifyInfoSize != nil {
 		defaultOptions.SignCertifyInfoSize = options.SignCertifyInfoSize
+	} else {
+		defaultOptions.SignCertifyInfoSize = ptrUint32(uint32(len(tpm2.Marshal(*defaultOptions.SignCertifyInfo))))
+	}
+	if options.SignCertifyInfoSignature != nil {
+		defaultOptions.SignCertifyInfoSignature = options.SignCertifyInfoSignature
 	}
 	if options.SignCertifyInfoSignatureSize != nil {
 		defaultOptions.SignCertifyInfoSignatureSize = options.SignCertifyInfoSignatureSize
+	} else {
+		defaultOptions.SignCertifyInfoSignatureSize = ptrUint32(uint32(len(tpm2.Marshal(*defaultOptions.SignCertifyInfoSignature))))
 	}
 	if options.AtCreateTktSize != nil {
 		defaultOptions.AtCreateTktSize = options.AtCreateTktSize
@@ -121,7 +221,7 @@ func generateCsrBytes(options CsrOptions) []byte {
 	// bootEvntLogSize (4 bytes)
 	binaryWriteUint32(&buffer, *defaultOptions.BootEvntLogSize)
 	// ekCertSize (4 bytes)
-	binaryWriteUint32(&buffer, uint32(len(*defaultOptions.EKCert)))
+	binaryWriteUint32(&buffer, uint32(len(defaultOptions.EKCert)))
 	// attestPubSize (4 bytes)
 	binaryWriteUint32(&buffer, *defaultOptions.AttestPubSize)
 	// atCreateTktSize (4 bytes)
@@ -143,7 +243,18 @@ func generateCsrBytes(options CsrOptions) []byte {
 	// prodSerial
 	buffer.WriteString(*defaultOptions.ProdSerial)
 	// ekCert
-	buffer.WriteString(*defaultOptions.EKCert)
+	buffer.Write(defaultOptions.EKCert)
+	// attestPub
+	buffer.Write(tpm2.Marshal(*defaultOptions.AttestPub))
+	// signingPub
+	signingPubBytes := tpm2.Marshal(*defaultOptions.SigningPub)
+	buffer.Write(signingPubBytes)
+	// sgnCertifyInfo
+	sgnCertifyInfoBytes := tpm2.Marshal(*defaultOptions.SignCertifyInfo)
+	buffer.Write(sgnCertifyInfoBytes)
+	// sgnCertifyInfoSignature
+	sgnCertifyInfoSignatureBytes := tpm2.Marshal(*defaultOptions.SignCertifyInfoSignature)
+	buffer.Write(sgnCertifyInfoSignatureBytes)
 	// pad
 	for i := uint32(0); i < *defaultOptions.PadSize; i++ {
 		buffer.WriteByte(0)
@@ -179,9 +290,16 @@ func TestParseTCGCSRIDevIDContent(t *testing.T) {
 			csrBytes:      generateCsrBytes(CsrOptions{}),
 			expectedError: nil,
 			expectedResult: &TCGCSRIDevIDContents{
-				StructVer:  1,
-				HashAlgoID: 2,
-				Hash:       []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a},
+				StructVer:                *defaultCsrOptions.StructVer,
+				HashAlgoID:               *defaultCsrOptions.HashAlgoID,
+				Hash:                     defaultCsrOptions.Hash,
+				ProdModel:                *defaultCsrOptions.ProdModel,
+				ProdSerial:               *defaultCsrOptions.ProdSerial,
+				EKCert:                   defaultEkCertPEM,
+				IAKPub:                   *defaultCsrOptions.AttestPub,
+				IDevIDPub:                *defaultCsrOptions.SigningPub,
+				SignCertifyInfo:          *defaultCsrOptions.SignCertifyInfo,
+				SignCertifyInfoSignature: *defaultCsrOptions.SignCertifyInfoSignature,
 			},
 		},
 		{
@@ -229,16 +347,48 @@ func TestParseTCGCSRIDevIDContent(t *testing.T) {
 			csrBytes:      generateCsrBytes(CsrOptions{SignCertifyInfoSignatureSize: ptrUint32(0)}),
 			expectedError: errors.New("failed to read TCG_CSR_IDEVID_CONTENT.SignCertifyInfoSignatureSize: read uint32 is zero, expected non-zero"),
 		},
+		{
+			name: "attestPubSize too large",
+			csrBytes: generateCsrBytes(CsrOptions{
+				AttestPubSize: ptrUint32(2000),
+			}),
+			expectedError: errors.New("failed to read TCG_CSR_IDEVID_CONTENT.attestPub"),
+		},
+		{
+			name: "signingPubSize too large",
+			csrBytes: generateCsrBytes(CsrOptions{
+				SigningPubSize: ptrUint32(2000),
+			}),
+			expectedError: errors.New("failed to read TCG_CSR_IDEVID_CONTENT.signingPub"),
+		},
+		{
+			name: "sgnCertifyInfoSize too large",
+			csrBytes: generateCsrBytes(CsrOptions{
+				SignCertifyInfoSize: ptrUint32(2000),
+			}),
+			expectedError: errors.New("failed to read TCG_CSR_IDEVID_CONTENT.sgnCertifyInfo"),
+		},
+		{
+			name: "sgnCertifyInfoSignatureSize too large",
+			csrBytes: generateCsrBytes(CsrOptions{
+				SignCertifyInfoSignatureSize: ptrUint32(2000),
+			}),
+			expectedError: errors.New("failed to read TCG_CSR_IDEVID_CONTENT.sgnCertifyInfoSignature"),
+		},
+		{
+			name:          "Invalid EK Cert",
+			csrBytes:      generateCsrBytes(CsrOptions{EKCert: []byte("invalid-ek-cert")}),
+			expectedError: errors.New("failed to convert EK Cert to PEM"),
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Logf("test case: %s", tc.name)
 			result, err := ParseTCGCSRIDevIDContent(tc.csrBytes)
 
 			if tc.expectedError != nil {
-				if err == nil || !cmp.Equal(err.Error(), tc.expectedError.Error()) {
-					t.Errorf("ParseTCGCSRIDevIDContent(%v) expected an error: %v, but got: %v", hex.EncodeToString(tc.csrBytes), tc.expectedError, err)
+				if err == nil || !strings.Contains(err.Error(), tc.expectedError.Error()) {
+					t.Errorf("ParseTCGCSRIDevIDContent expected an error: %v, but got: %v", tc.expectedError, err)
 				}
 				return
 			}
@@ -246,11 +396,11 @@ func TestParseTCGCSRIDevIDContent(t *testing.T) {
 				t.Fatalf("ParseTCGCSRIDevIDContent returned an unexpected error: %v", err)
 			}
 
-			wantStr := fmt.Sprintf("%#+v", tc.expectedResult)
-			gotStr := fmt.Sprintf("%#+v", result)
-			if diff := cmp.Diff(wantStr, gotStr); diff != "" {
+			// typos-ignore-next-line
+			if diff := cmp.Diff(tc.expectedResult, result, cmpopts.IgnoreUnexported(tpm2.TPMTPublic{}, tpm2.TPMSAttest{}, tpm2.TPMTSignature{}, tpm2.TPMAObject{}, tpm2.TPM2BDigest{}, tpm2.TPMUPublicParms{}, tpm2.TPMUPublicID{}, tpm2.TPM2BName{}, tpm2.TPM2BData{}, tpm2.TPMSClockInfo{}, tpm2.TPMUAttest{}, tpm2.TPMUSignature{})); diff != "" {
 				t.Errorf("ParseTCGCSRIDevIDContent returned an unexpected result: diff (-want +got):\n%s", diff)
 			}
+			t.Logf("tc.expectedResult: %v", tc.expectedResult)
 		})
 	}
 }
