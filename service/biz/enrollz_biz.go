@@ -26,6 +26,7 @@ import (
 	cpb "github.com/openconfig/attestz/proto/common_definitions"
 	epb "github.com/openconfig/attestz/proto/tpm_enrollz"
 
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/prototext"
 )
 
@@ -57,6 +58,20 @@ type IssueOwnerIDevIDCertResp struct {
 	OwnerIDevIDCertPem string
 }
 
+// IssueAikCertReq is the request to SwitchOwnerCaClient.IssueAikCert().
+type IssueAikCertReq struct {
+	// Identity fields of a given switch control card.
+	CardID *cpb.ControlCardVendorId
+	// PEM-encoded AIK public key.
+	AikPubPem string
+}
+
+// IssueAikCertResp is the response to SwitchOwnerCaClient.IssueAikCert().
+type IssueAikCertResp struct {
+	// PEM-encoded AIK cert (signed by the switch owner CA).
+	AikCertPem string
+}
+
 // SwitchOwnerCaClient is the client to communicate with the Switch Owner CA to issue oIAK and oIDevID
 // certs.
 type SwitchOwnerCaClient interface {
@@ -65,6 +80,9 @@ type SwitchOwnerCaClient interface {
 
 	// For a given switch control card ID, issue an oIDevID PEM cert based on IDevID public key PEM.
 	IssueOwnerIDevIDCert(ctx context.Context, req *IssueOwnerIDevIDCertReq) (*IssueOwnerIDevIDCertResp, error)
+
+	// For a given switch control card ID, issue an AIK PEM cert based on AIK public key PEM.
+	IssueAikCert(ctx context.Context, req *IssueAikCertReq) (*IssueAikCertResp, error)
 }
 
 // EnrollzDeviceClient is a wrapper around gRPC `TpmEnrollzServiceClient` to allow customizable behavior.
@@ -93,6 +111,9 @@ type EnrollzDeviceClient interface {
 
 	// Returns `TpmEnrollzServiceClient.RotateOIakCert()` response.
 	RotateOIakCert(ctx context.Context, req *epb.RotateOIakCertRequest) (*epb.RotateOIakCertResponse, error)
+
+	// Returns `TpmEnrollzServiceClient.RotateAIKCert()` response.
+	RotateAIKCert(ctx context.Context, opts ...grpc.CallOption) (epb.TpmEnrollzService_RotateAIKCertClient, error)
 }
 
 // EnrollzInfraDeps is the infra-specific dependencies of this enrollz business logic lib. A service can create
@@ -407,5 +428,51 @@ func RotateOwnerIakCert(ctx context.Context, req *RotateOwnerIakCertReq) error {
 		prototext.Format(rotateOIakCertResp), prototext.Format(rotateOIakCertReq))
 
 	// Return a successful (no-error) response.
+	return nil
+}
+
+// RotateAIKCertReq is the request to RotateAIKCert().
+type RotateAIKCertReq struct {
+	// Selection of a specific switch control card.
+	ControlCardSelection *cpb.ControlCardSelection
+	// Infra-specific wired dependencies.
+	Deps EnrollzInfraDeps
+}
+
+// validateRotateAIKCertReq verifies that RotateAIKCertReq request is valid.
+func validateRotateAIKCertReq(req *RotateAIKCertReq) error {
+	if req == nil {
+		return fmt.Errorf("request RotateAIKCertReq is nil")
+	}
+	if req.Deps == nil {
+		return fmt.Errorf("field Deps in RotateAIKCertReq request is nil")
+	}
+	return nil
+}
+
+// RotateAIKCert is a "client"/switch-owner side implementation of Enrollz service for TPM 1.2 devices.
+// This function handles the entire TPM 1.2 enrollment flow, including generating an issuer key pair,
+// interacting with the device's TPM 1.2, and handling the encryption and decryption of the AIK certificate.
+func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
+	err := validateRotateAIKCertReq(req)
+	if err != nil {
+		err = fmt.Errorf("invalid request RotateAIKCertReq to RotateAIKCert(): %v", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+	// TODO: Generate Issuer Key Pair
+	// TODO: Send issuer_public_key to the device.
+	// TODO: Handle application_identity_request
+	// TODO: Decrypt application_identity_request
+	// TODO: Parse application_identity_request
+	// TODO: Verify signature in application_identity_request
+	// TODO: Issue AIK Certificate
+	// TODO: Create AES key
+	// TODO: Encrypt AIK cert with AES key.
+	// TODO: Get EK Public Key from RoT database.
+	// TODO: Encrypt AES key with EK public key.
+	// TODO: Handle AIK Cert Confirmation
+	// TODO: Compare AIK Certs
+	// TODO: Finalize Enrollment
 	return nil
 }
