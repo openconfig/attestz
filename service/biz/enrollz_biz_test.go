@@ -19,10 +19,13 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/testing/protocmp"
 
@@ -43,6 +46,7 @@ type stubEnrollzInfraDeps struct {
 	verifyIakAndIDevIDCertsReq *VerifyIakAndIDevIDCertsReq
 	verifyTpmCertReq           *VerifyTpmCertReq
 	verifyNonceSignatureReq    *VerifyNonceSignatureReq
+	issueAikCertReq            *IssueAikCertReq
 
 	// Stubbed responses to simulate behavior of deps without implementing them.
 	issueOwnerIakCertResp       *IssueOwnerIakCertResp
@@ -52,10 +56,15 @@ type stubEnrollzInfraDeps struct {
 	verifyIakAndIDevIDCertsResp *VerifyIakAndIDevIDCertsResp
 	verifyTpmCertResp           *VerifyTpmCertResp
 	verifyNonceSignatureResp    *VerifyNonceSignatureResp
+	issueAikCertResp            *IssueAikCertResp
 
 	// If we need to simulate an error response from any of the deps, then set
 	// the dep's response to nil and populate this error field.
-	errorResp error
+	errorResp                error
+	rotateAikCertStreamError error
+	recvError                error
+	sendError                error
+	emptyIdentityReq         bool
 }
 
 func (s *stubEnrollzInfraDeps) VerifyIakAndIDevIDCerts(ctx context.Context, req *VerifyIakAndIDevIDCertsReq) (*VerifyIakAndIDevIDCertsResp, error) {
@@ -815,6 +824,173 @@ func TestNonceVerification(t *testing.T) {
 			}
 			if test.wantVerifyNonceSignatureReq && (len(stub.verifyNonceSignatureReq.Nonce) == 0 || len(stub.verifyNonceSignatureReq.Signature) == 0 || len(stub.verifyNonceSignatureReq.IAKPubPem) == 0 || stub.verifyNonceSignatureReq.HashAlgo == 0) {
 				t.Errorf("VerifyNonceSignature was expected to be called with all parameters, but one or more parameters was missing")
+			}
+		})
+	}
+}
+
+func (s *stubEnrollzInfraDeps) IssueAikCert(ctx context.Context, req *IssueAikCertReq) (*IssueAikCertResp, error) {
+	// Validate that no stub (captured) request params were set prior to execution.
+	if s.issueAikCertReq != nil {
+		return nil, fmt.Errorf("IssueAikCert unexpected req %+v", s.issueAikCertReq)
+	}
+	s.issueAikCertReq = req
+
+	// If a stubbed response is not set, then return error, otherwise return the response.
+	if s.issueAikCertResp == nil {
+		return nil, s.errorResp
+	}
+	return s.issueAikCertResp, nil
+}
+
+type stubRotateAIKClient struct {
+	grpc.ClientStream
+	epb.TpmEnrollzService_RotateAIKCertClient
+	recvCount                         int
+	sendCount                         int
+	stubbedApplicationIdentityRequest []byte
+	stubbedAikCert                    string
+	sendError                         error
+	recvError                         error
+	emptyIdentityReq                  bool
+}
+
+func (c *stubRotateAIKClient) Send(m *epb.RotateAIKCertRequest) error {
+	c.sendCount++
+	return c.sendError
+}
+
+func (c *stubRotateAIKClient) Recv() (*epb.RotateAIKCertResponse, error) {
+	c.recvCount++
+	if c.recvError != nil {
+		return nil, c.recvError
+	}
+	if c.recvCount == 1 {
+		if c.emptyIdentityReq {
+			return &epb.RotateAIKCertResponse{
+				Value: nil,
+			}, nil
+		} else {
+			return &epb.RotateAIKCertResponse{
+				Value: &epb.RotateAIKCertResponse_ApplicationIdentityRequest{
+					ApplicationIdentityRequest: c.stubbedApplicationIdentityRequest,
+				},
+			}, nil
+		}
+	}
+	if c.recvCount == 2 {
+		return &epb.RotateAIKCertResponse{
+			Value: &epb.RotateAIKCertResponse_AikCert{
+				AikCert: c.stubbedAikCert,
+			},
+		}, nil
+	}
+	return nil, io.EOF
+}
+func (c *stubRotateAIKClient) Context() context.Context { // Implement Context method
+	return c.ClientStream.Context()
+}
+func (c *stubRotateAIKClient) CloseSend() error {
+	return c.ClientStream.CloseSend()
+}
+func (c *stubRotateAIKClient) Header() (metadata.MD, error) {
+	return c.ClientStream.Header()
+}
+func (c *stubRotateAIKClient) RecvMsg(m any) error {
+	return c.ClientStream.RecvMsg(m)
+}
+func (c *stubRotateAIKClient) SendMsg(m any) error {
+	return c.ClientStream.SendMsg(m)
+}
+func (c *stubRotateAIKClient) Trailer() metadata.MD {
+	return c.ClientStream.Trailer()
+}
+
+func (s *stubEnrollzInfraDeps) RotateAIKCert(ctx context.Context, opts ...grpc.CallOption) (epb.TpmEnrollzService_RotateAIKCertClient, error) {
+	if s.rotateAikCertStreamError != nil {
+		return nil, s.rotateAikCertStreamError
+	}
+	return &stubRotateAIKClient{
+		stubbedApplicationIdentityRequest: []byte("some-application-identity-request"),
+		stubbedAikCert:                    "some-aik-cert",
+		sendError:                         s.sendError,
+		recvError:                         s.recvError,
+	}, nil
+}
+
+func TestRotateAIKCert(t *testing.T) {
+	// Constants to be used in request params and stubbing.
+	controlCardSelection := &cpb.ControlCardSelection{
+		ControlCardId: &cpb.ControlCardSelection_Role{
+			Role: cpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE,
+		},
+	}
+	errorResp := errors.New("Some error")
+	tests := []struct {
+		// Test description.
+		desc string
+		// Overall expected RotateAIKCert response.
+		wantErrResp error
+		// Stubbed responses to EnrollzInfraDeps deps.
+		issueAikCertResp         *IssueAikCertResp
+		rotateAikCertStreamError error
+		recvError                error
+		sendError                error
+		emptyApplicationReq      bool
+	}{
+		{
+			desc:             "Successful rotation of AIK cert",
+			issueAikCertResp: &IssueAikCertResp{AikCertPem: "some-aik-cert"},
+		},
+		{
+			desc:                     "RotateAIKCert stream error",
+			wantErrResp:              errorResp,
+			rotateAikCertStreamError: errorResp,
+		},
+		{
+			desc:        "RotateAIKCert send error",
+			wantErrResp: errorResp,
+			sendError:   errorResp,
+		},
+		{
+			desc:        "RotateAIKCert recv error",
+			wantErrResp: errorResp,
+			recvError:   errorResp,
+		},
+		{
+			desc:        "IssueAikCert error",
+			wantErrResp: errorResp,
+		},
+		{
+			desc:                "Empty identity request",
+			wantErrResp:         errorResp,
+			emptyApplicationReq: true,
+		},
+		// TODO: Add more test cases to cover helper function failures as they are implemented.
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			stub := &stubEnrollzInfraDeps{
+				issueAikCertResp:         test.issueAikCertResp,
+				errorResp:                test.wantErrResp,
+				rotateAikCertStreamError: test.rotateAikCertStreamError,
+				recvError:                test.recvError,
+				sendError:                test.sendError,
+				emptyIdentityReq:         test.emptyApplicationReq,
+			}
+			req := &RotateAIKCertReq{
+				ControlCardSelection: controlCardSelection,
+				Deps:                 stub,
+			}
+			ctx := context.Background()
+			got := RotateAIKCert(ctx, req)
+
+			// Verify that RotateAIKCert returned expected error/no-error response.
+			if test.wantErrResp != nil && test.wantErrResp != errors.Unwrap(got) {
+				t.Errorf("Expected error response %v, but got error response %v", test.wantErrResp, errors.Unwrap(got))
+			} else if test.wantErrResp == nil && got != nil {
+				t.Errorf("Expected no-error response %v, but got error response %v", test.wantErrResp, got)
 			}
 		})
 	}

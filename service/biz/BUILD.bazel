@@ -17,7 +17,10 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "enrollz_biz",
     srcs = ["enrollz_biz.go"],
-    embed = [":tpm_cert_verifier"],
+    embed = [
+        ":tpm_cert_verifier",
+        ":tpm12_utils",
+    ],
     importpath = "github.com/openconfig/attestz/service/biz",
     visibility = ["//visibility:public"],
     deps = [
@@ -28,7 +31,8 @@ go_library(
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_protobuf//encoding/prototext",
         "@org_golang_google_protobuf//proto",
-        "@org_golang_google_grpc//:grpc"
+        "@org_golang_google_grpc//:grpc",
+        "@com_github_google_go_tpm//tpm",
     ],
 )
 
@@ -44,6 +48,8 @@ go_test(
         "@com_github_google_go_cmp//cmp/cmpopts",
         "@org_golang_google_protobuf//encoding/prototext",
         "@org_golang_google_protobuf//testing/protocmp",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//metadata:go_default_library",
     ],
 )
 
@@ -93,5 +99,16 @@ go_test(
         "@com_github_google_go_cmp//cmp",
         "@com_github_google_go_cmp//cmp/cmpopts",
         "@com_github_google_go_tpm//tpm2",
+    ],
+)
+
+
+go_library(
+    name = "tpm12_utils",
+    srcs = ["tpm12_utils.go"],
+    importpath = "github.com/openconfig/attestz/service/biz",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_google_go_tpm//tpm",
     ],
 )

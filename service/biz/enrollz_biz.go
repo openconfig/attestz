@@ -17,11 +17,15 @@ package biz
 
 import (
 	"context"
+	"crypto"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"fmt"
+	"io"
 
 	log "github.com/golang/glog"
+	tpm12 "github.com/google/go-tpm/tpm"
 
 	cpb "github.com/openconfig/attestz/proto/common_definitions"
 	epb "github.com/openconfig/attestz/proto/tpm_enrollz"
@@ -29,6 +33,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/prototext"
 )
+
+const RSAkeySize2048 = 2048
 
 // IssueOwnerIakCertReq is the request to SwitchOwnerCaClient.IssueOwnerIakCert().
 type IssueOwnerIakCertReq struct {
@@ -463,19 +469,205 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 		log.ErrorContext(ctx, err)
 		return err
 	}
-	// TODO: Generate Issuer Key Pair
-	// TODO: Send issuer_public_key to the device.
-	// TODO: Handle application_identity_request
-	// TODO: Decrypt application_identity_request
-	// TODO: Parse application_identity_request
-	// TODO: Verify signature in application_identity_request
-	// TODO: Issue AIK Certificate
-	// TODO: Create AES key
-	// TODO: Encrypt AIK cert with AES key.
+	// Generate Issuer Key Pair
+	issuerPrivateKey, err := rsa.GenerateKey(rand.Reader, RSAkeySize2048)
+	if err != nil {
+		err = fmt.Errorf("failed to generate issuer key pair: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+	issuerPublicKey := &issuerPrivateKey.PublicKey
+
+	// Send issuer_public_key to the device.
+	publicKeyBytes, err := x509.MarshalPKIXPublicKey(issuerPublicKey)
+	if err != nil {
+		err = fmt.Errorf("failed to marshal issuer public key: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+	rotateAIKCertReq := &epb.RotateAIKCertRequest{
+		Value: &epb.RotateAIKCertRequest_IssuerPublicKey{
+			IssuerPublicKey: publicKeyBytes,
+		},
+		ControlCardSelection: req.ControlCardSelection,
+	}
+
+	stream, err := req.Deps.RotateAIKCert(ctx)
+	if err != nil {
+		err = fmt.Errorf("failed to initiate RotateAIKCert stream: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+	if err := stream.Send(rotateAIKCertReq); err != nil {
+		err = fmt.Errorf("failed to send issuer public key to the device: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+
+	// Handle application_identity_request
+	resp, err := stream.Recv()
+	if err != nil {
+		err = fmt.Errorf("failed to receive application_identity_request from the device: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+	applicationIdentityRequestBytes := resp.GetApplicationIdentityRequest()
+	if len(applicationIdentityRequestBytes) == 0 {
+		err = fmt.Errorf("application_identity_request is empty")
+		log.ErrorContext(ctx, err)
+		return err
+	}
+
+	// Parse application_identity_request
+	applicationIdentityRequest, err := ParseIdentityRequest(applicationIdentityRequestBytes)
+	if err != nil {
+		err = fmt.Errorf("failed to parse application_identity_request: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+
+	// Decrypt AsymBlob to get a symmetric key using issuer private key
+	var hash crypto.Hash
+	symKeyBytes, err := DecryptWithPrivateKey(ctx, issuerPrivateKey, applicationIdentityRequest.AsymBlob, applicationIdentityRequest.AsymAlgorithm.AlgID, applicationIdentityRequest.AsymAlgorithm.EncScheme)
+	if err != nil {
+		err = fmt.Errorf("failed to decrypt AsymBlob: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+	// TODO: parse symKeyBytes into TPMSymmetricKey
+	symKey, err := ParseSymmetricKey(symKeyBytes)
+	if err != nil {
+		err = fmt.Errorf("failed to parse symmetric key: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+
+	// Decrypt SymBlob to get Identity proof using symmetric key
+	identityProofBytes, err := DecryptWithSymmetricKey(ctx, symKey.Key, applicationIdentityRequest.SymBlob, symKey.AlgID, symKey.EncScheme)
+	if err != nil {
+		err = fmt.Errorf("failed to decrypt SymBlob: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+
+	// Parse Identity proof
+	identityProof, err := ParseIdentityProof(identityProofBytes)
+	if err != nil {
+		err = fmt.Errorf("failed to decrypt identity proof: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+
+	// TODO: Construct TPM_IDENTITY_CONTENTS and hash it
+	var identityContentsHash []byte
+
+	// Verify signature of TPM_IDENTITY_CONTENTS in Identity proof using AIK pub key
+	isValid, err := VerifySignature(ctx, identityProof.AttestationIdentityKey.Pubkey.Key, identityProof.IdentityBinding, identityContentsHash, hash)
+	if err != nil {
+		err = fmt.Errorf("failed to verify identity contents signature: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+	if !isValid {
+		err = fmt.Errorf("identity contents signature is not valid: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+
+	// TODO: Add appropriate fields to IssueAikCertReq{}
+	issueAikCertResp, err := req.Deps.IssueAikCert(ctx, &IssueAikCertReq{})
+	if err != nil {
+		err = fmt.Errorf("failed to issue AIK certificate: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+
+	// Create AES key
+	aesKey := make([]byte, 32)
+	if _, err := rand.Read(aesKey); err != nil {
+		err = fmt.Errorf("failed to generate AES key: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+
+	// Encrypt AIK cert with AES key.
+	encryptedAikCert, err := EncryptWithAes(aesKey, []byte(issueAikCertResp.AikCertPem))
+	if err != nil {
+		err = fmt.Errorf("failed to encrypt AIK certificate: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+
 	// TODO: Get EK Public Key from RoT database.
-	// TODO: Encrypt AES key with EK public key.
-	// TODO: Handle AIK Cert Confirmation
-	// TODO: Compare AIK Certs
-	// TODO: Finalize Enrollment
+	var ekPublicKey rsa.PublicKey
+	var ekAlgo tpm12.Algorithm
+	var ekEncScheme uint16
+
+	// Encrypt AES key with EK public key.
+	encryptedAesKey, err := EncryptWithPublicKey(ctx, &ekPublicKey, aesKey, ekAlgo, ekEncScheme)
+	if err != nil {
+		err = fmt.Errorf("failed to encrypt AES key: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+
+	// Send encrypted data
+	issuerCertPayload := &epb.RotateAIKCertRequest_IssuerCertPayload{
+		SymmetricKeyBlob: encryptedAesKey,
+		AikCertBlob:      encryptedAikCert,
+	}
+	rotateAIKCertReq = &epb.RotateAIKCertRequest{
+		Value:                &epb.RotateAIKCertRequest_IssuerCertPayload_{IssuerCertPayload: issuerCertPayload},
+		ControlCardSelection: req.ControlCardSelection,
+	}
+	if err := stream.Send(rotateAIKCertReq); err != nil {
+		err = fmt.Errorf("failed to send encrypted AIK certificate to the device: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+
+	// Handle AIK Cert Confirmation
+	resp, err = stream.Recv()
+	if err != nil {
+		err = fmt.Errorf("failed to receive AIK certificate from the device: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+	deviceAikCert := resp.GetAikCert()
+	if len(deviceAikCert) == 0 {
+		err = fmt.Errorf("device AIK cert is empty")
+		log.ErrorContext(ctx, err)
+		return err
+	}
+
+	// Compare AIK Certs
+	if issueAikCertResp.AikCertPem != deviceAikCert {
+		err = fmt.Errorf("AIK certificates do not match")
+		log.ErrorContext(ctx, err)
+		return err
+	}
+
+	// Finalize Enrollment
+	rotateAIKCertReq = &epb.RotateAIKCertRequest{
+		Value: &epb.RotateAIKCertRequest_Finalize{
+			Finalize: true,
+		},
+		ControlCardSelection: req.ControlCardSelection,
+	}
+	if err := stream.Send(rotateAIKCertReq); err != nil {
+		err = fmt.Errorf("failed to send finalize message to the device: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+	if _, err := stream.Recv(); err != io.EOF {
+		// Close the stream.
+		err = stream.CloseSend()
+		if err != nil {
+			err = fmt.Errorf("failed to finalize the enrollment: %w", err)
+			log.ErrorContext(ctx, err)
+			return err
+		}
+	}
+	log.InfoContext(ctx, "Successfully finalized TPM 1.2 enrollment")
 	return nil
 }
