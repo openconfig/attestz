@@ -444,6 +444,9 @@ func validateRotateAIKCertReq(req *RotateAIKCertReq) error {
 	if req == nil {
 		return fmt.Errorf("request RotateAIKCertReq is nil")
 	}
+	if req.ControlCardSelection == nil {
+		return fmt.Errorf("field ControlCardSelection in RotateAIKCertReq request is nil")
+	}
 	if req.Deps == nil {
 		return fmt.Errorf("field Deps in RotateAIKCertReq request is nil")
 	}
@@ -456,7 +459,7 @@ func validateRotateAIKCertReq(req *RotateAIKCertReq) error {
 func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	err := validateRotateAIKCertReq(req)
 	if err != nil {
-		err = fmt.Errorf("invalid request RotateAIKCertReq to RotateAIKCert(): %v", err)
+		err = fmt.Errorf("RotateAIKCert(): invalid request: %w", err)
 		log.ErrorContext(ctx, err)
 		return err
 	}
