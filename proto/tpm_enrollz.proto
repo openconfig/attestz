@@ -136,6 +136,14 @@ message RotateAIKCertResponse {
 message GetIdevidCsrRequest {
   // Switch control card selected identifier.
   ControlCardSelection control_card_selection = 1;
+  
+  // Type of Key to be used for enrollment.
+  enum Key {
+    KEY_UNSPECIFIED = 0;
+    KEY_EK = 1;
+    KEY_PPK = 2;
+  }
+  Key key = 2;
 }
 
 // Response containing the TCG-CSR-IDEVID structure.
