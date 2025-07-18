@@ -94,7 +94,7 @@ go_library(
 go_test(
     name = "idevid_csr_parser_biz_test",
     srcs = ["idevid_csr_parser_biz_test.go"],
-    embed = [":idevid_csr_parser_biz"],
+    embed = [":idevid_csr_parser_biz", ":test_utils"],
     deps = [
         "@com_github_google_go_cmp//cmp",
         "@com_github_google_go_cmp//cmp/cmpopts",
@@ -106,9 +106,30 @@ go_test(
 go_library(
     name = "tpm12_utils",
     srcs = ["tpm12_utils.go"],
+    embed = [":idevid_csr_parser_biz"],
     importpath = "github.com/openconfig/attestz/service/biz",
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_google_go_tpm//tpm",
     ],
+)
+
+go_test(
+    name = "tpm12_utils_test",
+    srcs = ["tpm12_utils_test.go"],
+    embed = [
+        ":tpm12_utils",
+        ":test_utils"
+    ],
+    deps = [
+        "@com_github_google_go_cmp//cmp",
+    ],
+)
+
+go_library(
+    name = "test_utils",
+    srcs = ["test_utils.go"],
+    importpath = "github.com/openconfig/attestz/service/biz",
+    visibility = ["//visibility:public"],
+    deps = [],
 )

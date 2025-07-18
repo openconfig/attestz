@@ -34,6 +34,7 @@ import (
 	"google.golang.org/protobuf/encoding/prototext"
 )
 
+// RSAkeySize2048 is the size of the RSA key used for TPM enrollment.
 const RSAkeySize2048 = 2048
 
 // IssueOwnerIakCertReq is the request to SwitchOwnerCaClient.IssueOwnerIakCert().
@@ -601,7 +602,7 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	// TODO: Get EK Public Key from RoT database.
 	var ekPublicKey rsa.PublicKey
 	var ekAlgo tpm12.Algorithm
-	var ekEncScheme uint16
+	var ekEncScheme TPMEncodingScheme
 
 	// Encrypt AES key with EK public key.
 	encryptedAesKey, err := EncryptWithPublicKey(ctx, &ekPublicKey, aesKey, ekAlgo, ekEncScheme)
