@@ -6,10 +6,8 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/binary"
 	"encoding/pem"
 	"errors"
-	"fmt"
 	"math/big"
 	"strings"
 	"testing"
@@ -310,21 +308,6 @@ func generateCsrBytes(options CsrOptions) []byte {
 		buffer.Write(invalidBytes)
 	}
 	return buffer.Bytes()
-}
-
-func binaryWriteUint32(buf *bytes.Buffer, value uint32) {
-	err := binary.Write(buf, binary.BigEndian, value)
-	if err != nil {
-		panic(fmt.Sprintf("failed to write uint32: %v", err))
-	}
-}
-
-func ptrUint32(value uint32) *uint32 {
-	return &value
-}
-
-func ptrString(value string) *string {
-	return &value
 }
 
 func TestParseTCGCSRIDevIDContent(t *testing.T) {
