@@ -16,6 +16,7 @@ package biz
 
 import (
 	"context"
+	"crypto/rsa"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -37,6 +38,7 @@ type stubEnrollzInfraDeps struct {
 	SwitchOwnerCaClient
 	EnrollzDeviceClient
 	TpmCertVerifier
+	ROTClient
 
 	// Request params that would be captured in stubbed deps' function calls.
 	issueOwnerIakCertReq       *IssueOwnerIakCertReq
@@ -46,6 +48,8 @@ type stubEnrollzInfraDeps struct {
 	verifyIakAndIDevIDCertsReq *VerifyIakAndIDevIDCertsReq
 	verifyTpmCertReq           *VerifyTpmCertReq
 	verifyNonceSignatureReq    *VerifyNonceSignatureReq
+	fetchEKSerial              string
+	fetchEKSupplier            string
 	issueAikCertReq            *IssueAikCertReq
 
 	// Stubbed responses to simulate behavior of deps without implementing them.
@@ -56,6 +60,7 @@ type stubEnrollzInfraDeps struct {
 	verifyIakAndIDevIDCertsResp *VerifyIakAndIDevIDCertsResp
 	verifyTpmCertResp           *VerifyTpmCertResp
 	verifyNonceSignatureResp    *VerifyNonceSignatureResp
+	fetchEKResp                 *rsa.PublicKey
 	issueAikCertResp            *IssueAikCertResp
 
 	// If we need to simulate an error response from any of the deps, then set
@@ -166,6 +171,21 @@ func (s *stubEnrollzInfraDeps) VerifyNonceSignature(ctx context.Context, req *Ve
 		return s.verifyNonceSignatureResp, s.errorResp
 	}
 	return s.verifyNonceSignatureResp, nil
+}
+
+func (s *stubEnrollzInfraDeps) FetchEK(ctx context.Context, serial, supplier string) (*rsa.PublicKey, error) {
+	// Validate that no stub (captured) request params were set prior to execution.
+	if s.fetchEKSerial != "" || s.fetchEKSupplier != "" {
+		return nil, fmt.Errorf("FetchEK unexpected req with serial %q and supplier %q", serial, supplier)
+	}
+	s.fetchEKSerial = serial
+	s.fetchEKSupplier = supplier
+
+	// If a stubbed response is not set, then return error, otherwise return the response.
+	if s.fetchEKResp == nil {
+		return nil, s.errorResp
+	}
+	return s.fetchEKResp, nil
 }
 
 func TestEnrollControlCard(t *testing.T) {

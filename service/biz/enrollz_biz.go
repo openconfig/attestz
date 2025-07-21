@@ -122,6 +122,12 @@ type EnrollzDeviceClient interface {
 	RotateAIKCert(ctx context.Context, opts ...grpc.CallOption) (epb.TpmEnrollzService_RotateAIKCertClient, error)
 }
 
+// ROTClient is a client to fetch the EK Public Key from the RoT.
+type ROTClient interface {
+	// FetchEK fetches the EK Public Key from the RoT.
+	FetchEK(ctx context.Context, serial, supplier string) (*rsa.PublicKey, error)
+}
+
 // EnrollzInfraDeps is the infra-specific dependencies of this enrollz business logic lib. A service can create
 // all these dependencies and wire them to the library on server start-up.
 type EnrollzInfraDeps interface {
@@ -133,6 +139,9 @@ type EnrollzInfraDeps interface {
 
 	// Parser and verifier of IAK and IDevID certs.
 	TpmCertVerifier
+
+	// Client to fetch the EK Public Key from the RoT database.
+	ROTClient
 }
 
 // EnrollControlCardReq is the request to EnrollControlCard().
