@@ -48,6 +48,7 @@ type stubEnrollzInfraDeps struct {
 	verifyTpmCertReq           *VerifyTpmCertReq
 	verifyNonceSignatureReq    *VerifyNonceSignatureReq
 	issueAikCertReq            *IssueAikCertReq
+	fetchEkReq                 *FetchEKReq
 
 	// Stubbed responses to simulate behavior of deps without implementing them.
 	issueOwnerIakCertResp       *IssueOwnerIakCertResp
@@ -58,6 +59,7 @@ type stubEnrollzInfraDeps struct {
 	verifyTpmCertResp           *VerifyTpmCertResp
 	verifyNonceSignatureResp    *VerifyNonceSignatureResp
 	issueAikCertResp            *IssueAikCertResp
+	fetchEkResp                 *FetchEKResp
 
 	// If we need to simulate an error response from any of the deps, then set
 	// the dep's response to nil and populate this error field.
@@ -66,6 +68,7 @@ type stubEnrollzInfraDeps struct {
 	recvError                error
 	sendError                error
 	emptyIdentityReq         bool
+	fetchEkErr               error
 }
 
 func (s *stubEnrollzInfraDeps) VerifyIakAndIDevIDCerts(ctx context.Context, req *VerifyIakAndIDevIDCertsReq) (*VerifyIakAndIDevIDCertsResp, error) {
@@ -170,7 +173,11 @@ func (s *stubEnrollzInfraDeps) VerifyNonceSignature(ctx context.Context, req *Ve
 }
 
 func (s *stubEnrollzInfraDeps) FetchEK(ctx context.Context, req *FetchEKReq) (*FetchEKResp, error) {
-	return nil, fmt.Errorf("unexpected call to FetchEK")
+	s.fetchEkReq = req
+	if s.fetchEkResp == nil {
+		return nil, s.fetchEkErr
+	}
+	return s.fetchEkResp, s.fetchEkErr
 }
 
 func TestEnrollControlCard(t *testing.T) {
@@ -855,6 +862,7 @@ type stubRotateAIKClient struct {
 	sendCount                         int
 	stubbedApplicationIdentityRequest []byte
 	stubbedAikCert                    string
+	stubbedControlCardID              *cpb.ControlCardVendorId
 	sendError                         error
 	recvError                         error
 	emptyIdentityReq                  bool
@@ -875,13 +883,13 @@ func (c *stubRotateAIKClient) Recv() (*epb.RotateAIKCertResponse, error) {
 			return &epb.RotateAIKCertResponse{
 				Value: nil,
 			}, nil
-		} else {
-			return &epb.RotateAIKCertResponse{
-				Value: &epb.RotateAIKCertResponse_ApplicationIdentityRequest{
-					ApplicationIdentityRequest: c.stubbedApplicationIdentityRequest,
-				},
-			}, nil
 		}
+		return &epb.RotateAIKCertResponse{
+			Value: &epb.RotateAIKCertResponse_ApplicationIdentityRequest{
+				ApplicationIdentityRequest: c.stubbedApplicationIdentityRequest,
+			},
+			ControlCardId: c.stubbedControlCardID,
+		}, nil
 	}
 	if c.recvCount == 2 {
 		return &epb.RotateAIKCertResponse{
@@ -918,8 +926,12 @@ func (s *stubEnrollzInfraDeps) RotateAIKCert(ctx context.Context, opts ...grpc.C
 	return &stubRotateAIKClient{
 		stubbedApplicationIdentityRequest: []byte("some-application-identity-request"),
 		stubbedAikCert:                    "some-aik-cert",
-		sendError:                         s.sendError,
-		recvError:                         s.recvError,
+		stubbedControlCardID: &cpb.ControlCardVendorId{
+			ChassisManufacturer: "some-manufacturer",
+			ControlCardSerial:   "some-serial",
+		},
+		sendError: s.sendError,
+		recvError: s.recvError,
 	}, nil
 }
 
@@ -942,6 +954,9 @@ func TestRotateAIKCert(t *testing.T) {
 		recvError                error
 		sendError                error
 		emptyApplicationReq      bool
+		fetchEkResp              *FetchEKResp
+		fetchEkErr               error
+		wantFetchEkReq           *FetchEKReq
 	}{
 		{
 			desc:             "Successful rotation of AIK cert",
@@ -971,6 +986,19 @@ func TestRotateAIKCert(t *testing.T) {
 			wantErrResp:         errorResp,
 			emptyApplicationReq: true,
 		},
+		{
+			desc:             "Successful rotation of AIK cert with FetchEK",
+			issueAikCertResp: &IssueAikCertResp{AikCertPem: "some-aik-cert"},
+			fetchEkResp:      &FetchEKResp{},
+			wantFetchEkReq:   &FetchEKReq{Serial: "some-serial", Supplier: "some-manufacturer"},
+		},
+		{
+			desc:             "FetchEK error",
+			wantErrResp:      errorResp,
+			issueAikCertResp: &IssueAikCertResp{AikCertPem: "some-aik-cert"},
+			fetchEkErr:       errorResp,
+			wantFetchEkReq:   &FetchEKReq{Serial: "some-serial", Supplier: "some-manufacturer"},
+		},
 		// TODO: Add more test cases to cover helper function failures as they are implemented.
 	}
 
@@ -983,6 +1011,8 @@ func TestRotateAIKCert(t *testing.T) {
 				recvError:                test.recvError,
 				sendError:                test.sendError,
 				emptyIdentityReq:         test.emptyApplicationReq,
+				fetchEkResp:              test.fetchEkResp,
+				fetchEkErr:               test.fetchEkErr,
 			}
 			req := &RotateAIKCertReq{
 				ControlCardSelection: controlCardSelection,
@@ -996,6 +1026,9 @@ func TestRotateAIKCert(t *testing.T) {
 				t.Errorf("Expected error response %v, but got error response %v", test.wantErrResp, errors.Unwrap(got))
 			} else if test.wantErrResp == nil && got != nil {
 				t.Errorf("Expected no-error response %v, but got error response %v", test.wantErrResp, got)
+			}
+			if diff := cmp.Diff(stub.fetchEkReq, test.wantFetchEkReq); diff != "" {
+				t.Errorf("FetchEK request param to stubbed FetchEK dep does not match expectations: diff = %v", diff)
 			}
 		})
 	}
