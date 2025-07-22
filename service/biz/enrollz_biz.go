@@ -628,7 +628,7 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	var ekEncScheme TPMEncodingScheme
 
 	// Encrypt AES key with EK public key.
-	encryptedAesKey, err := EncryptWithPublicKey(ctx, fetchEKResp.EkPublicKey, aesKey, ekAlgo, ekEncScheme)
+	encryptedAesKey, err := EncryptWithPublicKey(ctx, &ekPublicKey, aesKey, ekAlgo, ekEncScheme)
 	if err != nil {
 		err = fmt.Errorf("failed to encrypt AES key: %w", err)
 		log.ErrorContext(ctx, err)
