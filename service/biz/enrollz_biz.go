@@ -622,13 +622,25 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 		return err
 	}
 
-	// TODO: Get EK Public Key from RoT database.
-	var ekPublicKey rsa.PublicKey
-	var ekAlgo tpm12.Algorithm
-	var ekEncScheme TPMEncodingScheme
+		// Get EK Public Key from RoT database.
+	fetchEKResp, err := req.Deps.FetchEK(ctx, &FetchEKReq{
+		Serial:   resp.GetControlCardId().ControlCardSerial,
+		Supplier: resp.GetControlCardId().ChassisManufacturer,
+	})
+	if err != nil {
+		err = fmt.Errorf("failed to fetch EK public key: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+
+	// The TPM 1.2 specification states that the default encryption scheme for an RSA key is RSAES-PKCS1-v1.5.
+	// The default algorithm is RSA.
+	const tpm12RSAESPKCSv15 uint16 = 2
+	ekAlgo := tpm12.AlgRSA
+	ekEncScheme := tpm12RSAESPKCSv15
 
 	// Encrypt AES key with EK public key.
-	encryptedAesKey, err := EncryptWithPublicKey(ctx, &ekPublicKey, aesKey, ekAlgo, ekEncScheme)
+	encryptedAesKey, err := EncryptWithPublicKey(ctx, fetchEKResp.EkPublicKey, aesKey, ekAlgo, ekEncScheme)	
 	if err != nil {
 		err = fmt.Errorf("failed to encrypt AES key: %w", err)
 		log.ErrorContext(ctx, err)
