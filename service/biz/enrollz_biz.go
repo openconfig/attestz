@@ -122,10 +122,24 @@ type EnrollzDeviceClient interface {
 	RotateAIKCert(ctx context.Context, opts ...grpc.CallOption) (epb.TpmEnrollzService_RotateAIKCertClient, error)
 }
 
+// FetchEKReq is the request to fetch the EK Public Key from the RoT.
+type FetchEKReq struct {
+	// Serial number of the control card.
+	Serial string
+	// Supplier of the chassis.
+	Supplier string
+}
+
+// FetchEKResp is the response to fetch the EK Public Key from the RoT.
+type FetchEKResp struct {
+	// EK Public Key.
+	EkPublicKey *rsa.PublicKey
+}
+
 // ROTClient is a client to fetch the EK Public Key from the RoT.
 type ROTClient interface {
 	// FetchEK fetches the EK Public Key from the RoT.
-	FetchEK(ctx context.Context, serial, supplier string) (*rsa.PublicKey, error)
+	FetchEK(ctx context.Context, req *FetchEKReq) (*FetchEKResp, error)
 }
 
 // EnrollzInfraDeps is the infra-specific dependencies of this enrollz business logic lib. A service can create
