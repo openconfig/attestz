@@ -16,7 +16,6 @@ package biz
 
 import (
 	"context"
-	"crypto/rsa"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -48,8 +47,6 @@ type stubEnrollzInfraDeps struct {
 	verifyIakAndIDevIDCertsReq *VerifyIakAndIDevIDCertsReq
 	verifyTpmCertReq           *VerifyTpmCertReq
 	verifyNonceSignatureReq    *VerifyNonceSignatureReq
-	fetchEKSerial              string
-	fetchEKSupplier            string
 	issueAikCertReq            *IssueAikCertReq
 
 	// Stubbed responses to simulate behavior of deps without implementing them.
@@ -60,7 +57,6 @@ type stubEnrollzInfraDeps struct {
 	verifyIakAndIDevIDCertsResp *VerifyIakAndIDevIDCertsResp
 	verifyTpmCertResp           *VerifyTpmCertResp
 	verifyNonceSignatureResp    *VerifyNonceSignatureResp
-	fetchEKResp                 *rsa.PublicKey
 	issueAikCertResp            *IssueAikCertResp
 
 	// If we need to simulate an error response from any of the deps, then set
