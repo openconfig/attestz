@@ -621,7 +621,7 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 		return err
 	}
 
-		// Get EK Public Key from RoT database.
+	// Get EK Public Key from RoT database.
 	fetchEKResp, err := req.Deps.FetchEK(ctx, &FetchEKReq{
 		Serial:   resp.GetControlCardId().ControlCardSerial,
 		Supplier: resp.GetControlCardId().ChassisManufacturer,
@@ -639,7 +639,7 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	ekEncScheme := tpm12RSAESPKCSv15
 
 	// Encrypt AES key with EK public key.
-	encryptedAesKey, err := EncryptWithPublicKey(ctx, fetchEKResp.EkPublicKey, aesKey, ekAlgo, ekEncScheme)	
+	encryptedAesKey, err := EncryptWithPublicKey(ctx, fetchEKResp.EkPublicKey, aesKey, ekAlgo, ekEncScheme)
 	if err != nil {
 		err = fmt.Errorf("failed to encrypt AES key: %w", err)
 		log.ErrorContext(ctx, err)
