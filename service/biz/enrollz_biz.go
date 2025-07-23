@@ -137,8 +137,8 @@ type FetchEKResp struct {
 	EkPublicKey *rsa.PublicKey
 }
 
-// ROTClient is a client to fetch the EK Public Key from the RoT.
-type ROTClient interface {
+// ROTdbClient is a client to fetch the EK Public Key from the RoT.
+type ROTdbClient interface {
 	// FetchEK fetches the EK Public Key from the RoT.
 	FetchEK(ctx context.Context, req *FetchEKReq) (*FetchEKResp, error)
 }
@@ -156,7 +156,7 @@ type EnrollzInfraDeps interface {
 	TpmCertVerifier
 
 	// Client to fetch the EK Public Key from the RoT database.
-	ROTClient
+	ROTdbClient
 }
 
 // EnrollControlCardReq is the request to EnrollControlCard().
@@ -621,26 +621,22 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 		log.ErrorContext(ctx, err)
 		return err
 	}
-
 	// Get EK Public Key from RoT database.
 	fetchEKResp, err := req.Deps.FetchEK(ctx, &FetchEKReq{
-		Serial:   resp.GetControlCardId().ControlCardSerial,
-		Supplier: resp.GetControlCardId().ChassisManufacturer,
+		Serial:   resp.GetControlCardId().GetChassisSerialNumber(),
+		Supplier: resp.GetControlCardId().GetChassisManufacturer(),
 	})
 	if err != nil {
 		err = fmt.Errorf("failed to fetch EK public key: %w", err)
 		log.ErrorContext(ctx, err)
 		return err
 	}
-
-	// The TPM 1.2 specification states that the default encryption scheme for an RSA key is RSAES-PKCS1-v1.5.
-	// The default algorithm is RSA.
-	const tpm12RSAESPKCSv15 uint16 = 2
+	ekPublicKey := fetchEKResp.EkPublicKey
 	ekAlgo := tpm12.AlgRSA
-	ekEncScheme := tpm12RSAESPKCSv15
+	var ekEncScheme TPMEncodingScheme
 
 	// Encrypt AES key with EK public key.
-	encryptedAesKey, err := EncryptWithPublicKey(ctx, fetchEKResp.EkPublicKey, aesKey, ekAlgo, ekEncScheme)
+	encryptedAesKey, err := EncryptWithPublicKey(ctx, ekPublicKey, aesKey, ekAlgo, ekEncScheme)
 	if err != nil {
 		err = fmt.Errorf("failed to encrypt AES key: %w", err)
 		log.ErrorContext(ctx, err)
