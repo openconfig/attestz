@@ -37,7 +37,7 @@ type stubEnrollzInfraDeps struct {
 	SwitchOwnerCaClient
 	EnrollzDeviceClient
 	TpmCertVerifier
-	ROTClient
+	ROTdbClient
 
 	// Request params that would be captured in stubbed deps' function calls.
 	issueOwnerIakCertReq       *IssueOwnerIakCertReq
@@ -172,6 +172,8 @@ func (s *stubEnrollzInfraDeps) VerifyNonceSignature(ctx context.Context, req *Ve
 	return s.verifyNonceSignatureResp, nil
 }
 
+// FetchEK stubs the FetchEK method of the EnrollzInfraDeps interface.
+// It captures the request and returns the stubbed response and error.
 func (s *stubEnrollzInfraDeps) FetchEK(ctx context.Context, req *FetchEKReq) (*FetchEKResp, error) {
 	s.fetchEkReq = req
 	if s.fetchEkResp == nil {
@@ -1032,4 +1034,5 @@ func TestRotateAIKCert(t *testing.T) {
 			}
 		})
 	}
+	s
 }

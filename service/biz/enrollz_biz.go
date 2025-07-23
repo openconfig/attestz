@@ -137,8 +137,8 @@ type FetchEKResp struct {
 	EkPublicKey *rsa.PublicKey
 }
 
-// ROTClient is a client to fetch the EK Public Key from the RoT.
-type ROTClient interface {
+// ROTdbClient is a client to fetch the EK Public Key from the RoT.
+type ROTdbClient interface {
 	// FetchEK fetches the EK Public Key from the RoT.
 	FetchEK(ctx context.Context, req *FetchEKReq) (*FetchEKResp, error)
 }
@@ -156,7 +156,7 @@ type EnrollzInfraDeps interface {
 	TpmCertVerifier
 
 	// Client to fetch the EK Public Key from the RoT database.
-	ROTClient
+	ROTdbClient
 }
 
 // EnrollControlCardReq is the request to EnrollControlCard().
@@ -621,14 +621,22 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 		log.ErrorContext(ctx, err)
 		return err
 	}
-
-	// TODO: Get EK Public Key from RoT database.
-	var ekPublicKey rsa.PublicKey
-	var ekAlgo tpm12.Algorithm
+	// Get EK Public Key from RoT database.
+	fetchEKResp, err := req.Deps.FetchEK(ctx, &FetchEKReq{
+		Serial:   resp.GetControlCardId().GetChassisSerialNumber(),
+		Supplier: resp.GetControlCardId().GetChassisManufacturer(),
+	})
+	if err != nil {
+		err = fmt.Errorf("failed to fetch EK public key: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+	ekPublicKey := fetchEKResp.EkPublicKey
+	ekAlgo := tpm12.AlgRSA
 	var ekEncScheme TPMEncodingScheme
 
 	// Encrypt AES key with EK public key.
-	encryptedAesKey, err := EncryptWithPublicKey(ctx, &ekPublicKey, aesKey, ekAlgo, ekEncScheme)
+	encryptedAesKey, err := EncryptWithPublicKey(ctx, ekPublicKey, aesKey, ekAlgo, ekEncScheme)
 	if err != nil {
 		err = fmt.Errorf("failed to encrypt AES key: %w", err)
 		log.ErrorContext(ctx, err)
