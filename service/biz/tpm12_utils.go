@@ -12,25 +12,69 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package biz contains the infra-agnostic business logic of Enrollz Service hosted by the switch owner infra.
 package biz
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/rsa"
+	"fmt"
 
 	tpm12 "github.com/google/go-tpm/tpm"
 )
 
+const (
+	_ TPMEncodingScheme = iota // Encryption schemes.
+	EsNone
+	EsRSAEsPKCSv15
+	EsRSAEsOAEPSHA1MGF1
+	EsSymCTR
+	EsSymOFB
+	EsSymCBCPKCS5 = 0xff // esSymCBCPKCS5 was taken from go-tspi
+
+	// Signature schemes. These are only valid under AlgRSA.
+	_ TPMSignatureScheme = iota
+	SsNone
+	SsRSASaPKCS1v15SHA1
+	SsRSASaPKCS1v15DER
+	SsRSASaPKCS1v15INFO
+)
+
 // Note: All the uint values in TPM_* structures in this file use big endian (network byte order).
+
+// TPMEncodingScheme represents the encoding scheme used in TPM structures.
+type TPMEncodingScheme uint16
+
+// TPMSignatureScheme represents the signature scheme used in TPM structures.
+type TPMSignatureScheme uint16
+
+// TPMParams represents the parameters for TPMKeyParms, it can be either RSA or Symmetric parameters.
+type TPMParams struct {
+	RSAParams *TPMRSAKeyParms
+	SymParams *TPMSymmetricKeyParms
+}
 
 // TPMKeyParms is the structure that contains the key parameters - TPM_KEY_PARMS from TPM 1.2 specification.
 type TPMKeyParms struct {
-	AlgID     tpm12.Algorithm // Algorithm identifier.
-	EncScheme uint16          // Encryption scheme identifier.
-	SigScheme uint16          // Signature scheme identifier.
-	Params    []byte          // Algorithm specific parameters (e.g., RSA key parameters).
+	AlgID     tpm12.Algorithm    // Algorithm identifier.
+	EncScheme TPMEncodingScheme  // Encryption scheme identifier.
+	SigScheme TPMSignatureScheme // Signature scheme identifier.
+	Params    TPMParams          // Parameters defining the key algorithm.
+}
+
+// TPMSymmetricKeyParms is the structure that contains the sym key parameters - TPM_SYMMETRIC_KEY_PARMS from TPM 1.2 specification.
+type TPMSymmetricKeyParms struct {
+	KeyLength uint32
+	BlockSize uint32
+	IV        []byte
+}
+
+// TPMRSAKeyParms is the structure that contains the RSA key parameters - TPM_RSA_KEY_PARMS from TPM 1.2 specification.
+type TPMRSAKeyParms struct {
+	KeyLength uint32
+	NumPrimes uint32
+	Exponent  []byte
 }
 
 // TPMStorePubkey represents a stored public key - TPM_STORE_PUBKEY from TPM 1.2 specification.
@@ -48,7 +92,7 @@ type TPMPubKey struct {
 // TPMSymmetricKey represents a TPM symmetric key - TPM_SYMMETRIC_KEY from TPM 1.2 specification.
 type TPMSymmetricKey struct {
 	AlgID     tpm12.Algorithm
-	EncScheme uint16
+	EncScheme TPMEncodingScheme
 	Key       []byte
 }
 
@@ -82,7 +126,54 @@ type TPMIdentityReq struct {
 	SymBlob       []byte
 }
 
-// ParseTPMSymmetricKey from bytes to TPMSymmetricKey.
+// ParseSymmetricKeyParms from bytes to TPMSymmetricKeyParms.
+func ParseSymmetricKeyParms(keyParms []byte) (*TPMSymmetricKeyParms, error) {
+	reader := bytes.NewReader(keyParms)
+	result := &TPMSymmetricKeyParms{}
+
+	// Read keyLength (4 bytes).
+	keyLength, err := readNonZeroUint32(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read keyLength: %w", err)
+	}
+	result.KeyLength = keyLength
+
+	// Read blockSize (4 bytes).
+	blockSize, err := readNonZeroUint32(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read blockSize: %w", err)
+	}
+	result.BlockSize = blockSize
+
+	// Read ivSize (4 bytes).
+	ivSize, err := readNonZeroUint32(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read ivSize: %w", err)
+	}
+
+	// Read IV (ivSize bytes).
+	iv, err := readBytes(reader, ivSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read IV (size %d): %w", ivSize, err)
+	}
+	result.IV = iv
+
+	// Check for leftover bytes.
+	if reader.Len() > 0 {
+		return nil, fmt.Errorf("leftover bytes in TPM_SYMMETRIC_KEY_PARMS block after parsing: %d", reader.Len())
+	}
+
+	return result, nil
+}
+
+// ParseRSAKeyParms from bytes to TPMRSAKeyParms.
+func ParseRSAKeyParms(keyParms []byte) (*TPMRSAKeyParms, error) {
+	// TODO: Implement the parsing of TPMRSAKeyParms.
+	// For now, we just return empty data.
+	return &TPMRSAKeyParms{}, nil
+}
+
+// ParseSymmetricKey from bytes to TPMSymmetricKey.
 func ParseSymmetricKey(_ []byte) (*TPMSymmetricKey, error) {
 	// TODO: Implement the parsing of TPMSymmetricKey.
 	// For now, we just return empty data.
@@ -96,6 +187,7 @@ func ParseIdentityRequest(_ []byte) (*TPMIdentityReq, error) {
 	return &TPMIdentityReq{}, nil
 }
 
+// ParseIdentityProof from bytes to TPMIdentityProof.
 func ParseIdentityProof(_ []byte) (*TPMIdentityProof, error) {
 	// TODO: Implement the parsing of the identity proof.
 	// For now, we just return empty data.
@@ -103,14 +195,14 @@ func ParseIdentityProof(_ []byte) (*TPMIdentityProof, error) {
 }
 
 // EncryptWithPublicKey encrypts data using a public key.
-func EncryptWithPublicKey(ctx context.Context, publicKey *rsa.PublicKey, data []byte, algo tpm12.Algorithm, encScheme uint16) ([]byte, error) {
+func EncryptWithPublicKey(ctx context.Context, publicKey *rsa.PublicKey, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error) {
 	// TODO: Implement the encryption using a public key.
 	// For now, we just return the data as is.
 	return data, nil
 }
 
 // DecryptWithPrivateKey decrypts data using a private key.
-func DecryptWithPrivateKey(ctx context.Context, privateKey *rsa.PrivateKey, data []byte, algo tpm12.Algorithm, encScheme uint16) ([]byte, error) {
+func DecryptWithPrivateKey(ctx context.Context, privateKey *rsa.PrivateKey, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error) {
 	// TODO: Implement the decryption using a private key.
 	// For now, we just return the data as is.
 	return data, nil
@@ -124,7 +216,7 @@ func EncryptWithAes(_ []byte, data []byte) ([]byte, error) {
 }
 
 // DecryptWithSymmetricKey decrypts data using a private key.
-func DecryptWithSymmetricKey(ctx context.Context, symKey []byte, data []byte, algo tpm12.Algorithm, encScheme uint16) ([]byte, error) {
+func DecryptWithSymmetricKey(ctx context.Context, symKey []byte, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error) {
 	// TODO: Implement the decryption using a symmetric key.
 	// For now, we just return the data as is.
 	return data, nil
