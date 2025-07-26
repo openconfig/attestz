@@ -168,9 +168,42 @@ func ParseSymmetricKeyParms(keyParms []byte) (*TPMSymmetricKeyParms, error) {
 
 // ParseRSAKeyParms from bytes to TPMRSAKeyParms.
 func ParseRSAKeyParms(keyParms []byte) (*TPMRSAKeyParms, error) {
-	// TODO: Implement the parsing of TPMRSAKeyParms.
-	// For now, we just return empty data.
-	return &TPMRSAKeyParms{}, nil
+	reader := bytes.NewReader(keyParms)
+	result := &TPMRSAKeyParms{}
+
+	// Read keyLength (4 bytes).
+	keyLength, err := readNonZeroUint32(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read keyLength: %w", err)
+	}
+	result.KeyLength = keyLength
+
+	// Read numPrimes (4 bytes).
+	numPrimes, err := readNonZeroUint32(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read numPrimes: %w", err)
+	}
+	result.NumPrimes = numPrimes
+
+	// Read exponentSize (4 bytes).
+	exponentSize, err := readUint32(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read exponentSize: %w", err)
+	}
+
+	// Read exponent.
+	exponent, err := readBytes(reader, exponentSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read exponent: %w", err)
+	}
+	result.Exponent = exponent
+
+	// Check for leftover bytes.
+	if reader.Len() > 0 {
+		return nil, fmt.Errorf("leftover bytes in TPM_RSA_KEY_PARMS block after parsing: %d", reader.Len())
+	}
+
+	return result, nil
 }
 
 // ParseSymmetricKey from bytes to TPMSymmetricKey.

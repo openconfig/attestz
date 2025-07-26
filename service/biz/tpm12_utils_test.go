@@ -114,3 +114,95 @@ func TestParseSymmetricKeyParms(t *testing.T) {
 		})
 	}
 }
+
+func createRSAKeyParmsBytes(keyLength, numPrimes, exponentSize uint32, exponent []byte) []byte {
+	buffer := new(bytes.Buffer)
+	binaryWriteUint32(buffer, keyLength)
+	binaryWriteUint32(buffer, numPrimes)
+	binaryWriteUint32(buffer, exponentSize)
+	buffer.Write(exponent)
+	return buffer.Bytes()
+}
+
+func TestParseRSAKeyParms(t *testing.T) {
+	// Valid cases
+	testCases := []struct {
+		name          string
+		keyLength     uint32
+		numPrimes     uint32
+		exponentSize  uint32
+		exponent      []byte
+		input         []byte
+		expectedError string
+	}{
+		{
+			name:          "Valid params",
+			keyLength:     2048,
+			numPrimes:     2,
+			exponentSize:  3,
+			exponent:      []byte{1, 2, 3},
+			expectedError: "",
+		},
+		{
+			name:          "Invalid zero keyLength",
+			keyLength:     0,
+			numPrimes:     2,
+			exponentSize:  3,
+			exponent:      []byte{1, 2, 3},
+			expectedError: "failed to read keyLength: read uint32 is zero, expected non-zero",
+		},
+		{
+			name:          "Invalid zero numPrimes",
+			keyLength:     2048,
+			numPrimes:     0,
+			exponentSize:  3,
+			exponent:      []byte{1, 2, 3},
+			expectedError: "failed to read numPrimes: read uint32 is zero, expected non-zero",
+		},
+		{
+			name:          "Invalid exponentSize too big",
+			keyLength:     2048,
+			numPrimes:     2,
+			exponentSize:  257,
+			exponent:      make([]byte, 256),
+			expectedError: "failed to read exponent",
+		},
+		{
+			name:          "Invalid exponentSize too small",
+			keyLength:     2048,
+			numPrimes:     2,
+			exponentSize:  2,
+			exponent:      make([]byte, 3),
+			expectedError: "leftover bytes in TPM_RSA_KEY_PARMS block",
+		},
+		{
+			name:          "Not enough bytes",
+			input:         createRSAKeyParmsBytes(2048, 2, 3, []byte{1, 2}),
+			expectedError: "failed to read exponent",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			data := tc.input
+			if data == nil {
+				data = createRSAKeyParmsBytes(tc.keyLength, tc.numPrimes, tc.exponentSize, tc.exponent)
+			}
+			result, err := ParseRSAKeyParms(data)
+
+			assertError(t, err, tc.expectedError, "ParseRSAKeyParms")
+
+			if tc.expectedError == "" {
+				if result.KeyLength != tc.keyLength {
+					t.Errorf("KeyLength mismatch: got %v, expected %v", result.KeyLength, tc.keyLength)
+				}
+				if result.NumPrimes != tc.numPrimes {
+					t.Errorf("numPrimes mismatch: got %v, expected %v", result.NumPrimes, tc.numPrimes)
+				}
+				if !cmp.Equal(result.Exponent, tc.exponent) {
+					t.Errorf("Exponent mismatch: got %v, expected %v", result.Exponent, tc.exponent)
+				}
+			}
+		})
+	}
+}
