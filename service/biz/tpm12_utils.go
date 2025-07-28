@@ -19,6 +19,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/rsa"
+	"encoding/binary"
 	"fmt"
 
 	tpm12 "github.com/google/go-tpm/tpm"
@@ -202,6 +203,80 @@ func ParseRSAKeyParms(keyParms []byte) (*TPMRSAKeyParms, error) {
 	if reader.Len() > 0 {
 		return nil, fmt.Errorf("leftover bytes in TPM_RSA_KEY_PARMS block after parsing: %d", reader.Len())
 	}
+
+	return result, nil
+}
+
+// readUint16 is a helper function to read a 2-byte Big Endian unsigned integer.
+func readUint16(r *bytes.Reader) (uint16, error) {
+	var result uint16
+	err := binary.Read(r, binary.BigEndian, &result)
+	if err != nil {
+		return 0, err
+	}
+	return result, nil
+}
+
+// ParseKeyParmsFromReader parses a TPM_KEY_PARMS structure from a bytes.Reader.
+func ParseKeyParmsFromReader(reader *bytes.Reader) (*TPMKeyParms, error) {
+	result := &TPMKeyParms{}
+
+	// Read algorithmID (4 bytes).
+	algorithmID, err := readUint32(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read algorithmID: %w", err)
+	}
+	result.AlgID = tpm12.Algorithm(algorithmID)
+
+	// Read encScheme (2 bytes).
+	encScheme, err := readUint16(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read encScheme: %w", err)
+	}
+	result.EncScheme = TPMEncodingScheme(encScheme)
+
+	// Read sigScheme (2 bytes).
+	sigScheme, err := readUint16(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read sigScheme: %w", err)
+	}
+	result.SigScheme = TPMSignatureScheme(sigScheme)
+
+	// Read paramSize (4 bytes).
+	paramSize, err := readUint32(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read paramSize: %w", err)
+	}
+
+	// Read parms (paramSize bytes).
+	parms, err := readBytes(reader, paramSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read parms (size %d): %w", paramSize, err)
+	}
+
+	// Parse parms based on algorithmID.
+	switch result.AlgID {
+	case tpm12.AlgRSA:
+		rsaParms, err := ParseRSAKeyParms(parms)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse RSA key parms: %w", err)
+		}
+		result.Params.RSAParams = rsaParms
+	case tpm12.AlgAES128, tpm12.AlgAES192, tpm12.AlgAES256:
+		symParms, err := ParseSymmetricKeyParms(parms)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse Symmetric key parms: %w", err)
+		}
+		result.Params.SymParams = symParms
+	default:
+		// Other algorithms like SHA, HMAC, MGF1 have no params.
+		if paramSize > 0 {
+			return nil, fmt.Errorf("unexpected params size for algorithm %v: %d", result.AlgID, paramSize)
+		}
+	}
+
+	// Note: We don't check for leftover bytes here because the Key params size can be variable
+	// so the reader is passed in, not a set amount of bytes.
 
 	return result, nil
 }
