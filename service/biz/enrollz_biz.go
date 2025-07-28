@@ -123,6 +123,26 @@ type EnrollzDeviceClient interface {
 	RotateAIKCert(ctx context.Context, opts ...grpc.CallOption) (epb.TpmEnrollzService_RotateAIKCertClient, error)
 }
 
+// FetchEKReq is the request to fetch the EK Public Key from the RoT.
+type FetchEKReq struct {
+	// Serial number of the control card.
+	Serial string
+	// Supplier of the chassis.
+	Supplier string
+}
+
+// FetchEKResp is the response to fetch the EK Public Key from the RoT.
+type FetchEKResp struct {
+	// EK Public Key.
+	EkPublicKey *rsa.PublicKey
+}
+
+// ROTdbClient is a client to fetch the EK Public Key from the RoT.
+type ROTdbClient interface {
+	// FetchEK fetches the EK Public Key from the RoT.
+	FetchEK(ctx context.Context, req *FetchEKReq) (*FetchEKResp, error)
+}
+
 // EnrollzInfraDeps is the infra-specific dependencies of this enrollz business logic lib. A service can create
 // all these dependencies and wire them to the library on server start-up.
 type EnrollzInfraDeps interface {
@@ -134,6 +154,9 @@ type EnrollzInfraDeps interface {
 
 	// Parser and verifier of IAK and IDevID certs.
 	TpmCertVerifier
+
+	// Client to fetch the EK Public Key from the RoT database.
+	ROTdbClient
 }
 
 // EnrollControlCardReq is the request to EnrollControlCard().
@@ -598,14 +621,27 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 		log.ErrorContext(ctx, err)
 		return err
 	}
-
-	// TODO: Get EK Public Key from RoT database.
-	var ekPublicKey rsa.PublicKey
-	var ekAlgo tpm12.Algorithm
-	var ekEncScheme TPMEncodingScheme
+	// Get EK Public Key from RoT database.
+	fetchEKResp, err := req.Deps.FetchEK(ctx, &FetchEKReq{
+		Serial:   resp.GetControlCardId().GetChassisSerialNumber(),
+		Supplier: resp.GetControlCardId().GetChassisManufacturer(),
+	})
+	if err != nil {
+		err = fmt.Errorf("failed to fetch EK public key for control card %s: %w", prototext.Format(resp.GetControlCardId()), err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+	if fetchEKResp == nil {
+		err = fmt.Errorf("failed to fetch EK public key: RoT database returned an empty response")
+		log.ErrorContext(ctx, err)
+		return err
+	}
+	ekPublicKey := fetchEKResp.EkPublicKey
+	ekAlgo := tpm12.AlgRSA
+	var ekEncScheme = EsRSAEsOAEPSHA1MGF1
 
 	// Encrypt AES key with EK public key.
-	encryptedAesKey, err := EncryptWithPublicKey(ctx, &ekPublicKey, aesKey, ekAlgo, ekEncScheme)
+	encryptedAesKey, err := EncryptWithPublicKey(ctx, ekPublicKey, aesKey, ekAlgo, ekEncScheme)
 	if err != nil {
 		err = fmt.Errorf("failed to encrypt AES key: %w", err)
 		log.ErrorContext(ctx, err)
