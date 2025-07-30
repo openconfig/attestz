@@ -16,10 +16,13 @@ package biz
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -37,6 +40,7 @@ type stubEnrollzInfraDeps struct {
 	SwitchOwnerCaClient
 	EnrollzDeviceClient
 	TpmCertVerifier
+	ROTdbClient
 
 	// Request params that would be captured in stubbed deps' function calls.
 	issueOwnerIakCertReq       *IssueOwnerIakCertReq
@@ -47,6 +51,7 @@ type stubEnrollzInfraDeps struct {
 	verifyTpmCertReq           *VerifyTpmCertReq
 	verifyNonceSignatureReq    *VerifyNonceSignatureReq
 	issueAikCertReq            *IssueAikCertReq
+	fetchEkReq                 *FetchEKReq
 
 	// Stubbed responses to simulate behavior of deps without implementing them.
 	issueOwnerIakCertResp       *IssueOwnerIakCertResp
@@ -57,6 +62,8 @@ type stubEnrollzInfraDeps struct {
 	verifyTpmCertResp           *VerifyTpmCertResp
 	verifyNonceSignatureResp    *VerifyNonceSignatureResp
 	issueAikCertResp            *IssueAikCertResp
+	fetchEkResp                 *FetchEKResp
+	controlCardVendorID         *cpb.ControlCardVendorId
 
 	// If we need to simulate an error response from any of the deps, then set
 	// the dep's response to nil and populate this error field.
@@ -166,6 +173,20 @@ func (s *stubEnrollzInfraDeps) VerifyNonceSignature(ctx context.Context, req *Ve
 		return s.verifyNonceSignatureResp, s.errorResp
 	}
 	return s.verifyNonceSignatureResp, nil
+}
+
+func (s *stubEnrollzInfraDeps) FetchEK(ctx context.Context, req *FetchEKReq) (*FetchEKResp, error) {
+	// Validate that no stub (captured) request params were set prior to execution.
+	if s.fetchEkReq != nil {
+		return nil, fmt.Errorf("FetchEK unexpected req %+v", req)
+	}
+	s.fetchEkReq = req
+
+	// If a stubbed response is not set, then return error, otherwise return the response.
+	if s.fetchEkResp == nil {
+		return nil, s.errorResp
+	}
+	return s.fetchEkResp, nil
 }
 
 func TestEnrollControlCard(t *testing.T) {
@@ -850,6 +871,7 @@ type stubRotateAIKClient struct {
 	sendCount                         int
 	stubbedApplicationIdentityRequest []byte
 	stubbedAikCert                    string
+	stubbedControlCardID              *cpb.ControlCardVendorId
 	sendError                         error
 	recvError                         error
 	emptyIdentityReq                  bool
@@ -868,21 +890,23 @@ func (c *stubRotateAIKClient) Recv() (*epb.RotateAIKCertResponse, error) {
 	if c.recvCount == 1 {
 		if c.emptyIdentityReq {
 			return &epb.RotateAIKCertResponse{
-				Value: nil,
-			}, nil
-		} else {
-			return &epb.RotateAIKCertResponse{
-				Value: &epb.RotateAIKCertResponse_ApplicationIdentityRequest{
-					ApplicationIdentityRequest: c.stubbedApplicationIdentityRequest,
-				},
+				Value:         nil,
+				ControlCardId: c.stubbedControlCardID,
 			}, nil
 		}
+		return &epb.RotateAIKCertResponse{
+			Value: &epb.RotateAIKCertResponse_ApplicationIdentityRequest{
+				ApplicationIdentityRequest: c.stubbedApplicationIdentityRequest,
+			},
+			ControlCardId: c.stubbedControlCardID,
+		}, nil
 	}
 	if c.recvCount == 2 {
 		return &epb.RotateAIKCertResponse{
 			Value: &epb.RotateAIKCertResponse_AikCert{
 				AikCert: c.stubbedAikCert,
 			},
+			ControlCardId: c.stubbedControlCardID,
 		}, nil
 	}
 	return nil, io.EOF
@@ -913,8 +937,10 @@ func (s *stubEnrollzInfraDeps) RotateAIKCert(ctx context.Context, opts ...grpc.C
 	return &stubRotateAIKClient{
 		stubbedApplicationIdentityRequest: []byte("some-application-identity-request"),
 		stubbedAikCert:                    "some-aik-cert",
+		stubbedControlCardID:              s.controlCardVendorID,
 		sendError:                         s.sendError,
 		recvError:                         s.recvError,
+		emptyIdentityReq:                  s.emptyIdentityReq,
 	}, nil
 }
 
@@ -925,22 +951,35 @@ func TestRotateAIKCert(t *testing.T) {
 			Role: cpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE,
 		},
 	}
+	vendorID := &cpb.ControlCardVendorId{
+		ControlCardRole:     controlCardSelection.GetRole(),
+		ChassisManufacturer: "some-manufacturer",
+		ChassisSerialNumber: "some-serial",
+	}
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate rsa key: %v", err)
+	}
+	ekPub := &priv.PublicKey
 	errorResp := errors.New("Some error")
 	tests := []struct {
 		// Test description.
 		desc string
 		// Overall expected RotateAIKCert response.
-		wantErrResp error
+		wantErrResp      error
+		checkErrContains string
 		// Stubbed responses to EnrollzInfraDeps deps.
 		issueAikCertResp         *IssueAikCertResp
 		rotateAikCertStreamError error
 		recvError                error
 		sendError                error
 		emptyApplicationReq      bool
+		fetchEkResp              *FetchEKResp
 	}{
 		{
 			desc:             "Successful rotation of AIK cert",
 			issueAikCertResp: &IssueAikCertResp{AikCertPem: "some-aik-cert"},
+			fetchEkResp:      &FetchEKResp{EkPublicKey: ekPub},
 		},
 		{
 			desc:                     "RotateAIKCert stream error",
@@ -962,9 +1001,22 @@ func TestRotateAIKCert(t *testing.T) {
 			wantErrResp: errorResp,
 		},
 		{
+			desc:        "FetchEK error",
+			wantErrResp: errorResp,
+			fetchEkResp: nil,
+		},
+		{
+			desc:             "FetchEK returns nil response",
+			checkErrContains: "RoT database returned an empty response",
+			issueAikCertResp: &IssueAikCertResp{AikCertPem: "some-aik-cert"},
+			fetchEkResp:      nil,
+		},
+		{
 			desc:                "Empty identity request",
 			wantErrResp:         errorResp,
+			fetchEkResp:         &FetchEKResp{EkPublicKey: ekPub},
 			emptyApplicationReq: true,
+			recvError:           errorResp,
 		},
 		// TODO: Add more test cases to cover helper function failures as they are implemented.
 	}
@@ -973,6 +1025,8 @@ func TestRotateAIKCert(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			stub := &stubEnrollzInfraDeps{
 				issueAikCertResp:         test.issueAikCertResp,
+				fetchEkResp:              test.fetchEkResp,
+				controlCardVendorID:      vendorID,
 				errorResp:                test.wantErrResp,
 				rotateAikCertStreamError: test.rotateAikCertStreamError,
 				recvError:                test.recvError,
@@ -987,10 +1041,22 @@ func TestRotateAIKCert(t *testing.T) {
 			got := RotateAIKCert(ctx, req)
 
 			// Verify that RotateAIKCert returned expected error/no-error response.
-			if test.wantErrResp != nil && test.wantErrResp != errors.Unwrap(got) {
-				t.Errorf("Expected error response %v, but got error response %v", test.wantErrResp, errors.Unwrap(got))
-			} else if test.wantErrResp == nil && got != nil {
-				t.Errorf("Expected no-error response %v, but got error response %v", test.wantErrResp, got)
+			switch {
+			case test.checkErrContains != "":
+				if got == nil {
+					t.Fatalf("Expected error containing %q, got nil", test.checkErrContains)
+				}
+				if !strings.Contains(got.Error(), test.checkErrContains) {
+					t.Errorf("Expected error to contain %q, got %q", test.checkErrContains, got.Error())
+				}
+			case test.wantErrResp != nil:
+				if got == nil {
+					t.Errorf("Expected error %v, but got nil", test.wantErrResp)
+				} else if errors.Unwrap(got) != test.wantErrResp {
+					t.Errorf("Expected error response %v, but got error response %v", test.wantErrResp, errors.Unwrap(got))
+				}
+			case got != nil:
+				t.Errorf("Expected no-error response, but got error response %v", got)
 			}
 		})
 	}
