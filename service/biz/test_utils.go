@@ -13,6 +13,13 @@ func binaryWriteUint32(buf *bytes.Buffer, value uint32) {
 	}
 }
 
+func binaryWriteUint16(buf *bytes.Buffer, value uint16) {
+	err := binary.Write(buf, binary.BigEndian, value)
+	if err != nil {
+		panic(fmt.Sprintf("failed to write uint16: %v", err))
+	}
+}
+
 func ptrUint32(value uint32) *uint32 {
 	return &value
 }
