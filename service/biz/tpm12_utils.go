@@ -281,18 +281,62 @@ func ParseKeyParmsFromReader(reader *bytes.Reader) (*TPMKeyParms, error) {
 	return result, nil
 }
 
+func ParseIdentityRequest(data []byte) (*TPMIdentityReq, error) {
+	reader := bytes.NewReader(data)
+	result := &TPMIdentityReq{}
+
+	// read asymBlobSize (UINT32).
+	asymBlobSize, err := readNonZeroUint32(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read asymBlobSize: %w", err)
+	}
+
+	// read symBlobSize (UINT32).
+	symBlobSize, err := readNonZeroUint32(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read symBlobSize: %w", err)
+	}
+
+	// Read asymAlgorithm (TPM_KEY_PARMS).
+	asymAlgorithm, err := ParseKeyParmsFromReader(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse asymAlgorithm (TPM_KEY_PARMS): %w", err)
+	}
+	result.AsymAlgorithm = *asymAlgorithm
+
+	// Read symAlgorithm (TPM_KEY_PARMS).
+	symAlgorithm, err := ParseKeyParmsFromReader(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse symAlgorithm (TPM_KEY_PARMS): %w", err)
+	}
+	result.SymAlgorithm = *symAlgorithm
+
+	// Read asymBlob (asymBlobSize bytes).
+	asymBlob, err := readBytes(reader, asymBlobSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read asymBlob: %w", err)
+	}
+	result.AsymBlob = asymBlob
+
+	// Read symBlob (symBlobSize bytes).
+	symBlob, err := readBytes(reader, symBlobSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read symBlob: %w", err)
+	}
+	result.SymBlob = symBlob
+
+	if reader.Len() > 0 {
+		return nil, fmt.Errorf("leftover bytes in TPM_IDENTITY_REQ after parsing: %d", reader.Len())
+	}
+
+	return result, nil
+}
+
 // ParseSymmetricKey from bytes to TPMSymmetricKey.
 func ParseSymmetricKey(_ []byte) (*TPMSymmetricKey, error) {
 	// TODO: Implement the parsing of TPMSymmetricKey.
 	// For now, we just return empty data.
 	return &TPMSymmetricKey{}, nil
-}
-
-// ParseIdentityRequest from bytes to TPMIdentityReq
-func ParseIdentityRequest(_ []byte) (*TPMIdentityReq, error) {
-	// TODO: Implement the parsing of the identity request.
-	// For now, we just return empty data.
-	return &TPMIdentityReq{}, nil
 }
 
 // ParseIdentityProof from bytes to TPMIdentityProof.
