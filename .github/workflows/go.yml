@@ -24,7 +24,7 @@ jobs:
   go:
     uses: openconfig/common-ci/.github/workflows/go.yml@004dd5fc3a3b8b996513160dbb5f1477fd5805f3
     with:
-      go-versions: "['1.21']"
+      go-versions: "['1.x']"
 
   linter:
     uses: openconfig/common-ci/.github/workflows/linter.yml@004dd5fc3a3b8b996513160dbb5f1477fd5805f3
