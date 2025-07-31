@@ -154,6 +154,12 @@ type EnrollzInfraDeps interface {
 
 	// Parser and verifier of IAK and IDevID certs.
 	TpmCertVerifier
+}
+
+// RotateAIKCertInfraDeps is the infra-specific dependencies of the RotateAIKCert business logic.
+type RotateAIKCertInfraDeps interface {
+	// Common enrollz dependencies.
+	EnrollzInfraDeps
 
 	// Client to fetch the EK Public Key from the RoT database.
 	ROTdbClient
@@ -466,7 +472,7 @@ type RotateAIKCertReq struct {
 	// Selection of a specific switch control card.
 	ControlCardSelection *cpb.ControlCardSelection
 	// Infra-specific wired dependencies.
-	Deps EnrollzInfraDeps
+	Deps RotateAIKCertInfraDeps
 }
 
 // validateRotateAIKCertReq verifies that RotateAIKCertReq request is valid.
