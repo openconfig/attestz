@@ -44,9 +44,9 @@ def attestz_deps():
     if not native.existing_rule("com_google_googleapis"):
         http_archive(
             name = "com_google_googleapis",
-            sha256 = "361887309df16052da1eeaf97262e2dda566dbb358f36da3191b1dd35c3af226",
-            strip_prefix = "googleapis-bc9d6986980dd271b82b11af93a7033508ec5b8c",
-            urls = ["https://github.com/googleapis/googleapis/archive/bc9d6986980dd271b82b11af93a7033508ec5b8c.tar.gz"],
+            sha256 = "e4c981366a9cdbb58b848314dce10d9195d901c88f7221a5c86916e15560bbb2",
+            strip_prefix = "googleapis-efe27dbe161b24710f4e95415e8f38922ae6f453",
+            urls = ["https://github.com/googleapis/googleapis/archive/efe27dbe161b24710f4e95415e8f38922ae6f453.tar.gz"],
         )
     if not native.existing_rule("com_google_protobuf"):
         http_archive(
