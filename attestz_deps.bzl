@@ -51,9 +51,9 @@ def attestz_deps():
     if not native.existing_rule("com_google_protobuf"):
         http_archive(
             name = "com_google_protobuf",
-            url = "https://github.com/protocolbuffers/protobuf/archive/refs/tags/v29.5.zip",
-            strip_prefix = "protobuf-29.5",
-            sha256 = "3d5f767680cfbff29b6f847a2c6f0f10c4dd2e93fb77e9c115d85b2a77a09b2d",
+            url = "https://github.com/protocolbuffers/protobuf/archive/refs/tags/v31.1.zip",
+            strip_prefix = "protobuf-31.1",
+            sha256 = "fc6289aa4450bdb70626aceaaebebdd7d3d4725c288a9cbb138a26defe5d9987",
             repo_mapping = {
                 "@proto_bazel_features": "@bazel_features",
             },
