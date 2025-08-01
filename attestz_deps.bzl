@@ -21,17 +21,17 @@ def attestz_deps():
     if not native.existing_rule("bazel_features"):
         http_archive(
             name = "bazel_features",
-            sha256 = "af3d4fb1cf4f25942cb4a933b1ad93a0ea9fe9ee70c2af7f369fb72a67c266e5",
-            strip_prefix = "bazel_features-1.21.0",
-            url = "https://github.com/bazel-contrib/bazel_features/releases/download/v1.21.0/bazel_features-v1.21.0.tar.gz",
+            sha256 = "c41853e3b636c533b86bf5ab4658064e6cc9db0a3bce52cbff0629e094344ca9",
+            strip_prefix = "bazel_features-1.33.0",
+            url = "https://github.com/bazel-contrib/bazel_features/releases/download/v1.33.0/bazel_features-v1.33.0.tar.gz",
         )
     if not native.existing_rule("bazel_gazelle"):
         http_archive(
             name = "bazel_gazelle",
-            sha256 = "aefbf2fc7c7616c9ed73aa3d51c77100724d5b3ce66cfa16406e8c13e87c8b52",
+            sha256 = "49b14c691ceec841f445f8642d28336e99457d1db162092fd5082351ea302f1d",
             urls = [
-                "https://mirror.bazel.build/github.com/bazelbuild/bazel-gazelle/releases/download/v0.41.0/bazel-gazelle-v0.41.0.tar.gz",
-                "https://github.com/bazelbuild/bazel-gazelle/releases/download/v0.41.0/bazel-gazelle-v0.41.0.tar.gz",
+                "https://mirror.bazel.build/github.com/bazelbuild/bazel-gazelle/releases/download/v0.44.0/bazel-gazelle-v0.44.0.tar.gz",
+                "https://github.com/bazelbuild/bazel-gazelle/releases/download/v0.44.0/bazel-gazelle-v0.44.0.tar.gz",
             ],
         )
     if not native.existing_rule("com_github_grpc_grpc"):
@@ -44,9 +44,9 @@ def attestz_deps():
     if not native.existing_rule("com_google_googleapis"):
         http_archive(
             name = "com_google_googleapis",
-            sha256 = "63bce6055f6e4e277b43c58f6437e097b89f2d872c4716dc25b4708b1d9a70d5",
-            strip_prefix = "googleapis-f410c8cf3741a4358c2061774dd18f11e10b4326",
-            urls = ["https://github.com/googleapis/googleapis/archive/f410c8cf3741a4358c2061774dd18f11e10b4326.tar.gz"],
+            sha256 = "361887309df16052da1eeaf97262e2dda566dbb358f36da3191b1dd35c3af226",
+            strip_prefix = "googleapis-bc9d6986980dd271b82b11af93a7033508ec5b8c",
+            urls = ["https://github.com/googleapis/googleapis/archive/bc9d6986980dd271b82b11af93a7033508ec5b8c.tar.gz"],
         )
     if not native.existing_rule("com_google_protobuf"):
         http_archive(
