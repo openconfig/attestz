@@ -13,6 +13,7 @@
 # limitations under the License.
 ---
 name: Go
+
 on:
   push:
     branches: [main]
@@ -20,11 +21,13 @@ on:
     branches: [main]
   schedule:
     - cron: "0 0 * * *"
+
+permissions: {}
+
 jobs:
   go:
-    uses: openconfig/common-ci/.github/workflows/go.yml@125b6b58286d116b216e45c33cb859f547965d61
+    permissions:
+      contents: read
+    uses: openconfig/common-ci/.github/workflows/go.yml@6471e41fc17c67b8fb10f99b91bbb4ba5903effc
     with:
-      go-versions: "['1.21']"
-
-  linter:
-    uses: openconfig/common-ci/.github/workflows/linter.yml@125b6b58286d116b216e45c33cb859f547965d61
+      go-versions: "['1.x']"

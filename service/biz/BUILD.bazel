@@ -123,6 +123,7 @@ go_test(
     ],
     deps = [
         "@com_github_google_go_cmp//cmp",
+        "@com_github_google_go_tpm//tpm",
     ],
 )
 

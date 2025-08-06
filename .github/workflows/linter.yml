@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2022 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
----
-name: Check Typos
+
+name: Lint Code Base
+
 on:
   push:
     branches: [main]
@@ -22,15 +23,29 @@ on:
 permissions: {}
 
 jobs:
-  run:
-    name: Spell Check with Typos
+  lint:
+    name: Lint Code Base
     runs-on: ubuntu-latest
+
     permissions:
       contents: read
+      packages: read
+      # To report Github Actions status checks
+      statuses: write
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
-      - name: Check spelling of Codebase
-        uses: crate-ci/typos@master
+      - name: Lint Code Base
+        uses: super-linter/super-linter@5119dcd8011e92182ce8219d9e9efc82f16fddb6 # v8
+        env:
+          VALIDATE_ALL_CODEBASE: false
+          VALIDATE_HTML: false
+          VALIDATE_JSCPD: false
+          VALIDATE_JSON_PRETTIER: false
+          VALIDATE_GO: false
+          IGNORE_GENERATED_FILES: true
+          DEFAULT_BRANCH: main
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
