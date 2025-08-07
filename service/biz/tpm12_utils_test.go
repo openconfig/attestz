@@ -440,3 +440,76 @@ func TestDecryptWithPrivateKey(t *testing.T) {
 		})
 	}
 }
+
+// createSymmetricKeyBytes creates a byte slice representing a TPMSymmetricKey structure.
+func createSymmetricKeyBytes(key []byte) []byte {
+	buffer := new(bytes.Buffer)
+	binaryWriteUint32(buffer, uint32(tpm12.AlgAES128))
+	binaryWriteUint16(buffer, uint16(EsSymCBCPKCS5))
+	binaryWriteUint16(buffer, uint16(len(key)))
+	buffer.Write(key)
+	return buffer.Bytes()
+}
+
+func TestParseSymmetricKey(t *testing.T) {
+	testCases := []struct {
+		name          string
+		input         []byte
+		expected      *TPMSymmetricKey
+		expectedError string
+	}{
+		{
+			name:  "Valid key",
+			input: createSymmetricKeyBytes([]byte{1, 2, 3, 4}),
+			expected: &TPMSymmetricKey{
+				AlgID:     tpm12.AlgAES128,
+				EncScheme: EsSymCBCPKCS5,
+				Key:       []byte{1, 2, 3, 4},
+			},
+			expectedError: "",
+		},
+		{
+			name:          "Invalid empty key",
+			input:         createSymmetricKeyBytes([]byte{}),
+			expectedError: "key cannot be empty",
+		},
+		{
+			name:          "Input too short for AlgID",
+			input:         []byte{1, 2, 3},
+			expectedError: "failed to read algorithmID",
+		},
+		{
+			name:          "Input too short for EncScheme",
+			input:         createSymmetricKeyBytes([]byte{1, 2, 3, 4})[:4],
+			expectedError: "failed to read encScheme",
+		},
+		{
+			name:          "Input too short for keySize",
+			input:         createSymmetricKeyBytes([]byte{1, 2, 3, 4})[:6],
+			expectedError: "failed to read keySize",
+		},
+		{
+			name:          "Input too short for key data",
+			input:         createSymmetricKeyBytes([]byte{1, 2, 3, 4})[:10], // 4+2+2+2 bytes
+			expectedError: "failed to read key (size 4)",
+		},
+		{
+			name:          "Leftover bytes",
+			input:         append(createSymmetricKeyBytes([]byte{1, 2, 3, 4}), 0xDE, 0xAD, 0xBE, 0xEF),
+			expectedError: "leftover bytes in TPMSymmetricKey block",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			u := &DefaultTPM12Utils{}
+			result, err := u.ParseSymmetricKey(tc.input)
+			assertError(t, err, tc.expectedError, "ParseSymmetricKey")
+			if tc.expectedError == "" {
+				if !cmp.Equal(result, tc.expected) {
+					t.Errorf("ParseSymmetricKey mismatch:\nGot: %+v\nExpected: %+v", result, tc.expected)
+				}
+			}
+		})
+	}
+}
