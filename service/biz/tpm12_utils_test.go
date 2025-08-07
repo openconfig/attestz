@@ -2,6 +2,12 @@ package biz
 
 import (
 	"bytes"
+	"context"
+	"crypto/rand"
+	"crypto/rsa"
+
+	// #nosec
+	"crypto/sha1"
 	"strings"
 	"testing"
 
@@ -353,6 +359,82 @@ func TestParseKeyParmsFromReader(t *testing.T) {
 			if tc.expectedError == "" {
 				if !cmp.Equal(result, tc.expected) {
 					t.Errorf("ParseKeyParms mismatch:\nGot: %+v\nExpected: %+v", result, tc.expected)
+				}
+			}
+		})
+	}
+}
+
+func TestDecryptWithPrivateKey(t *testing.T) {
+	// Generate a sample RSA key pair for testing.
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate RSA key: %v", err)
+	}
+	publicKey := &privateKey.PublicKey
+
+	sampleData := []byte("test data to encrypt and decrypt")
+
+	testCases := []struct {
+		name          string
+		algo          tpm12.Algorithm
+		encScheme     TPMEncodingScheme
+		expectedError string
+	}{
+		{
+			name:          "RSA PKCS1v15 success",
+			algo:          tpm12.AlgRSA,
+			encScheme:     EsRSAEsPKCSv15,
+			expectedError: "",
+		},
+		{
+			name:          "RSA OAEP success",
+			algo:          tpm12.AlgRSA,
+			encScheme:     EsRSAEsOAEPSHA1MGF1,
+			expectedError: "",
+		},
+		{
+			name:          "Unsupported algorithm",
+			algo:          tpm12.AlgAES128,
+			encScheme:     EsRSAEsPKCSv15,
+			expectedError: "unsupported algorithm",
+		},
+		{
+			name:          "Unsupported encoding scheme",
+			algo:          tpm12.AlgRSA,
+			encScheme:     EsSymCBCPKCS5,
+			expectedError: "unsupported encoding scheme",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var encryptedData []byte
+			var err error
+			if tc.expectedError == "" {
+				// Encrypt the data using the public key.
+				switch tc.encScheme {
+				case EsRSAEsPKCSv15:
+					encryptedData, err = rsa.EncryptPKCS1v15(rand.Reader, publicKey, sampleData)
+				case EsRSAEsOAEPSHA1MGF1:
+					// #nosec
+					encryptedData, err = rsa.EncryptOAEP(sha1.New(), rand.Reader, publicKey, sampleData, nil)
+				}
+				if err != nil {
+					t.Fatalf("Failed to encrypt data: %v", err)
+				}
+			} else {
+				encryptedData = sampleData
+			}
+
+			u := &DefaultTPM12Utils{}
+			decryptedData, err := u.DecryptWithPrivateKey(context.Background(), privateKey, encryptedData, tc.algo, tc.encScheme)
+
+			assertError(t, err, tc.expectedError, "DecryptWithPrivateKey")
+
+			if tc.expectedError == "" {
+				if !cmp.Equal(decryptedData, sampleData) {
+					t.Errorf("Decrypted data mismatch: got %v, expected %v", decryptedData, sampleData)
 				}
 			}
 		})
