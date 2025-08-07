@@ -166,6 +166,9 @@ type RotateAIKCertInfraDeps interface {
 
 	// Client to fetch the EK Public Key from the RoT database.
 	ROTDBClient
+
+	// TPM 1.2 utility functions.
+	TPM12Utils
 }
 
 // EnrollControlCardReq is the request to EnrollControlCard().
@@ -552,7 +555,7 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	}
 
 	// Parse application_identity_request
-	applicationIdentityRequest, err := ParseIdentityRequest(applicationIdentityRequestBytes)
+	applicationIdentityRequest, err := req.Deps.ParseIdentityRequest(applicationIdentityRequestBytes)
 	if err != nil {
 		err = fmt.Errorf("failed to parse application_identity_request: %w", err)
 		log.ErrorContext(ctx, err)
@@ -561,14 +564,14 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 
 	// Decrypt AsymBlob to get a symmetric key using issuer private key
 	var hash crypto.Hash
-	symKeyBytes, err := DecryptWithPrivateKey(ctx, issuerPrivateKey, applicationIdentityRequest.AsymBlob, applicationIdentityRequest.AsymAlgorithm.AlgID, applicationIdentityRequest.AsymAlgorithm.EncScheme)
+	symKeyBytes, err := req.Deps.DecryptWithPrivateKey(ctx, issuerPrivateKey, applicationIdentityRequest.AsymBlob, applicationIdentityRequest.AsymAlgorithm.AlgID, applicationIdentityRequest.AsymAlgorithm.EncScheme)
 	if err != nil {
 		err = fmt.Errorf("failed to decrypt AsymBlob: %w", err)
 		log.ErrorContext(ctx, err)
 		return err
 	}
 	// TODO: parse symKeyBytes into TPMSymmetricKey
-	symKey, err := ParseSymmetricKey(symKeyBytes)
+	symKey, err := req.Deps.ParseSymmetricKey(symKeyBytes)
 	if err != nil {
 		err = fmt.Errorf("failed to parse symmetric key: %w", err)
 		log.ErrorContext(ctx, err)
@@ -576,7 +579,7 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	}
 
 	// Decrypt SymBlob to get Identity proof using symmetric key
-	identityProofBytes, err := DecryptWithSymmetricKey(ctx, symKey.Key, applicationIdentityRequest.SymBlob, symKey.AlgID, symKey.EncScheme)
+	identityProofBytes, err := req.Deps.DecryptWithSymmetricKey(ctx, symKey.Key, applicationIdentityRequest.SymBlob, symKey.AlgID, symKey.EncScheme)
 	if err != nil {
 		err = fmt.Errorf("failed to decrypt SymBlob: %w", err)
 		log.ErrorContext(ctx, err)
@@ -584,7 +587,7 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	}
 
 	// Parse Identity proof
-	identityProof, err := ParseIdentityProof(identityProofBytes)
+	identityProof, err := req.Deps.ParseIdentityProof(identityProofBytes)
 	if err != nil {
 		err = fmt.Errorf("failed to decrypt identity proof: %w", err)
 		log.ErrorContext(ctx, err)
@@ -595,7 +598,7 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	var identityContentsHash []byte
 
 	// Verify signature of TPM_IDENTITY_CONTENTS in Identity proof using AIK pub key
-	isValid, err := VerifySignature(ctx, identityProof.AttestationIdentityKey.Pubkey.Key, identityProof.IdentityBinding, identityContentsHash, hash)
+	isValid, err := req.Deps.VerifySignature(ctx, identityProof.AttestationIdentityKey.Pubkey.Key, identityProof.IdentityBinding, identityContentsHash, hash)
 	if err != nil {
 		err = fmt.Errorf("failed to verify identity contents signature: %w", err)
 		log.ErrorContext(ctx, err)
@@ -624,7 +627,7 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	}
 
 	// Encrypt AIK cert with AES key.
-	encryptedAikCert, err := EncryptWithAes(aesKey, []byte(issueAikCertResp.AikCertPem))
+	encryptedAikCert, err := req.Deps.EncryptWithAes(aesKey, []byte(issueAikCertResp.AikCertPem))
 	if err != nil {
 		err = fmt.Errorf("failed to encrypt AIK certificate: %w", err)
 		log.ErrorContext(ctx, err)
@@ -650,7 +653,7 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	var ekEncScheme = EsRSAEsOAEPSHA1MGF1
 
 	// Encrypt AES key with EK public key.
-	encryptedAesKey, err := EncryptWithPublicKey(ctx, ekPublicKey, aesKey, ekAlgo, ekEncScheme)
+	encryptedAesKey, err := req.Deps.EncryptWithPublicKey(ctx, ekPublicKey, aesKey, ekAlgo, ekEncScheme)
 	if err != nil {
 		err = fmt.Errorf("failed to encrypt AES key: %w", err)
 		log.ErrorContext(ctx, err)

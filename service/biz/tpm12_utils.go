@@ -127,8 +127,28 @@ type TPMIdentityReq struct {
 	SymBlob       []byte
 }
 
+// TPM12Utils is an interface for TPM 1.2 utility functions.
+// This interface was created to allow for mocking of the TPM 1.2 utility functions in unit tests
+// since it is not possible to test the Rotate AIK flow with stubbed data.
+type TPM12Utils interface {
+	ParseSymmetricKeyParms(keyParms []byte) (*TPMSymmetricKeyParms, error)
+	ParseRSAKeyParms(keyParms []byte) (*TPMRSAKeyParms, error)
+	ParseKeyParmsFromReader(reader *bytes.Reader) (*TPMKeyParms, error)
+	ParseIdentityRequest(data []byte) (*TPMIdentityReq, error)
+	ParseSymmetricKey(data []byte) (*TPMSymmetricKey, error)
+	ParseIdentityProof(data []byte) (*TPMIdentityProof, error)
+	EncryptWithPublicKey(ctx context.Context, publicKey *rsa.PublicKey, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error)
+	DecryptWithPrivateKey(ctx context.Context, privateKey *rsa.PrivateKey, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error)
+	EncryptWithAes(key []byte, data []byte) ([]byte, error)
+	DecryptWithSymmetricKey(ctx context.Context, symKey []byte, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error)
+	VerifySignature(ctx context.Context, pubKey []byte, signature []byte, data []byte, hash crypto.Hash) (bool, error)
+}
+
+// DefaultTPM12Utils is a concrete implementation of the TPM12Utils interface.
+type DefaultTPM12Utils struct{}
+
 // ParseSymmetricKeyParms from bytes to TPMSymmetricKeyParms.
-func ParseSymmetricKeyParms(keyParms []byte) (*TPMSymmetricKeyParms, error) {
+func (u *DefaultTPM12Utils) ParseSymmetricKeyParms(keyParms []byte) (*TPMSymmetricKeyParms, error) {
 	reader := bytes.NewReader(keyParms)
 	result := &TPMSymmetricKeyParms{}
 
@@ -168,7 +188,7 @@ func ParseSymmetricKeyParms(keyParms []byte) (*TPMSymmetricKeyParms, error) {
 }
 
 // ParseRSAKeyParms from bytes to TPMRSAKeyParms.
-func ParseRSAKeyParms(keyParms []byte) (*TPMRSAKeyParms, error) {
+func (u *DefaultTPM12Utils) ParseRSAKeyParms(keyParms []byte) (*TPMRSAKeyParms, error) {
 	reader := bytes.NewReader(keyParms)
 	result := &TPMRSAKeyParms{}
 
@@ -218,7 +238,7 @@ func readUint16(r *bytes.Reader) (uint16, error) {
 }
 
 // ParseKeyParmsFromReader parses a TPM_KEY_PARMS structure from a bytes.Reader.
-func ParseKeyParmsFromReader(reader *bytes.Reader) (*TPMKeyParms, error) {
+func (u *DefaultTPM12Utils) ParseKeyParmsFromReader(reader *bytes.Reader) (*TPMKeyParms, error) {
 	result := &TPMKeyParms{}
 
 	// Read algorithmID (4 bytes).
@@ -257,13 +277,13 @@ func ParseKeyParmsFromReader(reader *bytes.Reader) (*TPMKeyParms, error) {
 	// Parse parms based on algorithmID.
 	switch result.AlgID {
 	case tpm12.AlgRSA:
-		rsaParms, err := ParseRSAKeyParms(parms)
+		rsaParms, err := u.ParseRSAKeyParms(parms)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse RSA key parms: %w", err)
 		}
 		result.Params.RSAParams = rsaParms
 	case tpm12.AlgAES128, tpm12.AlgAES192, tpm12.AlgAES256:
-		symParms, err := ParseSymmetricKeyParms(parms)
+		symParms, err := u.ParseSymmetricKeyParms(parms)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse Symmetric key parms: %w", err)
 		}
@@ -281,8 +301,15 @@ func ParseKeyParmsFromReader(reader *bytes.Reader) (*TPMKeyParms, error) {
 	return result, nil
 }
 
+// ParseIdentityRequest from bytes to TPMIdentityReq.
+func (u *DefaultTPM12Utils) ParseIdentityRequest(data []byte) (*TPMIdentityReq, error) {
+	// TODO: Implement the parsing of the identity request.
+	// For now, we just return empty data.
+	return &TPMIdentityReq{}, nil
+}
+
 // ParseSymmetricKey from bytes to TPMSymmetricKey.
-func ParseSymmetricKey(keyBytes []byte) (*TPMSymmetricKey, error) {
+func (u *DefaultTPM12Utils) ParseSymmetricKey(keyBytes []byte) (*TPMSymmetricKey, error) {
 	reader := bytes.NewReader(keyBytes)
 	result := &TPMSymmetricKey{}
 
@@ -305,6 +332,9 @@ func ParseSymmetricKey(keyBytes []byte) (*TPMSymmetricKey, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read keySize: %w", err)
 	}
+	if keySize == 0 {
+		return nil, fmt.Errorf("key cannot be empty")
+	}
 
 	// Read key.
 	key, err := readBytes(reader, uint32(keySize))
@@ -320,50 +350,43 @@ func ParseSymmetricKey(keyBytes []byte) (*TPMSymmetricKey, error) {
 	return result, nil
 }
 
-// ParseIdentityRequest from bytes to TPMIdentityReq
-func ParseIdentityRequest(_ []byte) (*TPMIdentityReq, error) {
-	// TODO: Implement the parsing of the identity request.
-	// For now, we just return empty data.
-	return &TPMIdentityReq{}, nil
-}
-
 // ParseIdentityProof from bytes to TPMIdentityProof.
-func ParseIdentityProof(_ []byte) (*TPMIdentityProof, error) {
+func (u *DefaultTPM12Utils) ParseIdentityProof(_ []byte) (*TPMIdentityProof, error) {
 	// TODO: Implement the parsing of the identity proof.
 	// For now, we just return empty data.
 	return &TPMIdentityProof{}, nil
 }
 
 // EncryptWithPublicKey encrypts data using a public key.
-func EncryptWithPublicKey(ctx context.Context, publicKey *rsa.PublicKey, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error) {
+func (u *DefaultTPM12Utils) EncryptWithPublicKey(ctx context.Context, publicKey *rsa.PublicKey, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error) {
 	// TODO: Implement the encryption using a public key.
 	// For now, we just return the data as is.
 	return data, nil
 }
 
 // DecryptWithPrivateKey decrypts data using a private key.
-func DecryptWithPrivateKey(ctx context.Context, privateKey *rsa.PrivateKey, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error) {
+func (u *DefaultTPM12Utils) DecryptWithPrivateKey(ctx context.Context, privateKey *rsa.PrivateKey, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error) {
 	// TODO: Implement the decryption using a private key.
 	// For now, we just return the data as is.
 	return data, nil
 }
 
 // EncryptWithAes encrypts data using an AES key.
-func EncryptWithAes(_ []byte, data []byte) ([]byte, error) {
+func (u *DefaultTPM12Utils) EncryptWithAes(_ []byte, data []byte) ([]byte, error) {
 	// TODO: Implement the encryption using AES-GCM.
 	// For now, we just return the data as is.
 	return data, nil
 }
 
 // DecryptWithSymmetricKey decrypts data using a private key.
-func DecryptWithSymmetricKey(ctx context.Context, symKey []byte, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error) {
+func (u *DefaultTPM12Utils) DecryptWithSymmetricKey(ctx context.Context, symKey []byte, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error) {
 	// TODO: Implement the decryption using a symmetric key.
 	// For now, we just return the data as is.
 	return data, nil
 }
 
 // VerifySignature verifies a signature using a public key.
-func VerifySignature(ctx context.Context, pubKey []byte, signature []byte, data []byte, hash crypto.Hash) (bool, error) {
+func (u *DefaultTPM12Utils) VerifySignature(ctx context.Context, pubKey []byte, signature []byte, data []byte, hash crypto.Hash) (bool, error) {
 	// TODO: Implement the signature verification using a public key.
 	// For now, we just return true.
 	return true, nil
