@@ -246,11 +246,14 @@ func (u *DefaultTPM12Utils) ParseKeyParmsFromReader(reader *bytes.Reader) (*TPMK
 	result := &TPMKeyParms{}
 
 	// Read algorithmID (4 bytes).
-	algorithmID, err := readUint32(reader)
+	algorithmID, err := readNonZeroUint32(reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read algorithmID: %w", err)
 	}
 	result.AlgID = tpm12.Algorithm(algorithmID)
+	if _, ok := tpm12.AlgMap[result.AlgID]; !ok {
+		return nil, fmt.Errorf("invalid algorithmID: %v", result.AlgID)
+	}
 
 	// Read encScheme (2 bytes).
 	encScheme, err := readUint16(reader)
@@ -307,9 +310,54 @@ func (u *DefaultTPM12Utils) ParseKeyParmsFromReader(reader *bytes.Reader) (*TPMK
 
 // ParseIdentityRequest from bytes to TPMIdentityReq.
 func (u *DefaultTPM12Utils) ParseIdentityRequest(data []byte) (*TPMIdentityReq, error) {
-	// TODO: Implement the parsing of the identity request.
-	// For now, we just return empty data.
-	return &TPMIdentityReq{}, nil
+	reader := bytes.NewReader(data)
+	result := &TPMIdentityReq{}
+
+	// read asymBlobSize (UINT32).
+	asymBlobSize, err := readNonZeroUint32(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read asymBlobSize: %w", err)
+	}
+
+	// read symBlobSize (UINT32).
+	symBlobSize, err := readNonZeroUint32(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read symBlobSize: %w", err)
+	}
+
+	// Read asymAlgorithm (TPM_KEY_PARMS).
+	asymAlgorithm, err := u.ParseKeyParmsFromReader(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse asymAlgorithm (TPM_KEY_PARMS): %w", err)
+	}
+	result.AsymAlgorithm = *asymAlgorithm
+
+	// Read symAlgorithm (TPM_KEY_PARMS).
+	symAlgorithm, err := u.ParseKeyParmsFromReader(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse symAlgorithm (TPM_KEY_PARMS): %w", err)
+	}
+	result.SymAlgorithm = *symAlgorithm
+
+	// Read asymBlob (asymBlobSize bytes).
+	asymBlob, err := readBytes(reader, asymBlobSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read asymBlob: %w", err)
+	}
+	result.AsymBlob = asymBlob
+
+	// Read symBlob (symBlobSize bytes).
+	symBlob, err := readBytes(reader, symBlobSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read symBlob: %w", err)
+	}
+	result.SymBlob = symBlob
+
+	if reader.Len() > 0 {
+		return nil, fmt.Errorf("leftover bytes in TPM_IDENTITY_REQ after parsing: %d", reader.Len())
+	}
+
+	return result, nil
 }
 
 // ParseSymmetricKey from bytes to TPMSymmetricKey.
@@ -318,11 +366,14 @@ func (u *DefaultTPM12Utils) ParseSymmetricKey(keyBytes []byte) (*TPMSymmetricKey
 	result := &TPMSymmetricKey{}
 
 	// Read algorithmID (4 bytes).
-	algorithmID, err := readUint32(reader)
+	algorithmID, err := readNonZeroUint32(reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read algorithmID: %w", err)
 	}
 	result.AlgID = tpm12.Algorithm(algorithmID)
+	if _, ok := tpm12.AlgMap[result.AlgID]; !ok {
+		return nil, fmt.Errorf("invalid algorithmID: %v", result.AlgID)
+	}
 
 	// Read encScheme (2 bytes).
 	encScheme, err := readUint16(reader)
