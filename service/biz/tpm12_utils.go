@@ -18,7 +18,11 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"crypto/rand"
 	"crypto/rsa"
+
+	// #nosec
+	"crypto/sha1"
 	"encoding/binary"
 	"fmt"
 
@@ -366,9 +370,18 @@ func (u *DefaultTPM12Utils) EncryptWithPublicKey(ctx context.Context, publicKey 
 
 // DecryptWithPrivateKey decrypts data using a private key.
 func (u *DefaultTPM12Utils) DecryptWithPrivateKey(ctx context.Context, privateKey *rsa.PrivateKey, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error) {
-	// TODO: Implement the decryption using a private key.
-	// For now, we just return the data as is.
-	return data, nil
+	if algo != tpm12.AlgRSA {
+		return nil, fmt.Errorf("unsupported algorithm: %v", algo)
+	}
+	switch encScheme {
+	case EsRSAEsOAEPSHA1MGF1:
+		// #nosec
+		return rsa.DecryptOAEP(sha1.New(), nil, privateKey, data, []byte{}) /* #nosec G505 */
+	case EsRSAEsPKCSv15:
+		return rsa.DecryptPKCS1v15(rand.Reader, privateKey, data)
+	default:
+		return nil, fmt.Errorf("unsupported encoding scheme: %v", encScheme)
+	}
 }
 
 // EncryptWithAes encrypts data using an AES key.
