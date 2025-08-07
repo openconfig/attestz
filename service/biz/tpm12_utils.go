@@ -282,10 +282,42 @@ func ParseKeyParmsFromReader(reader *bytes.Reader) (*TPMKeyParms, error) {
 }
 
 // ParseSymmetricKey from bytes to TPMSymmetricKey.
-func ParseSymmetricKey(_ []byte) (*TPMSymmetricKey, error) {
-	// TODO: Implement the parsing of TPMSymmetricKey.
-	// For now, we just return empty data.
-	return &TPMSymmetricKey{}, nil
+func ParseSymmetricKey(keyBytes []byte) (*TPMSymmetricKey, error) {
+	reader := bytes.NewReader(keyBytes)
+	result := &TPMSymmetricKey{}
+
+	// Read algorithmID (4 bytes).
+	algorithmID, err := readUint32(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read algorithmID: %w", err)
+	}
+	result.AlgID = tpm12.Algorithm(algorithmID)
+
+	// Read encScheme (2 bytes).
+	encScheme, err := readUint16(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read encScheme: %w", err)
+	}
+	result.EncScheme = TPMEncodingScheme(encScheme)
+
+	// Read keySize (2 bytes).
+	keySize, err := readUint16(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read keySize: %w", err)
+	}
+
+	// Read key.
+	key, err := readBytes(reader, uint32(keySize))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read key (size %d): %w", keySize, err)
+	}
+	result.Key = key
+
+	if reader.Len() > 0 {
+		return nil, fmt.Errorf("leftover bytes in TPMSymmetricKey block after parsing: %d", reader.Len())
+	}
+
+	return result, nil
 }
 
 // ParseIdentityRequest from bytes to TPMIdentityReq
