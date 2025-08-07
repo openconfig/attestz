@@ -358,3 +358,176 @@ func TestParseKeyParmsFromReader(t *testing.T) {
 		})
 	}
 }
+
+func createIdentityRequestBytes(asymBlobSize, symBlobSize uint32, asymKeyParms []byte, symKeyParms []byte, asymBlob, symBlob []byte) []byte {
+	buffer := new(bytes.Buffer)
+	binaryWriteUint32(buffer, asymBlobSize)
+	binaryWriteUint32(buffer, symBlobSize)
+	buffer.Write(asymKeyParms)
+	buffer.Write(symKeyParms)
+	buffer.Write(asymBlob)
+	buffer.Write(symBlob)
+	return buffer.Bytes()
+}
+
+func TestParseIdentityRequest(t *testing.T) {
+	// Define test cases
+	testCases := []struct {
+		name          string
+		input         []byte
+		expected      *TPMIdentityReq
+		expectedError string
+	}{
+		{
+			name: "Valid request with RSA and AES, small blobs",
+			input: createIdentityRequestBytes(
+				10, 16,
+				createKeyParmsBytes(tpm12.AlgRSA, EsRSAEsPKCSv15, SsRSASaPKCS1v15SHA1, createRSAKeyParmsBytes(2048, 2, 3, []byte{1, 2, 3})),
+				createKeyParmsBytes(tpm12.AlgAES128, EsSymCBCPKCS5, SsNone, createSymmetricKeyParmsBytes(16, 16, 16, make([]byte, 16))),
+				make([]byte, 10), make([]byte, 16),
+			),
+			expected: &TPMIdentityReq{
+				AsymAlgorithm: TPMKeyParms{
+					AlgID:     tpm12.AlgRSA,
+					EncScheme: EsRSAEsPKCSv15,
+					SigScheme: SsRSASaPKCS1v15SHA1,
+					Params: TPMParams{
+						RSAParams: &TPMRSAKeyParms{
+							KeyLength: 2048,
+							NumPrimes: 2,
+							Exponent:  []byte{1, 2, 3},
+						},
+					},
+				},
+				SymAlgorithm: TPMKeyParms{
+					AlgID:     tpm12.AlgAES128,
+					EncScheme: EsSymCBCPKCS5,
+					SigScheme: SsNone,
+					Params: TPMParams{
+						SymParams: &TPMSymmetricKeyParms{
+							KeyLength: 16,
+							BlockSize: 16,
+							IV:        make([]byte, 16),
+						},
+					},
+				},
+				AsymBlob: make([]byte, 10),
+				SymBlob:  make([]byte, 16),
+			},
+			expectedError: "",
+		},
+		{
+			name: "invalid request with no asymblob",
+			input: createIdentityRequestBytes(
+				0, 1,
+				createKeyParmsBytes(tpm12.AlgSHA, EsNone, SsNone, []byte{}),
+				createKeyParmsBytes(tpm12.AlgSHA, EsNone, SsNone, []byte{1}),
+				[]byte{}, []byte{},
+			),
+			expectedError: "failed to read asymBlobSize: read uint32 is zero, expected non-zero",
+		},
+		{
+			name: "invalid request with no symblob",
+			input: createIdentityRequestBytes(
+				1, 0,
+				createKeyParmsBytes(tpm12.AlgSHA, EsNone, SsNone, []byte{}),
+				createKeyParmsBytes(tpm12.AlgSHA, EsNone, SsNone, []byte{}),
+				[]byte{1}, []byte{},
+			),
+			expectedError: "failed to read symBlobSize: read uint32 is zero, expected non-zero",
+		},
+		{
+			name:          "Input too short for asymBlobSize",
+			input:         []byte{1, 2, 3},
+			expectedError: "failed to read asymBlobSize",
+		},
+		{
+			name:          "Input too short for symBlobSize",
+			input:         []byte{1, 2, 3, 4, 5, 6, 7},
+			expectedError: "failed to read symBlobSize",
+		},
+		{
+			name: "Input too short for asymAlgorithm",
+			input: createIdentityRequestBytes(
+				10, 16,
+				[]byte{1, 2, 3}, // Invalid asymKeyParms
+				createKeyParmsBytes(tpm12.AlgAES128, EsSymCBCPKCS5, SsNone, createSymmetricKeyParmsBytes(16, 16, 16, make([]byte, 16))),
+				make([]byte, 10), make([]byte, 16),
+			),
+			expectedError: "failed to parse asymAlgorithm (TPM_KEY_PARMS)",
+		},
+		{
+			name: "Input too short for symAlgorithm",
+			input: createIdentityRequestBytes(
+				10, 16,
+				createKeyParmsBytes(tpm12.AlgRSA, EsRSAEsPKCSv15, SsRSASaPKCS1v15SHA1, createRSAKeyParmsBytes(2048, 2, 3, []byte{1, 2, 3})),
+				[]byte{1, 2, 3}, // Invalid symKeyParms
+				make([]byte, 10), make([]byte, 16),
+			),
+			expectedError: "failed to read symBlob",
+		},
+		{
+			name: "Input too short for asymBlob",
+			input: createIdentityRequestBytes(
+				10, 0,
+				createKeyParmsBytes(tpm12.AlgRSA, EsRSAEsPKCSv15, SsRSASaPKCS1v15SHA1, createRSAKeyParmsBytes(2048, 2, 3, []byte{1, 2, 3})),
+				createKeyParmsBytes(tpm12.AlgAES128, EsSymCBCPKCS5, SsNone, createSymmetricKeyParmsBytes(16, 16, 16, make([]byte, 16))),
+				make([]byte, 5), []byte{},
+			),
+			expectedError: "failed to read symBlob",
+		},
+		{
+			name: "Input too short for symBlob",
+			input: createIdentityRequestBytes(
+				10, 16,
+				createKeyParmsBytes(tpm12.AlgRSA, EsRSAEsPKCSv15, SsRSASaPKCS1v15SHA1, createRSAKeyParmsBytes(2048, 2, 3, []byte{1, 2, 3})),
+				createKeyParmsBytes(tpm12.AlgAES128, EsSymCBCPKCS5, SsNone, createSymmetricKeyParmsBytes(16, 16, 16, make([]byte, 16))),
+				make([]byte, 10), make([]byte, 5),
+			),
+			expectedError: "failed to read symBlob",
+		},
+		{
+			name: "Invalid asymKeyParms (zero keyLength)",
+			input: createIdentityRequestBytes(
+				10, 16,
+				createKeyParmsBytes(tpm12.AlgRSA, EsRSAEsPKCSv15, SsRSASaPKCS1v15SHA1, createRSAKeyParmsBytes(0, 2, 3, []byte{1, 2, 3})),
+				createKeyParmsBytes(tpm12.AlgAES128, EsSymCBCPKCS5, SsNone, createSymmetricKeyParmsBytes(16, 16, 16, make([]byte, 16))),
+				make([]byte, 10), make([]byte, 16),
+			),
+			expectedError: "failed to parse asymAlgorithm (TPM_KEY_PARMS): failed to parse RSA key parms",
+		},
+		{
+			name: "Invalid symKeyParms (zero ivSize)",
+			input: createIdentityRequestBytes(
+				10, 16,
+				createKeyParmsBytes(tpm12.AlgRSA, EsRSAEsPKCSv15, SsRSASaPKCS1v15SHA1, createRSAKeyParmsBytes(2048, 2, 3, []byte{1, 2, 3})),
+				createKeyParmsBytes(tpm12.AlgAES128, EsSymCBCPKCS5, SsNone, createSymmetricKeyParmsBytes(16, 16, 0, []byte{})),
+				make([]byte, 10), make([]byte, 16),
+			),
+			expectedError: "failed to parse symAlgorithm (TPM_KEY_PARMS): failed to parse Symmetric key parms",
+		},
+		{
+			name: "leftover bytes",
+			input: append(createIdentityRequestBytes(
+				10, 16,
+				createKeyParmsBytes(tpm12.AlgRSA, EsRSAEsPKCSv15, SsRSASaPKCS1v15SHA1, createRSAKeyParmsBytes(2048, 2, 3, []byte{1, 2, 3})),
+				createKeyParmsBytes(tpm12.AlgAES128, EsSymCBCPKCS5, SsNone, createSymmetricKeyParmsBytes(16, 16, 16, make([]byte, 16))),
+				make([]byte, 10), make([]byte, 16),
+			), 1, 2, 3),
+			expectedError: "leftover bytes in TPM_IDENTITY_REQ after parsing",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			u := &DefaultTPM12Utils{}
+			result, err := u.ParseIdentityRequest(tc.input)
+			assertError(t, err, tc.expectedError, "ParseIdentityRequest")
+			if tc.expectedError == "" {
+				if !cmp.Equal(result, tc.expected) {
+					t.Errorf("ParseIdentityRequest mismatch:\nGot: %+v\nExpected: %+v", result, tc.expected)
+				}
+			}
+		})
+	}
+}
