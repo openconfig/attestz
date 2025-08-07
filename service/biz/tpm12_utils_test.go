@@ -94,7 +94,8 @@ func TestParseSymmetricKeyParms(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			data := createSymmetricKeyParmsBytes(tc.keyLength, tc.blockSize, tc.ivSize, tc.iv)
-			result, err := ParseSymmetricKeyParms(data)
+			u := &DefaultTPM12Utils{}
+			result, err := u.ParseSymmetricKeyParms(data)
 
 			assertError(t, err, tc.expectedError, "ParseSymmetricKeyParms")
 
@@ -189,7 +190,8 @@ func TestParseRSAKeyParms(t *testing.T) {
 			if data == nil {
 				data = createRSAKeyParmsBytes(tc.keyLength, tc.numPrimes, tc.exponentSize, tc.exponent)
 			}
-			result, err := ParseRSAKeyParms(data)
+			u := &DefaultTPM12Utils{}
+			result, err := u.ParseRSAKeyParms(data)
 
 			assertError(t, err, tc.expectedError, "ParseRSAKeyParms")
 
@@ -343,7 +345,8 @@ func TestParseKeyParmsFromReader(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			reader := bytes.NewReader(tc.input)
-			result, err := ParseKeyParmsFromReader(reader)
+			u := &DefaultTPM12Utils{}
+			result, err := u.ParseKeyParmsFromReader(reader)
 
 			assertError(t, err, tc.expectedError, "ParseKeyParms")
 
