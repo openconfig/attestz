@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/aes"
 
 	// #nosec
 	"crypto/sha1"
@@ -435,6 +436,97 @@ func TestDecryptWithPrivateKey(t *testing.T) {
 			if tc.expectedError == "" {
 				if !cmp.Equal(decryptedData, sampleData) {
 					t.Errorf("Decrypted data mismatch: got %v, expected %v", decryptedData, sampleData)
+				}
+			}
+		})
+	}
+}
+
+func TestDecryptWithSymmetricKey(t *testing.T) {
+	// Setup a valid encrypted payload for testing decryption.
+	plaintext := []byte("a secret message")
+	key := make([]byte, 16) // AES-128
+	if _, err := rand.Read(key); err != nil {
+		t.Fatalf("failed to generate random key: %v", err)
+	}
+
+	// Manually perform PKCS#7 padding.
+	padding := aes.BlockSize - len(plaintext)%aes.BlockSize
+	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
+	paddedPlaintext := append(plaintext, padtext...)
+
+	// Encrypt the padded data using AES-CBC to create a valid test case.
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		t.Fatalf("failed to create cipher: %v", err)
+	}
+	iv := make([]byte, aes.BlockSize)
+	if _, err := rand.Read(iv); err != nil {
+		t.Fatalf("failed to generate IV: %v", err)
+	}
+	ciphertext := make([]byte, len(paddedPlaintext))
+	mode := cipher.NewCBCEncrypter(block, iv)
+	mode.CryptBlocks(ciphertext, paddedPlaintext)
+
+	// Per the function's contract, the IV is prepended to the ciphertext.
+	encryptedDataWithIV := append(iv, ciphertext...)
+
+	tests := []struct {
+		name      string
+		desc      string
+		key       []byte
+		data      []byte
+		encScheme TPMEncodingScheme
+		wantErr   bool
+		want      []byte
+	}{
+		{
+			name:      "Success",
+			desc:      "Should correctly decrypt a valid AES-CBC payload.",
+			key:       key,
+			data:      encryptedDataWithIV,
+			encScheme: EsSymCBCPKCS5,
+			wantErr:   false,
+			want:      plaintext,
+		},
+		{
+			name:      "UnsupportedScheme",
+			desc:      "Should return an error for an unsupported encryption scheme.",
+			key:       key,
+			data:      encryptedDataWithIV,
+			encScheme: TPMEncodingScheme(0), // An invalid scheme.
+			wantErr:   true,
+		},
+		{
+			name:      "CiphertextTooShort",
+			desc:      "Should return an error if ciphertext is smaller than the IV.",
+			key:       key,
+			data:      []byte("short"),
+			encScheme: EsSymCBCPKCS5,
+			wantErr:   true,
+		},
+		{
+			name: "InvalidPadding",
+			desc: "Should return an error for a payload with invalid PKCS#7 padding.",
+			key:  key,
+			// Manually create a ciphertext with bad padding.
+			data:    append(iv, []byte("123456789012345\x07")...),
+			encScheme: EsSymCBCPKCS5,
+			wantErr:   true,
+		},
+	}
+
+	u := &DefaultTPM12Utils{}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := u.DecryptWithSymmetricKey(context.Background(), tt.key, tt.data, tpm12.AlgAES128, tt.encScheme)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("DecryptWithSymmetricKey() with desc: %q, error = %v, wantErr %v", tt.desc, err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr {
+				if diff := cmp.Diff(tt.want, got); diff != "" {
+					t.Errorf("DecryptWithSymmetricKey() with desc: %q, returned diff (-want +got):\n%s", tt.desc, diff)
 				}
 			}
 		})
