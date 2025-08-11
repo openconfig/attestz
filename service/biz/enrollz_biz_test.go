@@ -41,6 +41,7 @@ type stubEnrollzInfraDeps struct {
 	SwitchOwnerCaClient
 	EnrollzDeviceClient
 	TpmCertVerifier
+	ROTDBClient
 
 	// Request params that would be captured in stubbed deps' function calls.
 	issueOwnerIakCertReq       *IssueOwnerIakCertReq
@@ -831,7 +832,7 @@ type stubRotateAIKCertInfraDeps struct {
 	SwitchOwnerCaClient
 	EnrollzDeviceClient
 	TpmCertVerifier
-	ROTdbClient
+	ROTDBClient
 	TPM12Utils
 
 	fetchEkReq      *FetchEKReq

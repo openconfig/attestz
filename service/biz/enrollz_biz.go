@@ -137,8 +137,8 @@ type FetchEKResp struct {
 	EkPublicKey *rsa.PublicKey
 }
 
-// ROTdbClient is a client to fetch the EK Public Key from the RoT.
-type ROTdbClient interface {
+// ROTDBClient is a client to fetch the EK Public Key from the RoT.
+type ROTDBClient interface {
 	// FetchEK fetches the EK Public Key from the RoT.
 	FetchEK(ctx context.Context, req *FetchEKReq) (*FetchEKResp, error)
 }
@@ -154,6 +154,9 @@ type EnrollzInfraDeps interface {
 
 	// Parser and verifier of IAK and IDevID certs.
 	TpmCertVerifier
+
+	// Client to fetch the EK Public Key from the RoT database.
+	ROTDBClient
 }
 
 // RotateAIKCertInfraDeps is the infra-specific dependencies of the RotateAIKCert business logic.
@@ -162,7 +165,7 @@ type RotateAIKCertInfraDeps interface {
 	EnrollzInfraDeps
 
 	// Client to fetch the EK Public Key from the RoT database.
-	ROTdbClient
+	ROTDBClient
 
 	// TPM 1.2 utility functions.
 	TPM12Utils
