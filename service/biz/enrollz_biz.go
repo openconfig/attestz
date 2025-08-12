@@ -598,7 +598,7 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	var identityContentsHash []byte
 
 	// Verify signature of TPM_IDENTITY_CONTENTS in Identity proof using AIK pub key
-	isValid, err := req.Deps.VerifySignature(ctx, identityProof.AttestationIdentityKey.Pubkey.Key, identityProof.IdentityBinding, identityContentsHash, hash)
+	isValid, err := req.Deps.VerifySignature(ctx, identityProof.AttestationIdentityKey.PubKey.Key, identityProof.IdentityBinding, identityContentsHash, hash)
 	if err != nil {
 		err = fmt.Errorf("failed to verify identity contents signature: %w", err)
 		log.ErrorContext(ctx, err)
