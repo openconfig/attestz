@@ -513,3 +513,278 @@ func TestParseSymmetricKey(t *testing.T) {
 		})
 	}
 }
+
+// CreateStorePubKeyBytesOptions provides options for creating TPM_STORE_PUBKEY bytes.
+type CreateStorePubKeyBytesOptions struct {
+	Key []byte
+}
+
+// createStorePubKeyBytes creates a byte slice representing a TPM_STORE_PUBKEY structure.
+func createStorePubKeyBytes(opts CreateStorePubKeyBytesOptions) []byte {
+	buffer := new(bytes.Buffer)
+	binaryWriteUint32(buffer, uint32(len(opts.Key)))
+	buffer.Write(opts.Key)
+	return buffer.Bytes()
+}
+
+// CreatePubKeyBytesOptions provides options for creating TPM_PUBKEY bytes.
+type CreatePubKeyBytesOptions struct {
+	AlgID     tpm12.Algorithm
+	EncScheme TPMEncodingScheme
+	SigScheme TPMSignatureScheme
+	Parms     []byte
+	PubKey    []byte
+}
+
+// createPubKeyBytes creates a byte slice representing a TPM_PUBKEY structure.
+func createPubKeyBytes(opts CreatePubKeyBytesOptions) []byte {
+	buffer := new(bytes.Buffer)
+	buffer.Write(createKeyParmsBytes(opts.AlgID, opts.EncScheme, opts.SigScheme, opts.Parms))
+	buffer.Write(createStorePubKeyBytes(CreateStorePubKeyBytesOptions{Key: opts.PubKey}))
+	return buffer.Bytes()
+}
+
+// IdentityProofOptions provides options for creating TPMIdentityProof bytes.
+// Fields, if nil or empty, will use default values.
+type IdentityProofOptions struct {
+	TPMStructVer          *uint32
+	AIK                   *TPMPubKey
+	LabelArea             []byte
+	IdentityBinding       []byte
+	EndorsementCredential []byte
+	PlatformCredential    []byte
+	ConformanceCredential []byte
+	OverrideAIKBytes      []byte
+}
+
+// createIdentityProofBytes creates a byte slice representing a TPM_IDENTITY_PROOF structure
+// based on the provided options. Default values are used for any unset fields.
+func createIdentityProofBytes(opts IdentityProofOptions) []byte {
+	buffer := new(bytes.Buffer)
+
+	tpmStructVer := uint32(1)
+	if opts.TPMStructVer != nil {
+		tpmStructVer = *opts.TPMStructVer
+	}
+	binaryWriteUint32(buffer, tpmStructVer)
+
+	aik := defaultTestAik()
+	if opts.AIK != nil {
+		aik = *opts.AIK
+	}
+	aikBytes := createPubKeyBytes(CreatePubKeyBytesOptions{
+		AlgID:     aik.AlgorithmParms.AlgID,
+		EncScheme: aik.AlgorithmParms.EncScheme,
+		SigScheme: aik.AlgorithmParms.SigScheme,
+		Parms: createRSAKeyParmsBytes(
+			aik.AlgorithmParms.Params.RSAParams.KeyLength,
+			aik.AlgorithmParms.Params.RSAParams.NumPrimes,
+			uint32(len(aik.AlgorithmParms.Params.RSAParams.Exponent)),
+			aik.AlgorithmParms.Params.RSAParams.Exponent,
+		),
+		PubKey: aik.Pubkey.Key,
+	})
+	if opts.OverrideAIKBytes != nil {
+		aikBytes = opts.OverrideAIKBytes
+	}
+	buffer.Write(aikBytes)
+
+	labelArea := []byte("label")
+	if opts.LabelArea != nil {
+		labelArea = opts.LabelArea
+	}
+	binaryWriteUint32(buffer, uint32(len(labelArea)))
+	buffer.Write(labelArea)
+
+	identityBinding := []byte("binding")
+	if opts.IdentityBinding != nil {
+		identityBinding = opts.IdentityBinding
+	}
+	binaryWriteUint32(buffer, uint32(len(identityBinding)))
+	buffer.Write(identityBinding)
+
+	endorsementCredential := []byte("endorse")
+	if opts.EndorsementCredential != nil {
+		endorsementCredential = opts.EndorsementCredential
+	}
+	binaryWriteUint32(buffer, uint32(len(endorsementCredential)))
+	buffer.Write(endorsementCredential)
+
+	platformCredential := []byte("platform")
+	if opts.PlatformCredential != nil {
+		platformCredential = opts.PlatformCredential
+	}
+	binaryWriteUint32(buffer, uint32(len(platformCredential)))
+	buffer.Write(platformCredential)
+
+	conformanceCredential := []byte("conform")
+	if opts.ConformanceCredential != nil {
+		conformanceCredential = opts.ConformanceCredential
+	}
+	binaryWriteUint32(buffer, uint32(len(conformanceCredential)))
+	buffer.Write(conformanceCredential)
+
+	return buffer.Bytes()
+}
+
+func defaultTestAik() TPMPubKey {
+	return TPMPubKey{
+		AlgorithmParms: TPMKeyParms{
+			AlgID:     tpm12.AlgRSA,
+			EncScheme: EsRSAEsPKCSv15,
+			SigScheme: SsRSASaPKCS1v15SHA1,
+			Params: TPMParams{
+				RSAParams: &TPMRSAKeyParms{
+					KeyLength: 2048,
+					NumPrimes: 2,
+					Exponent:  []byte{1, 0, 1},
+				},
+			},
+		},
+		Pubkey: TPMStorePubkey{
+			KeyLength: 256,
+			Key:       make([]byte, 256),
+		},
+	}
+}
+
+func TestParseIdentityProof_Success(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    []byte
+		expected *TPMIdentityProof
+	}{
+		{
+			name:  "Valid Identity Proof",
+			input: createIdentityProofBytes(IdentityProofOptions{}), // Use all defaults
+			expected: &TPMIdentityProof{
+				TPMStructVer:           1,
+				AttestationIdentityKey: defaultTestAik(),
+				LabelArea:              []byte("label"),
+				IdentityBinding:        []byte("binding"),
+				EndorsementCredential:  []byte("endorse"),
+				PlatformCredential:     []byte("platform"),
+				ConformanceCredential:  []byte("conform"),
+			},
+		},
+		{
+			name: "Valid Identity Proof - Empty fields",
+			input: createIdentityProofBytes(IdentityProofOptions{
+				LabelArea:             []byte{},
+				IdentityBinding:       []byte("non-empty-binding"),
+				EndorsementCredential: []byte{},
+				PlatformCredential:    []byte{},
+				ConformanceCredential: []byte{},
+			}),
+			expected: &TPMIdentityProof{
+				TPMStructVer:           1,
+				AttestationIdentityKey: defaultTestAik(),
+				LabelArea:              []byte{},
+				IdentityBinding:        []byte("non-empty-binding"),
+				EndorsementCredential:  []byte{},
+				PlatformCredential:     []byte{},
+				ConformanceCredential:  []byte{},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			u := &DefaultTPM12Utils{}
+			result, err := u.ParseIdentityProof(tc.input)
+			assertError(t, err, "", "ParseIdentityProof")
+			if err == nil {
+				if !cmp.Equal(result, tc.expected, cmp.AllowUnexported(TPMKeyParms{})) {
+					t.Errorf("ParseIdentityProof mismatch:\nGot: %+v\nExpected: %+v\nDiff: %s", result, tc.expected, cmp.Diff(result, tc.expected, cmp.AllowUnexported(TPMKeyParms{})))
+				}
+			}
+		})
+	}
+}
+
+func TestParseIdentityProof_Failure(t *testing.T) {
+	testCases := []struct {
+		name          string
+		input         []byte
+		expectedError string
+	}{
+		{
+			name:          "Input too short for TPMStructVer",
+			input:         []byte{1, 2, 3},
+			expectedError: "failed to read TPMStructVer",
+		},
+		{
+			name: "Input too short for AIK",
+			input: createIdentityProofBytes(IdentityProofOptions{
+				OverrideAIKBytes: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
+			})[:10],
+			expectedError: "failed to parse AttestationIdentityKey",
+		},
+		{
+			name: "Input too short for LabelArea size",
+			input: createIdentityProofBytes(IdentityProofOptions{})[:4+len(createPubKeyBytes(CreatePubKeyBytesOptions{
+				AlgID:     defaultTestAik().AlgorithmParms.AlgID,
+				EncScheme: defaultTestAik().AlgorithmParms.EncScheme,
+				SigScheme: defaultTestAik().AlgorithmParms.SigScheme,
+				Parms: createRSAKeyParmsBytes(
+					defaultTestAik().AlgorithmParms.Params.RSAParams.KeyLength,
+					defaultTestAik().AlgorithmParms.Params.RSAParams.NumPrimes,
+					uint32(len(defaultTestAik().AlgorithmParms.Params.RSAParams.Exponent)),
+					defaultTestAik().AlgorithmParms.Params.RSAParams.Exponent,
+				),
+				PubKey: defaultTestAik().Pubkey.Key,
+			}))],
+			expectedError: "failed to read LabelArea size",
+		},
+		{
+			name: "Input too short for LabelArea data",
+			input: func() []byte {
+				buf := new(bytes.Buffer)
+				buf.Write(createIdentityProofBytes(IdentityProofOptions{})[:4+len(createPubKeyBytes(CreatePubKeyBytesOptions{
+					AlgID:     defaultTestAik().AlgorithmParms.AlgID,
+					EncScheme: defaultTestAik().AlgorithmParms.EncScheme,
+					SigScheme: defaultTestAik().AlgorithmParms.SigScheme,
+					Parms: createRSAKeyParmsBytes(
+						defaultTestAik().AlgorithmParms.Params.RSAParams.KeyLength,
+						defaultTestAik().AlgorithmParms.Params.RSAParams.NumPrimes,
+						uint32(len(defaultTestAik().AlgorithmParms.Params.RSAParams.Exponent)),
+						defaultTestAik().AlgorithmParms.Params.RSAParams.Exponent,
+					),
+					PubKey: defaultTestAik().Pubkey.Key,
+				}))+4])
+				binaryWriteUint32(buf, 10)
+				return buf.Bytes()
+			}(),
+			expectedError: "failed to read LabelArea",
+		},
+		{
+			name: "Input too short for IdentityBinding size",
+			input: createIdentityProofBytes(IdentityProofOptions{})[:4+len(createPubKeyBytes(CreatePubKeyBytesOptions{
+				AlgID:     defaultTestAik().AlgorithmParms.AlgID,
+				EncScheme: defaultTestAik().AlgorithmParms.EncScheme,
+				SigScheme: defaultTestAik().AlgorithmParms.SigScheme,
+				Parms: createRSAKeyParmsBytes(
+					defaultTestAik().AlgorithmParms.Params.RSAParams.KeyLength,
+					defaultTestAik().AlgorithmParms.Params.RSAParams.NumPrimes,
+					uint32(len(defaultTestAik().AlgorithmParms.Params.RSAParams.Exponent)),
+					defaultTestAik().AlgorithmParms.Params.RSAParams.Exponent,
+				),
+				PubKey: defaultTestAik().Pubkey.Key,
+			}))+4+5],
+			expectedError: "failed to read IdentityBinding size",
+		},
+		{
+			name:          "Leftover bytes",
+			input:         append(createIdentityProofBytes(IdentityProofOptions{}), 0xDE, 0xAD),
+			expectedError: "leftover bytes in TPM_IDENTITY_PROOF block",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			u := &DefaultTPM12Utils{}
+			_, err := u.ParseIdentityProof(tc.input)
+			assertError(t, err, tc.expectedError, "ParseIdentityProof")
+		})
+	}
+}

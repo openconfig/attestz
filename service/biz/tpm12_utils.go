@@ -138,6 +138,8 @@ type TPM12Utils interface {
 	ParseSymmetricKeyParms(keyParms []byte) (*TPMSymmetricKeyParms, error)
 	ParseRSAKeyParms(keyParms []byte) (*TPMRSAKeyParms, error)
 	ParseKeyParmsFromReader(reader *bytes.Reader) (*TPMKeyParms, error)
+	ParsePubKeyFromReader(reader *bytes.Reader) (*TPMPubKey, error)
+	ParseStorePubKeyFromReader(reader *bytes.Reader) (*TPMStorePubkey, error)
 	ParseIdentityRequest(data []byte) (*TPMIdentityReq, error)
 	ParseSymmetricKey(data []byte) (*TPMSymmetricKey, error)
 	ParseIdentityProof(data []byte) (*TPMIdentityProof, error)
@@ -355,10 +357,137 @@ func (u *DefaultTPM12Utils) ParseSymmetricKey(keyBytes []byte) (*TPMSymmetricKey
 }
 
 // ParseIdentityProof from bytes to TPMIdentityProof.
-func (u *DefaultTPM12Utils) ParseIdentityProof(_ []byte) (*TPMIdentityProof, error) {
-	// TODO: Implement the parsing of the identity proof.
-	// For now, we just return empty data.
-	return &TPMIdentityProof{}, nil
+func (u *DefaultTPM12Utils) ParseIdentityProof(idProofBytes []byte) (*TPMIdentityProof, error) {
+	// ParseIdentityProof from bytes to TPMIdentityProof.
+	reader := bytes.NewReader(idProofBytes)
+	result := &TPMIdentityProof{}
+
+	// Read TPMStructVer (4 bytes).
+	tpmStructVer, err := readUint32(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read TPMStructVer: %w", err)
+	}
+	result.TPMStructVer = tpmStructVer
+
+	// Read AttestationIdentityKey (TPM_PUBKEY).
+	aik, err := u.ParsePubKeyFromReader(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse AttestationIdentityKey: %w", err)
+	}
+	result.AttestationIdentityKey = *aik
+
+	// Read LabelArea size (4 bytes).
+	labelAreaSize, err := readUint32(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read LabelArea size: %w", err)
+	}
+
+	// Read LabelArea.
+	labelArea, err := readBytes(reader, labelAreaSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read LabelArea: %w", err)
+	}
+	result.LabelArea = labelArea
+
+	// Read IdentityBinding size (4 bytes).
+	identityBindingSize, err := readNonZeroUint32(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read IdentityBinding size: %w", err)
+	}
+
+	// Read IdentityBinding.
+	identityBinding, err := readBytes(reader, identityBindingSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read IdentityBinding: %w", err)
+	}
+	result.IdentityBinding = identityBinding
+
+	// Read EndorsementCredential size (4 bytes).
+	endorsementCredentialSize, err := readUint32(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read EndorsementCredential size: %w", err)
+	}
+
+	// Read EndorsementCredential.
+	endorsementCredential, err := readBytes(reader, endorsementCredentialSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read EndorsementCredential: %w", err)
+	}
+	result.EndorsementCredential = endorsementCredential
+
+	// Read PlatformCredential size (4 bytes).
+	platformCredentialSize, err := readUint32(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read PlatformCredential size: %w", err)
+	}
+
+	// Read PlatformCredential.
+	platformCredential, err := readBytes(reader, platformCredentialSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read PlatformCredential: %w", err)
+	}
+	result.PlatformCredential = platformCredential
+
+	// Read ConformanceCredential size (4 bytes).
+	conformanceCredentialSize, err := readUint32(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read ConformanceCredential size: %w", err)
+	}
+
+	// Read ConformanceCredential.
+	conformanceCredential, err := readBytes(reader, conformanceCredentialSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read ConformanceCredential: %w", err)
+	}
+	result.ConformanceCredential = conformanceCredential
+
+	if reader.Len() > 0 {
+		return nil, fmt.Errorf("leftover bytes in TPM_IDENTITY_PROOF block after parsing: %d", reader.Len())
+	}
+
+	return result, nil
+}
+
+// ParsePubKeyFromReader parses a TPM_PUBKEY structure from a bytes.Reader.
+func (u *DefaultTPM12Utils) ParsePubKeyFromReader(reader *bytes.Reader) (*TPMPubKey, error) {
+	result := &TPMPubKey{}
+
+	// Read AlgorithmParms (TPM_KEY_PARMS).
+	algorithmParms, err := u.ParseKeyParmsFromReader(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse AlgorithmParms: %w", err)
+	}
+	result.AlgorithmParms = *algorithmParms
+
+	// Read Pubkey (TPM_STORE_PUBKEY).
+	pubkey, err := u.ParseStorePubKeyFromReader(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse Pubkey: %w", err)
+	}
+	result.Pubkey = *pubkey
+
+	return result, nil
+}
+
+// ParseStorePubKeyFromReader parses a TPM_STORE_PUBKEY structure from a bytes.Reader.
+func (u *DefaultTPM12Utils) ParseStorePubKeyFromReader(reader *bytes.Reader) (*TPMStorePubkey, error) {
+	result := &TPMStorePubkey{}
+
+	// Read keyLength (4 bytes).
+	keyLength, err := readUint32(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read keyLength: %w", err)
+	}
+	result.KeyLength = keyLength
+
+	// Read key.
+	key, err := readBytes(reader, keyLength)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read key: %w", err)
+	}
+	result.Key = key
+
+	return result, nil
 }
 
 // EncryptWithPublicKey encrypts data using a public key.
