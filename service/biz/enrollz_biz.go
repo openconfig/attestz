@@ -20,6 +20,9 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
+
+	// #nosec
+	"crypto/sha1"
 	"crypto/x509"
 	"fmt"
 	"io"
@@ -594,8 +597,24 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 		return err
 	}
 
-	// TODO: Construct TPM_IDENTITY_CONTENTS and hash it
-	var identityContentsHash []byte
+	// Construct TPM_IDENTITY_CONTENTS
+	identityContents, err := req.Deps.ConstructIdentityContents(issuerPublicKey)
+	if err != nil {
+		return fmt.Errorf("failed to construct identity contents: %w", err)
+	}
+
+	// Serialize the identity contents.
+	identityContentsBytes, err := req.Deps.SerializeIdentityContents(identityContents)
+	if err != nil {
+		return fmt.Errorf("failed to serialize identity contents: %w", err)
+	}
+
+	// #nosec Hash the serialized identity contents using SHA1.
+	hasher := sha1.New()
+	if _, err := hasher.Write(identityContentsBytes); err != nil {
+		return fmt.Errorf("failed to write to hasher: %w", err)
+	}
+	identityContentsHash := hasher.Sum(nil)
 
 	// Verify signature of TPM_IDENTITY_CONTENTS in Identity proof using AIK pub key
 	isValid, err := req.Deps.VerifySignature(ctx, identityProof.AttestationIdentityKey.PubKey.Key, identityProof.IdentityBinding, identityContentsHash, hash)
