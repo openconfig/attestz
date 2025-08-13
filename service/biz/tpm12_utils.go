@@ -20,6 +20,7 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
+	"math"
 
 	// #nosec
 	"crypto/sha1"
@@ -30,20 +31,19 @@ import (
 )
 
 const (
-	_ TPMEncodingScheme = iota // Encryption schemes.
-	EsNone
-	EsRSAEsPKCSv15
-	EsRSAEsOAEPSHA1MGF1
-	EsSymCTR
-	EsSymOFB
-	EsSymCBCPKCS5 = 0xff // esSymCBCPKCS5 was taken from go-tspi
+	// Encryption schemes based on TPM 1.2 Spec.
+	EsNone              TPMEncodingScheme = 0x0001
+	EsRSAEsPKCSv15      TPMEncodingScheme = 0x0002
+	EsRSAEsOAEPSHA1MGF1 TPMEncodingScheme = 0x0003
+	EsSymCTR            TPMEncodingScheme = 0x0004
+	EsSymOFB            TPMEncodingScheme = 0x0005
+	EsSymCBCPKCS5       TPMEncodingScheme = 0xff // EsSymCBCPKCS5 was taken from go-tspi
 
-	// Signature schemes. These are only valid under AlgRSA.
-	_ TPMSignatureScheme = iota
-	SsNone
-	SsRSASaPKCS1v15SHA1
-	SsRSASaPKCS1v15DER
-	SsRSASaPKCS1v15INFO
+	// Signature schemes based on TPM 1.2 Spec. These are only valid under AlgRSA.
+	SsNone              TPMSignatureScheme = 0x0001
+	SsRSASaPKCS1v15SHA1 TPMSignatureScheme = 0x0002
+	SsRSASaPKCS1v15DER  TPMSignatureScheme = 0x0003
+	SsRSASaPKCS1v15INFO TPMSignatureScheme = 0x0004
 )
 
 // Note: All the uint values in TPM_* structures in this file use big endian (network byte order).
@@ -82,8 +82,8 @@ type TPMRSAKeyParms struct {
 	Exponent  []byte
 }
 
-// TPMStorePubkey represents a stored public key - TPM_STORE_PUBKEY from TPM 1.2 specification.
-type TPMStorePubkey struct {
+// TPMStorePubKey represents a stored public key - TPM_STORE_PUBKEY from TPM 1.2 specification.
+type TPMStorePubKey struct {
 	KeyLength uint32 // Length of the public key in bytes.
 	Key       []byte // The public key data.
 }
@@ -91,7 +91,7 @@ type TPMStorePubkey struct {
 // TPMPubKey represents a TPM public key - TPM_PUBKEY from TPM 1.2 specification.
 type TPMPubKey struct {
 	AlgorithmParms TPMKeyParms    // Parameters defining the key algorithm.
-	Pubkey         TPMStorePubkey // The public key itself.
+	PubKey         TPMStorePubKey // The public key itself.
 }
 
 // TPMSymmetricKey represents a TPM symmetric key - TPM_SYMMETRIC_KEY from TPM 1.2 specification.
@@ -146,6 +146,12 @@ type TPM12Utils interface {
 	EncryptWithAes(key []byte, data []byte) ([]byte, error)
 	DecryptWithSymmetricKey(ctx context.Context, symKey []byte, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error)
 	VerifySignature(ctx context.Context, pubKey []byte, signature []byte, data []byte, hash crypto.Hash) (bool, error)
+	SerializeStorePubKey(pubKey *TPMStorePubKey) ([]byte, error)
+	SerializeRSAKeyParms(rsaParms *TPMRSAKeyParms) ([]byte, error)
+	SerializeSymmetricKeyParms(symParms *TPMSymmetricKeyParms) ([]byte, error)
+	SerializeKeyParms(keyParms *TPMKeyParms) ([]byte, error)
+	SerializePubKey(pubKey *TPMPubKey) ([]byte, error)
+	SerializeIdentityContents(identityContents *TPMIdentityContents) ([]byte, error)
 }
 
 // DefaultTPM12Utils is a concrete implementation of the TPM12Utils interface.
@@ -454,4 +460,152 @@ func (u *DefaultTPM12Utils) VerifySignature(ctx context.Context, pubKey []byte, 
 	// TODO: Implement the signature verification using a public key.
 	// For now, we just return true.
 	return true, nil
+}
+
+// SerializeStorePubKey serializes a TPMStorePubKey to bytes.
+func (u *DefaultTPM12Utils) SerializeStorePubKey(pubKey *TPMStorePubKey) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := binary.Write(&buf, binary.BigEndian, pubKey.KeyLength); err != nil {
+		return nil, fmt.Errorf("failed to write the pubKey length to the buffer: %w", err)
+	}
+
+	buf.Write(pubKey.Key)
+
+	return buf.Bytes(), nil
+}
+
+// SerializeRSAKeyParms serializes a TPMRSAKeyParms to bytes.
+func (u *DefaultTPM12Utils) SerializeRSAKeyParms(rsaParms *TPMRSAKeyParms) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := binary.Write(&buf, binary.BigEndian, rsaParms.KeyLength); err != nil {
+		return nil, fmt.Errorf("failed to write the key length to the buffer: %w", err)
+	}
+	if err := binary.Write(&buf, binary.BigEndian, rsaParms.NumPrimes); err != nil {
+		return nil, fmt.Errorf("failed to write the number of primes to the buffer: %w", err)
+	}
+	expLen := len(rsaParms.Exponent)
+	if expLen > math.MaxUint32 {
+		return nil, fmt.Errorf("rsa.Parms.exponent length (%d) exceeds maximum uint32 size", expLen)
+	}
+	if err := binary.Write(&buf, binary.BigEndian, uint32(expLen)); err != nil {
+		return nil, fmt.Errorf("failed to write the exponent length to the buffer: %w", err)
+	}
+
+	buf.Write(rsaParms.Exponent)
+
+	return buf.Bytes(), nil
+}
+
+// SerializeSymmetricKeyParms serializes a TPMSymmetricKeyParms to bytes.
+func (u *DefaultTPM12Utils) SerializeSymmetricKeyParms(symParms *TPMSymmetricKeyParms) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := binary.Write(&buf, binary.BigEndian, symParms.KeyLength); err != nil {
+		return nil, fmt.Errorf("failed to write the key length to the buffer: %w", err)
+	}
+	if err := binary.Write(&buf, binary.BigEndian, symParms.BlockSize); err != nil {
+		return nil, fmt.Errorf("failed to write the block size to the buffer: %w", err)
+	}
+	ivLen := len(symParms.IV)
+	if ivLen > math.MaxUint32 {
+		return nil, fmt.Errorf("symParms.IV length (%d) exceeds maximum uint32 size", ivLen)
+	}
+	if err := binary.Write(&buf, binary.BigEndian, uint32(ivLen)); err != nil {
+		return nil, fmt.Errorf("failed to write the IV length to the buffer: %w", err)
+	}
+
+	buf.Write(symParms.IV)
+
+	return buf.Bytes(), nil
+}
+
+// SerializeKeyParms serializes a TPMKeyParms to bytes.
+func (u *DefaultTPM12Utils) SerializeKeyParms(keyParms *TPMKeyParms) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := binary.Write(&buf, binary.BigEndian, uint32(keyParms.AlgID)); err != nil {
+		return nil, fmt.Errorf("failed to write the algorithm ID to the buffer: %w", err)
+	}
+	if err := binary.Write(&buf, binary.BigEndian, uint16(keyParms.EncScheme)); err != nil {
+		return nil, fmt.Errorf("failed to write the encoding scheme to the buffer: %w", err)
+	}
+	if err := binary.Write(&buf, binary.BigEndian, uint16(keyParms.SigScheme)); err != nil {
+		return nil, fmt.Errorf("failed to write the signing scheme to the buffer: %w", err)
+	}
+
+	var paramBytes []byte
+	var err error
+	switch keyParms.AlgID {
+	case tpm12.AlgRSA:
+		if keyParms.Params.RSAParams != nil {
+			paramBytes, err = u.SerializeRSAKeyParms(keyParms.Params.RSAParams)
+			if err != nil {
+				return nil, fmt.Errorf("failed to serialize RSA key params: %w", err)
+			}
+		}
+	case tpm12.AlgAES128, tpm12.AlgAES192, tpm12.AlgAES256:
+		if keyParms.Params.SymParams != nil {
+			paramBytes, err = u.SerializeSymmetricKeyParms(keyParms.Params.SymParams)
+			if err != nil {
+				return nil, fmt.Errorf("failed to serialize symmetric key params: %w", err)
+			}
+		}
+	default:
+		// Other algorithms like SHA, HMAC, MGF1 have no params.
+		if keyParms.Params.RSAParams != nil || keyParms.Params.SymParams != nil {
+			return nil, fmt.Errorf("unexpected params for algorithm %v: %+v", keyParms.AlgID, keyParms.Params)
+		}
+	}
+
+	paramLen := len(paramBytes)
+	if paramLen > math.MaxUint32 {
+		return nil, fmt.Errorf("params length (%d) exceeds maximum uint32 size", paramLen)
+	}
+	if err := binary.Write(&buf, binary.BigEndian, uint32(paramLen)); err != nil {
+		return nil, fmt.Errorf("failed to write the params length to the buffer: %w", err)
+	}
+
+	buf.Write(paramBytes)
+
+	return buf.Bytes(), nil
+}
+
+// SerializePubKey serializes a TPMPubKey to bytes.
+func (u *DefaultTPM12Utils) SerializePubKey(pubKey *TPMPubKey) ([]byte, error) {
+	var buf bytes.Buffer
+	keyParmsBytes, err := u.SerializeKeyParms(&pubKey.AlgorithmParms)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize AlgorithmParms: %w", err)
+	}
+
+	buf.Write(keyParmsBytes)
+
+	pubKeyBytes, err := u.SerializeStorePubKey(&pubKey.PubKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize PubKey: %w", err)
+	}
+
+	buf.Write(pubKeyBytes)
+
+	return buf.Bytes(), nil
+}
+
+// SerializeIdentityContents serializes a TPMIdentityContents to bytes.
+func (u *DefaultTPM12Utils) SerializeIdentityContents(identityContents *TPMIdentityContents) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := binary.Write(&buf, binary.BigEndian, identityContents.TPMStructVer); err != nil {
+		return nil, fmt.Errorf("failed to write the struct version to the buffer: %w", err)
+	}
+	if err := binary.Write(&buf, binary.BigEndian, identityContents.Ordinal); err != nil {
+		return nil, fmt.Errorf("failed to write the ordinal to the buffer: %w", err)
+	}
+
+	buf.Write(identityContents.LabelPrivCADigest)
+
+	identityPubKeyBytes, err := u.SerializePubKey(&identityContents.IdentityPubKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize IdentityPubKey: %w", err)
+	}
+
+	buf.Write(identityPubKeyBytes)
+
+	return buf.Bytes(), nil
 }

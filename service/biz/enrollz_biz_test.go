@@ -1021,7 +1021,7 @@ func generateDummyTPMIdentityProof(t *testing.T, pubKey *rsa.PublicKey, identity
 	}
 	return &TPMIdentityProof{
 		AttestationIdentityKey: TPMPubKey{
-			Pubkey: TPMStorePubkey{
+			PubKey: TPMStorePubKey{
 				Key: publicKeyBytes,
 			},
 		},
