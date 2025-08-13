@@ -1434,3 +1434,224 @@ func TestParsePubKeyFromReader_Failure(t *testing.T) {
 		})
 	}
 }
+
+// BuildIdentityProofBytesOptions provides options for creating TPMIdentityProof bytes for testing.
+// Fields left nil will use default values within the build function.
+type BuildIdentityProofBytesOptions struct {
+	TPMStructVer          *TPMStructVer
+	AIK                   *TPMPubKey
+	LabelArea             []byte
+	IdentityBinding       []byte
+	EndorsementCredential []byte
+	PlatformCredential    []byte
+	ConformanceCredential []byte
+}
+
+func buildIdentityProofBytes(t *testing.T, opts BuildIdentityProofBytesOptions) []byte {
+	t.Helper()
+	buf := new(bytes.Buffer)
+
+	ver := GetDefaultTPMStructVer()
+	if opts.TPMStructVer != nil {
+		ver = *opts.TPMStructVer
+	}
+	err := binary.Write(buf, binary.BigEndian, ver)
+	if err != nil {
+		t.Fatalf("Failed to write TPMStructVer: %v", err)
+	}
+
+	aik := defaultTestAik()
+	if opts.AIK != nil {
+		aik = *opts.AIK
+	}
+	u := &DefaultTPM12Utils{}
+	aikBytes, err := u.SerializePubKey(&aik)
+	if err != nil {
+		t.Fatalf("Failed to serialize AIK: %v", err)
+	}
+	buf.Write(aikBytes)
+
+	label := []byte("label")
+	if opts.LabelArea != nil {
+		label = opts.LabelArea
+	}
+	binaryWriteUint32(buf, uint32(len(label)))
+	buf.Write(label)
+
+	binding := []byte("binding")
+	if opts.IdentityBinding != nil {
+		binding = opts.IdentityBinding
+	}
+	binaryWriteUint32(buf, uint32(len(binding)))
+	buf.Write(binding)
+
+	endorse := []byte("endorse")
+	if opts.EndorsementCredential != nil {
+		endorse = opts.EndorsementCredential
+	}
+	binaryWriteUint32(buf, uint32(len(endorse)))
+	buf.Write(endorse)
+
+	platform := []byte("platform")
+	if opts.PlatformCredential != nil {
+		platform = opts.PlatformCredential
+	}
+	binaryWriteUint32(buf, uint32(len(platform)))
+	buf.Write(platform)
+
+	conform := []byte("conform")
+	if opts.ConformanceCredential != nil {
+		conform = opts.ConformanceCredential
+	}
+	binaryWriteUint32(buf, uint32(len(conform)))
+	buf.Write(conform)
+
+	return buf.Bytes()
+}
+
+func TestParseIdentityProof_Success(t *testing.T) {
+	defaultAIK := defaultTestAik()
+	testCases := []struct {
+		name     string
+		options  BuildIdentityProofBytesOptions
+		expected *TPMIdentityProof
+	}{
+		{
+			name:    "Valid Identity Proof",
+			options: BuildIdentityProofBytesOptions{}, // Use all defaults
+			expected: &TPMIdentityProof{
+				TPMStructVer:           GetDefaultTPMStructVer(),
+				AttestationIdentityKey: defaultAIK,
+				LabelArea:              []byte("label"),
+				IdentityBinding:        []byte("binding"),
+				EndorsementCredential:  []byte("endorse"),
+				PlatformCredential:     []byte("platform"),
+				ConformanceCredential:  []byte("conform"),
+			},
+		},
+		{
+			name: "Valid Identity Proof with empty credentials",
+			options: BuildIdentityProofBytesOptions{
+				LabelArea:             []byte{},
+				EndorsementCredential: []byte{},
+			},
+			expected: &TPMIdentityProof{
+				TPMStructVer:           GetDefaultTPMStructVer(),
+				AttestationIdentityKey: defaultAIK,
+				LabelArea:              []byte{},
+				IdentityBinding:        []byte("binding"),
+				EndorsementCredential:  []byte{},
+				PlatformCredential:     []byte("platform"),
+				ConformanceCredential:  []byte("conform"),
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			input := buildIdentityProofBytes(t, tc.options)
+			u := &DefaultTPM12Utils{}
+			result, err := u.ParseIdentityProof(input)
+			if err != nil {
+				t.Fatalf("ParseIdentityProof(%v) returned err: %v, want nil", tc.options, err)
+			}
+
+			if !cmp.Equal(result, tc.expected, cmp.AllowUnexported(TPMKeyParms{})) {
+				t.Errorf("ParseIdentityProof mismatch:\nGot: %+v\nExpected: %+v\nDiff: %s", result, tc.expected, cmp.Diff(result, tc.expected, cmp.AllowUnexported(TPMKeyParms{})))
+			}
+		})
+	}
+}
+
+func TestParseIdentityProof_Failure(t *testing.T) {
+	defaultAIK := defaultTestAik()
+	u := &DefaultTPM12Utils{}
+	validAIKBytes, err := u.SerializePubKey(&defaultAIK)
+	if err != nil {
+		t.Fatalf("Failed to serialize AIK: %v", err)
+	}
+
+	testCases := []struct {
+		name          string
+		input         []byte
+		expectedError string
+	}{
+		{
+			// Not enough bytes for TPMStructVer (needs 4).
+			name:          "Input too short for TPMStructVer",
+			input:         []byte{1, 2, 3},
+			expectedError: "failed to read TPMStructVer",
+		},
+		{
+			// Truncated after TPMStructVer, during AIK parsing.
+			name: "Input too short for AIK",
+			input: func() []byte {
+				buf := new(bytes.Buffer)
+				if err := binary.Write(buf, binary.BigEndian, GetDefaultTPMStructVer()); err != nil {
+					t.Fatalf("Failed to write TPMStructVer: %v", err)
+				}
+				buf.Write([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
+				return buf.Bytes()
+			}(),
+			expectedError: "failed to parse AttestationIdentityKey",
+		},
+		{
+			// Truncated after AIK, before LabelArea size.
+			name: "Input too short for LabelArea size",
+			input: func() []byte {
+				buf := new(bytes.Buffer)
+				if err := binary.Write(buf, binary.BigEndian, GetDefaultTPMStructVer()); err != nil {
+					t.Fatalf("Failed to write TPMStructVer: %v", err)
+				}
+				buf.Write(validAIKBytes)
+				return buf.Bytes()
+			}(),
+			expectedError: "failed to read LabelArea size",
+		},
+		{
+			// LabelArea size is 10, but only 5 bytes of data are provided.
+			name: "Input too short for LabelArea data",
+			input: func() []byte {
+				buf := new(bytes.Buffer)
+				if err := binary.Write(buf, binary.BigEndian, GetDefaultTPMStructVer()); err != nil {
+					t.Fatalf("Failed to write TPMStructVer: %v", err)
+				}
+				buf.Write(validAIKBytes)
+				binaryWriteUint32(buf, 10) // LabelArea size
+				buf.Write([]byte("label")) // Only 5 bytes
+				return buf.Bytes()
+			}(),
+			expectedError: "failed to read LabelArea",
+		},
+		{
+			// Truncated after LabelArea, before IdentityBinding size.
+			name: "Input too short for IdentityBinding size",
+			input: func() []byte {
+				buf := new(bytes.Buffer)
+				if err := binary.Write(buf, binary.BigEndian, GetDefaultTPMStructVer()); err != nil {
+					t.Fatalf("Failed to write TPMStructVer: %v", err)
+				}
+				buf.Write(validAIKBytes)
+				binaryWriteUint32(buf, 5) // LabelArea size
+				buf.Write([]byte("label"))
+				return buf.Bytes()
+			}(),
+			expectedError: "failed to read IdentityBinding size",
+		},
+		{
+			// Extra bytes appended to a valid structure.
+			name:          "Leftover bytes",
+			input:         append(buildIdentityProofBytes(t, BuildIdentityProofBytesOptions{}), 0xDE, 0xAD),
+			expectedError: "leftover bytes in TPM_IDENTITY_PROOF block",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			u := &DefaultTPM12Utils{}
+			_, err := u.ParseIdentityProof(tc.input)
+			if err == nil || !strings.Contains(err.Error(), tc.expectedError) {
+				t.Errorf("ParseIdentityProof(%v) got error %v, want error containing %q", tc.input, err, tc.expectedError)
+			}
+		})
+	}
+}
