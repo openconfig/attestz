@@ -1053,3 +1053,220 @@ func TestSerializeIdentityContents(t *testing.T) {
 		t.Errorf("SerializeIdentityContents(%+v) mismatch (-want +got):\n%s", identityContents, diff)
 	}
 }
+
+// CreateStorePubKeyBytesOptions provides options for creating TPM_STORE_PUBKEY bytes.
+type CreateStorePubKeyBytesOptions struct {
+	Key []byte
+}
+
+// createStorePubKeyBytes creates a byte slice representing a TPM_STORE_PUBKEY structure.
+func createStorePubKeyBytes(opts CreateStorePubKeyBytesOptions) []byte {
+	buffer := new(bytes.Buffer)
+	binaryWriteUint32(buffer, uint32(len(opts.Key)))
+	buffer.Write(opts.Key)
+	return buffer.Bytes()
+}
+
+// CreatePubKeyBytesOptions provides options for creating TPM_PUBKEY bytes.
+type CreatePubKeyBytesOptions struct {
+	AlgID     tpm12.Algorithm
+	EncScheme TPMEncodingScheme
+	SigScheme TPMSignatureScheme
+	Parms     []byte
+	PubKey    []byte
+}
+
+// createPubKeyBytes creates a byte slice representing a TPM_PUBKEY structure.
+func createPubKeyBytes(opts CreatePubKeyBytesOptions) []byte {
+	buffer := new(bytes.Buffer)
+	buffer.Write(createKeyParmsBytes(opts.AlgID, opts.EncScheme, opts.SigScheme, opts.Parms))
+	buffer.Write(createStorePubKeyBytes(CreateStorePubKeyBytesOptions{Key: opts.PubKey}))
+	return buffer.Bytes()
+}
+
+func TestParseStorePubKeyFromReader_Success(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    []byte
+		expected *TPMStorePubKey
+	}{
+		{
+			name:  "Valid TPMStorePubKey",
+			input: createStorePubKeyBytes(CreateStorePubKeyBytesOptions{Key: []byte{1, 2, 3, 4}}),
+			expected: &TPMStorePubKey{
+				KeyLength: 4,
+				Key:       []byte{1, 2, 3, 4},
+			},
+		},
+		{
+			name:  "Valid Empty TPMStorePubKey",
+			input: createStorePubKeyBytes(CreateStorePubKeyBytesOptions{Key: []byte{}}),
+			expected: &TPMStorePubKey{
+				KeyLength: 0,
+				Key:       []byte{},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			reader := bytes.NewReader(tc.input)
+			u := &DefaultTPM12Utils{}
+			result, err := u.ParseStorePubKeyFromReader(reader)
+
+			assertError(t, err, "", "ParseStorePubKeyFromReader")
+
+			if err == nil {
+				if !cmp.Equal(result, tc.expected) {
+					t.Errorf("ParseStorePubKeyFromReader mismatch:\nGot: %+v\nExpected: %+v", result, tc.expected)
+				}
+				if reader.Len() != 0 {
+					t.Errorf("ParseStorePubKeyFromReader left unread bytes: %d", reader.Len())
+				}
+			}
+		})
+	}
+}
+
+func TestParseStorePubKeyFromReader_Failure(t *testing.T) {
+	testCases := []struct {
+		name          string
+		input         []byte
+		expectedError string
+	}{
+		{
+			name:          "Input too short for KeyLength",
+			input:         []byte{1, 2, 3},
+			expectedError: "failed to read keyLength",
+		},
+		{
+			name:          "Input too short for Key",
+			input:         createStorePubKeyBytes(CreateStorePubKeyBytesOptions{Key: []byte{1, 2, 3, 4}})[:7],
+			expectedError: "failed to read key",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			reader := bytes.NewReader(tc.input)
+			u := &DefaultTPM12Utils{}
+			_, err := u.ParseStorePubKeyFromReader(reader)
+			assertError(t, err, tc.expectedError, "ParseStorePubKeyFromReader")
+		})
+	}
+}
+
+func TestParsePubKeyFromReader_Success(t *testing.T) {
+	defaultOpts := CreatePubKeyBytesOptions{
+		AlgID:     tpm12.AlgRSA,
+		EncScheme: EsRSAEsPKCSv15,
+		SigScheme: SsRSASaPKCS1v15SHA1,
+		Parms:     createRSAKeyParmsBytes(2048, 2, 3, []byte{1, 0, 1}),
+		PubKey:    make([]byte, 256),
+	}
+
+	testCases := []struct {
+		name     string
+		input    []byte
+		expected *TPMPubKey
+	}{
+		{
+			name:  "Valid TPMPubKey",
+			input: createPubKeyBytes(defaultOpts),
+			expected: &TPMPubKey{
+				AlgorithmParms: TPMKeyParms{
+					AlgID:     tpm12.AlgRSA,
+					EncScheme: EsRSAEsPKCSv15,
+					SigScheme: SsRSASaPKCS1v15SHA1,
+					Params: TPMParams{
+						RSAParams: &TPMRSAKeyParms{
+							KeyLength: 2048,
+							NumPrimes: 2,
+							Exponent:  []byte{1, 0, 1},
+						},
+					},
+				},
+				PubKey: TPMStorePubKey{
+					KeyLength: 256,
+					Key:       make([]byte, 256),
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			reader := bytes.NewReader(tc.input)
+			u := &DefaultTPM12Utils{}
+			result, err := u.ParsePubKeyFromReader(reader)
+
+			assertError(t, err, "", "ParsePubKeyFromReader")
+
+			if err == nil {
+				if !cmp.Equal(result, tc.expected) {
+					t.Errorf("ParsePubKeyFromReader mismatch:\nGot: %+v\nExpected: %+v", result, tc.expected)
+				}
+				if reader.Len() != 0 {
+					t.Errorf("ParsePubKeyFromReader left unread bytes: %d", reader.Len())
+				}
+			}
+		})
+	}
+}
+
+func TestParsePubKeyFromReader_Failure(t *testing.T) {
+	defaultOpts := CreatePubKeyBytesOptions{
+		AlgID:     tpm12.AlgRSA,
+		EncScheme: EsRSAEsPKCSv15,
+		SigScheme: SsRSASaPKCS1v15SHA1,
+		Parms:     createRSAKeyParmsBytes(2048, 2, 3, []byte{1, 0, 1}),
+		PubKey:    make([]byte, 256),
+	}
+
+	testCases := []struct {
+		name          string
+		input         []byte
+		expectedError string
+	}{
+		{
+			name: "Invalid AlgorithmParms",
+			input: createPubKeyBytes(CreatePubKeyBytesOptions{
+				AlgID:     tpm12.AlgRSA,
+				EncScheme: EsRSAEsPKCSv15,
+				SigScheme: SsRSASaPKCS1v15SHA1,
+				Parms:     []byte{1}, // Invalid parms
+				PubKey:    make([]byte, 256),
+			}),
+			expectedError: "failed to parse AlgorithmParms",
+		},
+		{
+			name: "Invalid PubKey",
+			input: func() []byte {
+				buffer := new(bytes.Buffer)
+				buffer.Write(createKeyParmsBytes(defaultOpts.AlgID, defaultOpts.EncScheme, defaultOpts.SigScheme, defaultOpts.Parms))
+				buffer.Write([]byte{1, 2, 3}) // Invalid TPMStorePubKey
+				return buffer.Bytes()
+			}(),
+			expectedError: "failed to parse PubKey",
+		},
+		{
+			name:          "Input too short for AlgorithmParms",
+			input:         createPubKeyBytes(defaultOpts)[:5],
+			expectedError: "failed to parse AlgorithmParms",
+		},
+		{
+			name:          "Input too short for PubKey",
+			input:         createPubKeyBytes(defaultOpts)[:len(createKeyParmsBytes(defaultOpts.AlgID, defaultOpts.EncScheme, defaultOpts.SigScheme, defaultOpts.Parms))+2],
+			expectedError: "failed to parse PubKey",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			reader := bytes.NewReader(tc.input)
+			u := &DefaultTPM12Utils{}
+			_, err := u.ParsePubKeyFromReader(reader)
+			assertError(t, err, tc.expectedError, "ParsePubKeyFromReader")
+		})
+	}
+}
