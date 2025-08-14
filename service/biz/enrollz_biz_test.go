@@ -41,7 +41,6 @@ type stubEnrollzInfraDeps struct {
 	SwitchOwnerCaClient
 	EnrollzDeviceClient
 	TpmCertVerifier
-	ROTDBClient
 
 	// Request params that would be captured in stubbed deps' function calls.
 	issueOwnerIakCertReq       *IssueOwnerIakCertReq
