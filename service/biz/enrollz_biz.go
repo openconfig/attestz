@@ -154,9 +154,6 @@ type EnrollzInfraDeps interface {
 
 	// Parser and verifier of IAK and IDevID certs.
 	TpmCertVerifier
-
-	// Client to fetch the EK Public Key from the RoT database.
-	ROTDBClient
 }
 
 // RotateAIKCertInfraDeps is the infra-specific dependencies of the RotateAIKCert business logic.
