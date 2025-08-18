@@ -101,25 +101,43 @@ type TPMSymmetricKey struct {
 	Key       []byte
 }
 
+// TPMStructVer represents the TPM_STRUCT_VER from TPM 1.2 specification.
+type TPMStructVer struct {
+	Major    uint8 // MUST be 0x01
+	Minor    uint8 // MUST be 0x01
+	RevMajor uint8 // MUST be 0x00
+	RevMinor uint8 // MUST be 0x00
+}
+
+// GetDefaultTPMStructVer returns the default value for TPMStructVer as per TCG Spec.
+func GetDefaultTPMStructVer() TPMStructVer {
+	return TPMStructVer{
+		Major:    0x01,
+		Minor:    0x01,
+		RevMajor: 0x00,
+		RevMinor: 0x00,
+	}
+}
+
 // TPMIdentityProof is the structure that contains the identity proof.
 // TPM_IDENTITY_PROOF from TPM 1.2 specification.
 type TPMIdentityProof struct {
-	TPMStructVer           uint32    // Version of the TPM structure.
-	AttestationIdentityKey TPMPubKey // Attestation Identity Key (AIK) public key - TPM_PUBKEY.
-	LabelArea              []byte    // Text label for the new identity.
-	IdentityBinding        []byte    // Signature value of identity binding.
-	EndorsementCredential  []byte    // TPM endorsement credential.
-	PlatformCredential     []byte    // TPM platform credential.
-	ConformanceCredential  []byte    // TPM conformance credential.
+	TPMStructVer           TPMStructVer // Version of the TPM structure.
+	AttestationIdentityKey TPMPubKey    // Attestation Identity Key (AIK) public key - TPM_PUBKEY.
+	LabelArea              []byte       // Text label for the new identity.
+	IdentityBinding        []byte       // Signature value of identity binding.
+	EndorsementCredential  []byte       // TPM endorsement credential.
+	PlatformCredential     []byte       // TPM platform credential.
+	ConformanceCredential  []byte       // TPM conformance credential.
 }
 
 // TPMIdentityContents is the structure that contains the identity contents.
 // TPM_IDENTITY_CONTENTS from TPM 1.2 specification.
 type TPMIdentityContents struct {
-	TPMStructVer      uint32    // Version of the TPM structure.
-	Ordinal           uint32    // Ordinal of the structure.
-	LabelPrivCADigest []byte    // Hash of the label private CA.
-	IdentityPubKey    TPMPubKey // Identity Key (AIK) public key - TPM_PUBKEY.
+	TPMStructVer      TPMStructVer // Version of the TPM structure.
+	Ordinal           uint32       // Ordinal of the structure.
+	LabelPrivCADigest []byte       // Hash of the label private CA.
+	IdentityPubKey    TPMPubKey    // Identity Key (AIK) public key - TPM_PUBKEY.
 }
 
 // TPMIdentityReq is a response from the TPM containing the identity proof and binding.
@@ -152,6 +170,8 @@ type TPM12Utils interface {
 	SerializeKeyParms(keyParms *TPMKeyParms) ([]byte, error)
 	SerializePubKey(pubKey *TPMPubKey) ([]byte, error)
 	SerializeIdentityContents(identityContents *TPMIdentityContents) ([]byte, error)
+	ConstructPubKey(publicKey *rsa.PublicKey) (*TPMPubKey, error)
+	ConstructIdentityContents(publicKey *rsa.PublicKey) (*TPMIdentityContents, error)
 }
 
 // DefaultTPM12Utils is a concrete implementation of the TPM12Utils interface.
@@ -608,4 +628,83 @@ func (u *DefaultTPM12Utils) SerializeIdentityContents(identityContents *TPMIdent
 	buf.Write(identityPubKeyBytes)
 
 	return buf.Bytes(), nil
+}
+
+// ConstructPubKey creates a TPMPubKey from an rsa.PublicKey.
+func (u *DefaultTPM12Utils) ConstructPubKey(publicKey *rsa.PublicKey) (*TPMPubKey, error) {
+	if publicKey == nil || publicKey.N == nil {
+		return nil, fmt.Errorf("publicKey or its modulus cannot be nil")
+	}
+
+	e := publicKey.E
+	if e > math.MaxUint32 {
+		return nil, fmt.Errorf("exponent (%d) exceeds maximum uint32 size", e)
+	}
+	exponent := uint32(e) // #nosec G115 -- e is checked against math.MaxUint32
+	if exponent == 0 {
+		exponent = 65537 // Default RSA exponent
+	}
+
+	b := publicKey.N.BitLen()
+	if b > math.MaxUint32 {
+		return nil, fmt.Errorf("publicKey bit length (%d) exceeds maximum uint32 size", b)
+	}
+	bitLen := uint32(b) // #nosec G115 -- b is checked against math.MaxUint32
+
+	keyBytes := publicKey.N.Bytes()
+	b = len(keyBytes)
+	if b > math.MaxUint32 {
+		return nil, fmt.Errorf("publicKey byte length (%d) exceeds maximum uint32 size", b)
+	}
+	byteLen := uint32(b) // #nosec G115 -- b is checked against math.MaxUint32
+
+	return &TPMPubKey{
+		AlgorithmParms: TPMKeyParms{
+			AlgID:     tpm12.AlgRSA,
+			EncScheme: EsRSAEsOAEPSHA1MGF1,
+			SigScheme: SsRSASaPKCS1v15SHA1,
+			Params: TPMParams{
+				RSAParams: &TPMRSAKeyParms{
+					KeyLength: bitLen,
+					NumPrimes: 2,
+					Exponent:  binary.BigEndian.AppendUint32([]byte{}, exponent),
+				},
+			},
+		},
+		PubKey: TPMStorePubKey{
+			KeyLength: byteLen,
+			Key:       keyBytes,
+		},
+	}, nil
+}
+
+// ConstructIdentityContents constructs the TPM_IDENTITY_CONTENTS structure.
+func (u *DefaultTPM12Utils) ConstructIdentityContents(publicKey *rsa.PublicKey) (*TPMIdentityContents, error) {
+	tpmPubKey, err := u.ConstructPubKey(publicKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to construct TPMPubKey: %w", err)
+	}
+
+	privacyCABytes, err := u.SerializePubKey(tpmPubKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize privacyCA: %w", err)
+	}
+
+	identityLabel := []byte("Identity")
+
+	hashInput := append(identityLabel, privacyCABytes...)
+
+	// #nosec
+	hasher := sha1.New()
+	if _, err := hasher.Write(hashInput); err != nil {
+		return nil, fmt.Errorf("failed to write to hasher: %w", err)
+	}
+	labelPrivCADigest := hasher.Sum(nil)
+
+	return &TPMIdentityContents{
+		TPMStructVer:      GetDefaultTPMStructVer(),
+		Ordinal:           0x00000079,
+		LabelPrivCADigest: labelPrivCADigest,
+		IdentityPubKey:    *tpmPubKey,
+	}, nil
 }

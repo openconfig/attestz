@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/binary"
 
 	// #nosec
 	"crypto/sha1"
@@ -1030,7 +1031,7 @@ func TestSerializeIdentityContents(t *testing.T) {
 	sampleDigest := bytes.Repeat([]byte{0xCD}, 20) // SHA1 is 20 bytes
 
 	identityContents := &TPMIdentityContents{
-		TPMStructVer:      0x01010000,
+		TPMStructVer:      GetDefaultTPMStructVer(),
 		Ordinal:           0x00000079,
 		LabelPrivCADigest: sampleDigest,
 		IdentityPubKey:    *samplePubKey,
@@ -1038,7 +1039,7 @@ func TestSerializeIdentityContents(t *testing.T) {
 
 	// Manually construct the expected byte slice
 	var expectedBuf bytes.Buffer
-	binaryWriteUint32(&expectedBuf, identityContents.TPMStructVer)
+	expectedBuf.Write([]byte{0x01, 0x01, 0x00, 0x00}) // serialized default struct version
 	binaryWriteUint32(&expectedBuf, identityContents.Ordinal)
 	expectedBuf.Write(identityContents.LabelPrivCADigest)
 	expectedBuf.Write(identityPubKeyBytes)
@@ -1052,4 +1053,126 @@ func TestSerializeIdentityContents(t *testing.T) {
 	if diff := cmp.Diff(expectedBytes, gotBytes); diff != "" {
 		t.Errorf("SerializeIdentityContents(%+v) mismatch (-want +got):\n%s", identityContents, diff)
 	}
+}
+
+func TestConstructPubKey(t *testing.T) {
+	u := &DefaultTPM12Utils{}
+	// Success Cases
+	t.Run("Success", func(t *testing.T) {
+		privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+		if err != nil {
+			t.Fatalf("Failed to generate RSA key: %v", err)
+		}
+		publicKey := &privateKey.PublicKey
+
+		exponent := uint32(publicKey.E)
+		if exponent == 0 {
+			exponent = 65537
+		}
+
+		want := &TPMPubKey{
+			AlgorithmParms: TPMKeyParms{
+				AlgID:     tpm12.AlgRSA,
+				EncScheme: EsRSAEsOAEPSHA1MGF1,
+				SigScheme: SsRSASaPKCS1v15SHA1,
+				Params: TPMParams{
+					RSAParams: &TPMRSAKeyParms{
+						KeyLength: uint32(publicKey.N.BitLen()),
+						NumPrimes: 2,
+						Exponent:  binary.BigEndian.AppendUint32([]byte{}, exponent),
+					},
+				},
+			},
+			PubKey: TPMStorePubKey{
+				KeyLength: uint32(len(publicKey.N.Bytes())),
+				Key:       publicKey.N.Bytes(),
+			},
+		}
+
+		got, err := u.ConstructPubKey(publicKey)
+		if err != nil {
+			t.Errorf("ConstructTPMPubKey(%+v) returned unexpected error: %v", publicKey, err)
+		}
+
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("ConstructTPMPubKey(%+v) returned unexpected diff (-want +got):\n%s", publicKey, diff)
+		}
+	})
+
+	// Failure Cases
+	testCases := []struct {
+		name          string
+		publicKey     *rsa.PublicKey
+		expectedError string
+	}{
+		{
+			name:          "Nil PublicKey",
+			publicKey:     nil,
+			expectedError: "publicKey or its modulus cannot be nil",
+		},
+		{
+			name:          "Nil PublicKey.N",
+			publicKey:     &rsa.PublicKey{},
+			expectedError: "publicKey or its modulus cannot be nil",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := u.ConstructPubKey(tc.publicKey)
+			assertError(t, err, tc.expectedError, "ConstructTPMPubKey")
+		})
+	}
+}
+
+func TestConstructIdentityContents(t *testing.T) {
+	u := &DefaultTPM12Utils{}
+	// Success Case
+	t.Run("Success", func(t *testing.T) {
+		privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+		if err != nil {
+			t.Fatalf("Failed to generate RSA key: %v", err)
+		}
+		publicKey := &privateKey.PublicKey
+
+		// Construct the expected IdentityPubKey
+		expectedTPMPubKey, err := u.ConstructPubKey(publicKey)
+		if err != nil {
+			t.Fatalf("Failed to construct expected TPMPubKey: %v", err)
+		}
+
+		// Manually construct the expected LabelPrivCADigest
+		privacyCABytes, err := u.SerializePubKey(expectedTPMPubKey)
+		if err != nil {
+			t.Fatalf("Failed to serialize TPMPubKey for test: %v", err)
+		}
+		identityLabel := []byte("Identity")
+		hashInput := append(identityLabel, privacyCABytes...)
+		hasher := sha1.New()
+		hasher.Write(hashInput)
+		expectedDigest := hasher.Sum(nil)
+
+		want := &TPMIdentityContents{
+			TPMStructVer:      GetDefaultTPMStructVer(),
+			Ordinal:           0x00000079,
+			LabelPrivCADigest: expectedDigest,
+			IdentityPubKey:    *expectedTPMPubKey,
+		}
+
+		got, err := u.ConstructIdentityContents(publicKey)
+		if err != nil {
+			t.Errorf("ConstructIdentityContents(%+v) returned unexpected error: %v", publicKey, err)
+		}
+
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("ConstructIdentityContents(%+v) returned unexpected diff (-want +got):\n%s", publicKey, diff)
+		}
+	})
+
+	// Failure Case
+	t.Run("Failure - Nil PublicKey", func(t *testing.T) {
+		_, err := u.ConstructIdentityContents(nil)
+		expectedError := "failed to construct TPMPubKey: publicKey or its modulus cannot be nil"
+		assertError(t, err, expectedError, "ConstructIdentityContents")
+	})
 }
