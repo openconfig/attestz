@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"io"
 
@@ -607,8 +608,19 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 		return err
 	}
 
-	// TODO: Add appropriate fields to IssueAikCertReq{}
-	issueAikCertResp, err := req.Deps.IssueAikCert(ctx, &IssueAikCertReq{})
+	// Get AIK public key from identityProof and convert to PEM.
+	aikPubKey := identityProof.AttestationIdentityKey.PubKey.Key
+	pemBlock := &pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: aikPubKey,
+	}
+	aikPubPem := pem.EncodeToMemory(pemBlock)
+
+	// Issue AIK cert
+	issueAikCertResp, err := req.Deps.IssueAikCert(ctx, &IssueAikCertReq{
+		CardID:    resp.GetControlCardId(),
+		AikPubPem: string(aikPubPem),
+	})
 	if err != nil {
 		err = fmt.Errorf("failed to issue AIK certificate: %w", err)
 		log.ErrorContext(ctx, err)
