@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/aes"
+	"crypto/cipher"
 
 	// #nosec
 	"crypto/sha1"
