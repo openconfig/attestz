@@ -13,3 +13,7 @@ check-file = false
 [default.extend-identifiers]
 "Parms" = "Parms"
 "PARMS" = "PARMS"
+
+[default.extend-words]
+# Allow "Encrypter" as it is a valid function name in Go's crypto/cipher package.
+Encrypter = "Encrypter"
