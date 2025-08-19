@@ -17,7 +17,6 @@ package biz
 import (
 	"context"
 	"crypto"
-	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"errors"
@@ -831,103 +830,119 @@ type stubRotateAIKCertInfraDeps struct {
 	SwitchOwnerCaClient
 	EnrollzDeviceClient
 	TpmCertVerifier
-	ROTdbClient
+	ROTDBClient
 	TPM12Utils
 
 	fetchEkReq      *FetchEKReq
 	issueAikCertReq *IssueAikCertReq
 
-	// Stubbed responses to simulate behavior of deps without implementing them.
-	fetchEkResp                 *FetchEKResp
-	parseIdentityReqResp        *TPMIdentityReq
-	parseSymmetricKeyResp       *TPMSymmetricKey
-	parseIdentityProofResp      *TPMIdentityProof
-	verifySignatureResp         bool
-	issueAikCertResp            *IssueAikCertResp
-	encryptWithAesResp          []byte
-	encryptWithPublicKeyResp    []byte
-	decryptWithPrivateKeyResp   []byte
-	decryptWithSymmetricKeyResp []byte
-	rotateAikCertClient         epb.TpmEnrollzService_RotateAIKCertClient
-	rotateAikCertStreamError    error
+	// Specific errors for each stubbed method. If nil, a default success value is returned.
+	fetchEkErr                   error
+	parseIdentityReqErr          error
+	parseSymmetricKeyErr         error
+	parseIdentityProofErr        error
+	verifySignatureErr           error
+	issueAikCertErr              error
+	encryptWithAesErr            error
+	encryptWithPublicKeyErr      error
+	decryptWithPrivateKeyErr     error
+	decryptWithSymmetricKeyErr   error
+	constructIdentityContentsErr error
+	serializeIdentityContentsErr error
+	rotateAikCertClient          epb.TpmEnrollzService_RotateAIKCertClient
+	rotateAikCertStreamError     error
 
-	// If we need to simulate an error response from any of the deps, then set
-	// the dep's response to nil and populate this error field.
-	errorResp error
+	// Optional: Custom return values for specific success scenarios.
+	customIssueAikCertResp    *IssueAikCertResp
+	customVerifySignatureResp bool
 }
 
 func (s *stubRotateAIKCertInfraDeps) FetchEK(ctx context.Context, req *FetchEKReq) (*FetchEKResp, error) {
-	// Validate that no stub (captured) request params were set prior to execution.
 	if s.fetchEkReq != nil {
 		return nil, fmt.Errorf("FetchEK unexpected req %+v", req)
 	}
 	s.fetchEkReq = req
-
-	// If a stubbed response is not set, then return error, otherwise return the response.
-	if s.fetchEkResp == nil {
-		return nil, s.errorResp
+	if s.fetchEkErr != nil {
+		return nil, s.fetchEkErr
 	}
-	return s.fetchEkResp, nil
+	return &FetchEKResp{EkPublicKey: &rsa.PublicKey{}}, nil // Default success
 }
 
 func (s *stubRotateAIKCertInfraDeps) ParseIdentityRequest(data []byte) (*TPMIdentityReq, error) {
-	if s.parseIdentityReqResp == nil {
-		return nil, s.errorResp
+	if s.parseIdentityReqErr != nil {
+		return nil, s.parseIdentityReqErr
 	}
-	return s.parseIdentityReqResp, nil
+	return &TPMIdentityReq{}, nil // Default success
 }
 
 func (s *stubRotateAIKCertInfraDeps) ParseSymmetricKey(data []byte) (*TPMSymmetricKey, error) {
-	if s.parseSymmetricKeyResp == nil {
-		return nil, s.errorResp
+	if s.parseSymmetricKeyErr != nil {
+		return nil, s.parseSymmetricKeyErr
 	}
-	return s.parseSymmetricKeyResp, nil
+	return &TPMSymmetricKey{}, nil // Default success
 }
 
 func (s *stubRotateAIKCertInfraDeps) ParseIdentityProof(data []byte) (*TPMIdentityProof, error) {
-	if s.parseIdentityProofResp == nil {
-		return nil, s.errorResp
+	if s.parseIdentityProofErr != nil {
+		return nil, s.parseIdentityProofErr
 	}
-	return s.parseIdentityProofResp, nil
+	return &TPMIdentityProof{}, nil // Default success
 }
 
 func (s *stubRotateAIKCertInfraDeps) VerifySignature(ctx context.Context, pubKey []byte, signature []byte, data []byte, hash crypto.Hash) (bool, error) {
-	if s.verifySignatureResp == false {
-		return false, s.errorResp
+	if s.verifySignatureErr != nil {
+		return false, s.verifySignatureErr
 	}
-	return s.verifySignatureResp, nil
+	if s.customVerifySignatureResp != false {
+		return s.customVerifySignatureResp, nil
+	}
+	return true, nil // Default success
 }
 
 func (s *stubRotateAIKCertInfraDeps) EncryptWithAes(key []byte, data []byte) ([]byte, error) {
-	if s.encryptWithAesResp == nil {
-		return nil, s.errorResp
+	if s.encryptWithAesErr != nil {
+		return nil, s.encryptWithAesErr
 	}
-	return s.encryptWithAesResp, nil
+	return []byte("encrypted"), nil // Default success
 }
 
 func (s *stubRotateAIKCertInfraDeps) EncryptWithPublicKey(ctx context.Context, publicKey *rsa.PublicKey, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error) {
-	if s.encryptWithPublicKeyResp == nil {
-		return nil, s.errorResp
+	if s.encryptWithPublicKeyErr != nil {
+		return nil, s.encryptWithPublicKeyErr
 	}
-	return s.encryptWithPublicKeyResp, nil
+	return []byte("encrypted key"), nil // Default success
 }
 
 func (s *stubRotateAIKCertInfraDeps) DecryptWithPrivateKey(ctx context.Context, privateKey *rsa.PrivateKey, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error) {
-	if s.decryptWithPrivateKeyResp == nil {
-		return nil, s.errorResp
+	if s.decryptWithPrivateKeyErr != nil {
+		return nil, s.decryptWithPrivateKeyErr
 	}
-	return s.decryptWithPrivateKeyResp, nil
+	return []byte("decrypted sym key"), nil // Default success
 }
 
 func (s *stubRotateAIKCertInfraDeps) DecryptWithSymmetricKey(ctx context.Context, symKey []byte, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error) {
-	if s.decryptWithSymmetricKeyResp == nil {
-		return nil, s.errorResp
+	if s.decryptWithSymmetricKeyErr != nil {
+		return nil, s.decryptWithSymmetricKeyErr
 	}
-	return s.decryptWithSymmetricKeyResp, nil
+	return []byte("decrypted identity proof"), nil // Default success
+}
+
+func (s *stubRotateAIKCertInfraDeps) ConstructIdentityContents(*rsa.PublicKey) (*TPMIdentityContents, error) {
+	if s.constructIdentityContentsErr != nil {
+		return nil, s.constructIdentityContentsErr
+	}
+	return &TPMIdentityContents{}, nil // Default success
+}
+
+func (s *stubRotateAIKCertInfraDeps) SerializeIdentityContents(*TPMIdentityContents) ([]byte, error) {
+	if s.serializeIdentityContentsErr != nil {
+		return nil, s.serializeIdentityContentsErr
+	}
+	return []byte("serialized identity contents"), nil // Default success
 }
 
 func (s *stubRotateAIKCertInfraDeps) RotateAIKCert(ctx context.Context, opts ...grpc.CallOption) (epb.TpmEnrollzService_RotateAIKCertClient, error) {
-	if s.rotateAikCertClient == nil {
+	if s.rotateAikCertStreamError != nil {
 		return nil, s.rotateAikCertStreamError
 	}
 	return s.rotateAikCertClient, nil
@@ -939,12 +954,13 @@ func (s *stubRotateAIKCertInfraDeps) IssueAikCert(ctx context.Context, req *Issu
 		return nil, fmt.Errorf("IssueAikCert unexpected req %+v", s.issueAikCertReq)
 	}
 	s.issueAikCertReq = req
-
-	// If a stubbed response is not set, then return error, otherwise return the response.
-	if s.issueAikCertResp == nil {
-		return nil, s.errorResp
+	if s.issueAikCertErr != nil {
+		return nil, s.issueAikCertErr
 	}
-	return s.issueAikCertResp, nil
+	if s.customIssueAikCertResp != nil {
+		return s.customIssueAikCertResp, nil
+	}
+	return &IssueAikCertResp{AikCertPem: "Some AIK cert PEM"}, nil // Default success
 }
 
 type stubRotateAIKCertClient struct {
@@ -976,58 +992,6 @@ func (c *stubRotateAIKCertClient) CloseSend() error {
 	return c.closeSendError
 }
 
-func generateDummyTPMKeyParms(algID tpm12.Algorithm, encScheme TPMEncodingScheme) *TPMKeyParms {
-	return &TPMKeyParms{
-		AlgID:     algID,
-		EncScheme: encScheme,
-		SigScheme: SsNone,
-	}
-}
-
-func generateDummyRSAKey(t *testing.T) *rsa.PrivateKey {
-	t.Helper()
-	privateKey, err := rsa.GenerateKey(rand.Reader, RSAkeySize2048)
-	if err != nil {
-		t.Fatalf("Failed to generate dummy RSA key: %v", err)
-	}
-	return privateKey
-}
-
-func generateDummyTPMIdentityReq(t *testing.T, asymAlgID tpm12.Algorithm, asymEncScheme TPMEncodingScheme, symAlgID tpm12.Algorithm, symEncScheme TPMEncodingScheme, asymBlob []byte, symBlob []byte) *TPMIdentityReq {
-	t.Helper()
-	return &TPMIdentityReq{
-		AsymAlgorithm: *generateDummyTPMKeyParms(asymAlgID, asymEncScheme),
-		SymAlgorithm:  *generateDummyTPMKeyParms(symAlgID, symEncScheme),
-		AsymBlob:      asymBlob,
-		SymBlob:       symBlob,
-	}
-}
-
-func generateDummyTPMSymmetricKey(t *testing.T, algID tpm12.Algorithm, encScheme TPMEncodingScheme, key []byte) *TPMSymmetricKey {
-	t.Helper()
-	return &TPMSymmetricKey{
-		AlgID:     algID,
-		EncScheme: encScheme,
-		Key:       key,
-	}
-}
-
-func generateDummyTPMIdentityProof(t *testing.T, pubKey *rsa.PublicKey, identityBinding []byte) (*TPMIdentityProof, error) {
-	t.Helper()
-	publicKeyBytes, err := x509.MarshalPKIXPublicKey(pubKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal dummy public key: %v", err)
-	}
-	return &TPMIdentityProof{
-		AttestationIdentityKey: TPMPubKey{
-			Pubkey: TPMStorePubkey{
-				Key: publicKeyBytes,
-			},
-		},
-		IdentityBinding: identityBinding,
-	}, nil
-}
-
 func TestRotateAIKCert(t *testing.T) {
 	// Constants to be used in request params and stubbing.
 	controlCardSelection := &cpb.ControlCardSelection{
@@ -1042,70 +1006,51 @@ func TestRotateAIKCert(t *testing.T) {
 		ChassisSerialNumber: "Some chassis serial",
 	}
 	aikCert := "Some AIK cert PEM"
-	encryptedAikCert := []byte("encrypted AIK cert")
-	encryptedAesKey := []byte("encrypted AES key")
-	dummyEkKey := generateDummyRSAKey(t)
-	dummyIdentityReq := generateDummyTPMIdentityReq(t, tpm12.AlgRSA, EsRSAEsOAEPSHA1MGF1, tpm12.AlgAES256, EsSymCBCPKCS5, []byte("dummy asym blob"), []byte("dummy sym blob"))
-	dummySymKey := generateDummyTPMSymmetricKey(t, tpm12.AlgAES256, EsSymCBCPKCS5, []byte("dummy symmetric key"))
-	dummyIdentityProof, err := generateDummyTPMIdentityProof(t, &dummyEkKey.PublicKey, []byte("dummy identity binding"))
-	if err != nil {
-		t.Fatalf("Failed to generate dummy identity proof: %v", err)
+	errorResp := errors.New("Some error")
+
+	// Define the default responses for a successful stream.
+	defaultRecvResponses := []*epb.RotateAIKCertResponse{
+		{
+			Value: &epb.RotateAIKCertResponse_ApplicationIdentityRequest{
+				ApplicationIdentityRequest: []byte("dummy identity request"),
+			},
+			ControlCardId: vendorID,
+		},
+		{
+			Value: &epb.RotateAIKCertResponse_AikCert{
+				AikCert: aikCert,
+			},
+		},
 	}
 
-	errorResp := errors.New("Some error")
 	tests := []struct {
 		// Test description.
 		desc string
 		// Overall expected RotateAIKCert response.
 		wantErrResp error
-		// Stubbed responses to RotateAIKCertInfraDeps deps.
-		fetchEkResp                 *FetchEKResp
-		parseIdentityReqResp        *TPMIdentityReq
-		parseSymmetricKeyResp       *TPMSymmetricKey
-		parseIdentityProofResp      *TPMIdentityProof
-		verifySignatureResp         bool
-		issueAikCertResp            *IssueAikCertResp
-		encryptWithAesResp          []byte
-		encryptWithPublicKeyResp    []byte
-		decryptWithPrivateKeyResp   []byte
-		decryptWithSymmetricKeyResp []byte
-		rotateAikCertClient         epb.TpmEnrollzService_RotateAIKCertClient
-		rotateAikCertStreamError    error
-		// Stubbed errors
-		sendError      error
-		recvError      error
-		closeSendError error
-		errorResp      error
+		// Specific errors to inject into stubbed dependencies.
+		fetchEkErr                   error
+		parseIdentityReqErr          error
+		parseSymmetricKeyErr         error
+		parseIdentityProofErr        error
+		verifySignatureErr           error
+		issueAikCertErr              error
+		encryptWithAesErr            error
+		encryptWithPublicKeyErr      error
+		decryptWithPrivateKeyErr     error
+		decryptWithSymmetricKeyErr   error
+		constructIdentityContentsErr error
+		serializeIdentityContentsErr error
+		rotateAikCertStreamError     error
+		// Optional: Custom receive responses for the stubbed client.
+		recvResponses []*epb.RotateAIKCertResponse
+		// Optional: Custom return values for specific success scenarios.
+		customIssueAikCertResp    *IssueAikCertResp
+		customVerifySignatureResp bool
 	}{
 		{
-			desc: "Successful AIK cert rotation",
-			fetchEkResp: &FetchEKResp{
-				EkPublicKey: &dummyEkKey.PublicKey,
-			},
-			parseIdentityReqResp:        dummyIdentityReq,
-			parseSymmetricKeyResp:       dummySymKey,
-			parseIdentityProofResp:      dummyIdentityProof,
-			verifySignatureResp:         true,
-			issueAikCertResp:            &IssueAikCertResp{AikCertPem: aikCert},
-			encryptWithAesResp:          encryptedAikCert,
-			encryptWithPublicKeyResp:    encryptedAesKey,
-			decryptWithPrivateKeyResp:   []byte("dummy sym key"),
-			decryptWithSymmetricKeyResp: []byte("dummy identity proof"),
-			rotateAikCertClient: &stubRotateAIKCertClient{
-				recvResponses: []*epb.RotateAIKCertResponse{
-					{
-						Value: &epb.RotateAIKCertResponse_ApplicationIdentityRequest{
-							ApplicationIdentityRequest: []byte("dummy identity request"),
-						},
-						ControlCardId: vendorID,
-					},
-					{
-						Value: &epb.RotateAIKCertResponse_AikCert{
-							AikCert: aikCert,
-						},
-					},
-				},
-			},
+			desc:          "Successful AIK cert rotation",
+			recvResponses: defaultRecvResponses,
 		},
 		{
 			desc:                     "Error initiating stream",
@@ -1115,260 +1060,236 @@ func TestRotateAIKCert(t *testing.T) {
 		{
 			desc:        "Error sending issuer public key",
 			wantErrResp: errorResp,
-			rotateAikCertClient: &stubRotateAIKCertClient{
-				sendError: errorResp,
+			recvResponses: []*epb.RotateAIKCertResponse{
+				{
+					Value: &epb.RotateAIKCertResponse_ApplicationIdentityRequest{
+						ApplicationIdentityRequest: []byte("dummy identity request"),
+					},
+					ControlCardId: vendorID,
+				},
 			},
 		},
 		{
-			desc:        "Error receiving application identity request",
-			wantErrResp: errorResp,
-			rotateAikCertClient: &stubRotateAIKCertClient{
-				recvError: errorResp,
+			desc:          "Error receiving application identity request",
+			wantErrResp:   errorResp,
+			recvResponses: []*epb.RotateAIKCertResponse{
+				// No responses, so Recv will error.
 			},
 		},
 		{
 			desc:        "Empty application identity request",
 			wantErrResp: errors.New("application_identity_request is empty"),
-			rotateAikCertClient: &stubRotateAIKCertClient{
-				recvResponses: []*epb.RotateAIKCertResponse{
-					{
-						Value: &epb.RotateAIKCertResponse_ApplicationIdentityRequest{
-							ApplicationIdentityRequest: []byte(""),
-						},
-						ControlCardId: vendorID,
+			recvResponses: []*epb.RotateAIKCertResponse{
+				{
+					Value: &epb.RotateAIKCertResponse_ApplicationIdentityRequest{
+						ApplicationIdentityRequest: []byte(""),
+					},
+					ControlCardId: vendorID,
+				},
+			},
+		},
+		{
+			desc:                "Error parsing application identity request",
+			wantErrResp:         errorResp,
+			parseIdentityReqErr: errorResp,
+			recvResponses:       defaultRecvResponses,
+		},
+		{
+			desc:                     "Error decrypting AsymBlob",
+			wantErrResp:              errorResp,
+			decryptWithPrivateKeyErr: errorResp,
+			recvResponses:            defaultRecvResponses,
+		},
+		{
+			desc:                 "Error parsing symmetric key",
+			wantErrResp:          errorResp,
+			parseSymmetricKeyErr: errorResp,
+			recvResponses:        defaultRecvResponses,
+		},
+		{
+			desc:                       "Error decrypting SymBlob",
+			wantErrResp:                errorResp,
+			decryptWithSymmetricKeyErr: errorResp,
+			recvResponses:              defaultRecvResponses,
+		},
+		{
+			desc:                  "Error parsing identity proof",
+			wantErrResp:           errorResp,
+			parseIdentityProofErr: errorResp,
+			recvResponses:         defaultRecvResponses,
+		},
+		{
+			desc:                         "Error constructing identity contents",
+			wantErrResp:                  errorResp,
+			constructIdentityContentsErr: errorResp,
+			recvResponses:                defaultRecvResponses,
+		},
+		{
+			desc:                         "Error serializing identity contents",
+			wantErrResp:                  errorResp,
+			serializeIdentityContentsErr: errorResp,
+			recvResponses:                defaultRecvResponses,
+		},
+		{
+			desc:               "Error verifying signature",
+			wantErrResp:        errorResp,
+			verifySignatureErr: errorResp,
+			recvResponses:      defaultRecvResponses,
+		},
+		{
+			desc:                      "Signature verification failed",
+			wantErrResp:               errors.New("identity contents signature is not valid"),
+			customVerifySignatureResp: false, // Override default true
+			recvResponses:             defaultRecvResponses,
+		},
+		{
+			desc:          "Error fetching EK",
+			wantErrResp:   errorResp,
+			fetchEkErr:    errorResp,
+			recvResponses: defaultRecvResponses,
+		},
+		{
+			desc:            "Error issuing AIK cert",
+			wantErrResp:     errorResp,
+			issueAikCertErr: errorResp,
+			recvResponses:   defaultRecvResponses,
+		},
+		{
+			desc:              "Error encrypting AIK cert",
+			wantErrResp:       errorResp,
+			encryptWithAesErr: errorResp,
+			recvResponses:     defaultRecvResponses,
+		},
+		{
+			desc:                    "Error encrypting AES key",
+			wantErrResp:             errorResp,
+			encryptWithPublicKeyErr: errorResp,
+			recvResponses:           defaultRecvResponses,
+		},
+		{
+			desc:                   "Empty device AIK cert",
+			wantErrResp:            fmt.Errorf("device AIK cert is empty"),
+			customIssueAikCertResp: &IssueAikCertResp{AikCertPem: aikCert},
+			recvResponses: []*epb.RotateAIKCertResponse{
+				{
+					Value: &epb.RotateAIKCertResponse_ApplicationIdentityRequest{
+						ApplicationIdentityRequest: []byte("dummy identity request"),
+					},
+					ControlCardId: vendorID,
+				},
+				{
+					Value: &epb.RotateAIKCertResponse_AikCert{
+						AikCert: "",
 					},
 				},
 			},
 		},
 		{
-			desc:        "Error parsing application identity request",
-			wantErrResp: errorResp,
-			rotateAikCertClient: &stubRotateAIKCertClient{
-				recvResponses: []*epb.RotateAIKCertResponse{
-					{
-						Value: &epb.RotateAIKCertResponse_ApplicationIdentityRequest{
-							ApplicationIdentityRequest: []byte("dummy identity request"),
-						},
-						ControlCardId: vendorID,
+			desc:                   "AIK certs do not match",
+			wantErrResp:            fmt.Errorf("AIK certificates do not match"),
+			customIssueAikCertResp: &IssueAikCertResp{AikCertPem: aikCert},
+			recvResponses: []*epb.RotateAIKCertResponse{
+				{
+					Value: &epb.RotateAIKCertResponse_ApplicationIdentityRequest{
+						ApplicationIdentityRequest: []byte("dummy identity request"),
+					},
+					ControlCardId: vendorID,
+				},
+				{
+					Value: &epb.RotateAIKCertResponse_AikCert{
+						AikCert: "Some other AIK cert",
 					},
 				},
 			},
-		},
-		{
-			desc:        "Error decrypting AsymBlob",
-			wantErrResp: errorResp,
-			rotateAikCertClient: &stubRotateAIKCertClient{
-				recvResponses: []*epb.RotateAIKCertResponse{
-					{
-						Value: &epb.RotateAIKCertResponse_ApplicationIdentityRequest{
-							ApplicationIdentityRequest: []byte("dummy identity request"),
-						},
-					},
-				},
-			},
-			parseIdentityReqResp:      dummyIdentityReq,
-			decryptWithPrivateKeyResp: nil,
-		},
-		{
-			desc:        "Error parsing symmetric key",
-			wantErrResp: errorResp,
-			rotateAikCertClient: &stubRotateAIKCertClient{
-				recvResponses: []*epb.RotateAIKCertResponse{
-					{
-						Value: &epb.RotateAIKCertResponse_ApplicationIdentityRequest{
-							ApplicationIdentityRequest: []byte("dummy identity request"),
-						},
-					},
-				},
-			},
-			parseIdentityReqResp:      dummyIdentityReq,
-			decryptWithPrivateKeyResp: []byte("dummy sym key"),
-		},
-		{
-			desc:        "Error decrypting SymBlob",
-			wantErrResp: errorResp,
-			rotateAikCertClient: &stubRotateAIKCertClient{
-				recvResponses: []*epb.RotateAIKCertResponse{
-					{
-						Value: &epb.RotateAIKCertResponse_ApplicationIdentityRequest{
-							ApplicationIdentityRequest: []byte("dummy identity request"),
-						},
-					},
-				},
-			},
-			parseIdentityReqResp:      dummyIdentityReq,
-			decryptWithPrivateKeyResp: []byte("dummy sym key"),
-			parseSymmetricKeyResp:     dummySymKey,
-		},
-		{
-			desc:        "Error parsing identity proof",
-			wantErrResp: errorResp,
-			rotateAikCertClient: &stubRotateAIKCertClient{
-				recvResponses: []*epb.RotateAIKCertResponse{
-					{
-						Value: &epb.RotateAIKCertResponse_ApplicationIdentityRequest{
-							ApplicationIdentityRequest: []byte("dummy identity request"),
-						},
-					},
-				},
-			},
-			parseIdentityReqResp:        dummyIdentityReq,
-			decryptWithPrivateKeyResp:   []byte("dummy sym key"),
-			parseSymmetricKeyResp:       dummySymKey,
-			decryptWithSymmetricKeyResp: []byte("dummy identity proof"),
-		},
-		{
-			desc:        "Error verifying signature",
-			wantErrResp: errorResp,
-			rotateAikCertClient: &stubRotateAIKCertClient{
-				recvResponses: []*epb.RotateAIKCertResponse{
-					{
-						Value: &epb.RotateAIKCertResponse_ApplicationIdentityRequest{
-							ApplicationIdentityRequest: []byte("dummy identity request"),
-						},
-					},
-				},
-			},
-			parseIdentityReqResp:        dummyIdentityReq,
-			decryptWithPrivateKeyResp:   []byte("dummy sym key"),
-			parseSymmetricKeyResp:       dummySymKey,
-			decryptWithSymmetricKeyResp: []byte("dummy identity proof"),
-			parseIdentityProofResp:      dummyIdentityProof,
-			verifySignatureResp:         false,
-		},
-		{
-			desc:        "Error fetching EK",
-			wantErrResp: errorResp,
-			fetchEkResp: nil,
-			rotateAikCertClient: &stubRotateAIKCertClient{
-				recvResponses: []*epb.RotateAIKCertResponse{
-					{
-						Value: &epb.RotateAIKCertResponse_ApplicationIdentityRequest{
-							ApplicationIdentityRequest: []byte("dummy identity request"),
-						},
-					},
-				},
-			},
-			parseIdentityReqResp:        dummyIdentityReq,
-			decryptWithPrivateKeyResp:   []byte("dummy sym key"),
-			parseSymmetricKeyResp:       dummySymKey,
-			decryptWithSymmetricKeyResp: []byte("dummy identity proof"),
-			parseIdentityProofResp:      dummyIdentityProof,
-			verifySignatureResp:         true,
-		},
-		{
-			desc:        "Empty device AIK cert",
-			wantErrResp: fmt.Errorf("device AIK cert is empty"),
-			rotateAikCertClient: &stubRotateAIKCertClient{
-				recvResponses: []*epb.RotateAIKCertResponse{
-					{
-						Value: &epb.RotateAIKCertResponse_ApplicationIdentityRequest{
-							ApplicationIdentityRequest: []byte("dummy identity request"),
-						},
-						ControlCardId: vendorID,
-					},
-					{
-						Value: &epb.RotateAIKCertResponse_AikCert{
-							AikCert: "",
-						},
-					},
-				},
-			},
-			parseIdentityReqResp:        dummyIdentityReq,
-			decryptWithPrivateKeyResp:   []byte("dummy sym key"),
-			parseSymmetricKeyResp:       dummySymKey,
-			decryptWithSymmetricKeyResp: []byte("dummy identity proof"),
-			parseIdentityProofResp:      dummyIdentityProof,
-			verifySignatureResp:         true,
-			issueAikCertResp:            &IssueAikCertResp{AikCertPem: aikCert},
-			encryptWithAesResp:          encryptedAikCert,
-			fetchEkResp: &FetchEKResp{
-				EkPublicKey: &dummyEkKey.PublicKey,
-			},
-			encryptWithPublicKeyResp: encryptedAesKey,
-		},
-		{
-			desc:        "AIK certs do not match",
-			wantErrResp: fmt.Errorf("AIK certificates do not match"),
-			rotateAikCertClient: &stubRotateAIKCertClient{
-				recvResponses: []*epb.RotateAIKCertResponse{
-					{
-						Value: &epb.RotateAIKCertResponse_ApplicationIdentityRequest{
-							ApplicationIdentityRequest: []byte("dummy identity request"),
-						},
-						ControlCardId: vendorID,
-					},
-					{
-						Value: &epb.RotateAIKCertResponse_AikCert{
-							AikCert: "Some other AIK cert",
-						},
-					},
-				},
-			},
-			parseIdentityReqResp:        dummyIdentityReq,
-			decryptWithPrivateKeyResp:   []byte("dummy sym key"),
-			parseSymmetricKeyResp:       dummySymKey,
-			decryptWithSymmetricKeyResp: []byte("dummy identity proof"),
-			parseIdentityProofResp:      dummyIdentityProof,
-			verifySignatureResp:         true,
-			issueAikCertResp:            &IssueAikCertResp{AikCertPem: aikCert},
-			encryptWithAesResp:          encryptedAikCert,
-			fetchEkResp: &FetchEKResp{
-				EkPublicKey: &dummyEkKey.PublicKey,
-			},
-			encryptWithPublicKeyResp: encryptedAesKey,
 		},
 		{
 			desc:        "Error sending finalize message",
 			wantErrResp: errorResp,
-			rotateAikCertClient: &stubRotateAIKCertClient{
-				recvResponses: []*epb.RotateAIKCertResponse{
-					{
-						Value: &epb.RotateAIKCertResponse_ApplicationIdentityRequest{
-							ApplicationIdentityRequest: []byte("dummy identity request"),
-						},
-						ControlCardId: vendorID,
+			recvResponses: []*epb.RotateAIKCertResponse{
+				{
+					Value: &epb.RotateAIKCertResponse_ApplicationIdentityRequest{
+						ApplicationIdentityRequest: []byte("dummy identity request"),
 					},
-					{
-						Value: &epb.RotateAIKCertResponse_AikCert{
-							AikCert: aikCert,
-						},
+					ControlCardId: vendorID,
+				},
+				{
+					Value: &epb.RotateAIKCertResponse_AikCert{
+						AikCert: aikCert,
 					},
 				},
-				sendError: errorResp,
 			},
-			parseIdentityReqResp:        dummyIdentityReq,
-			decryptWithPrivateKeyResp:   []byte("dummy sym key"),
-			parseSymmetricKeyResp:       dummySymKey,
-			decryptWithSymmetricKeyResp: []byte("dummy identity proof"),
-			parseIdentityProofResp:      dummyIdentityProof,
-			verifySignatureResp:         true,
-			issueAikCertResp:            &IssueAikCertResp{AikCertPem: aikCert},
-			encryptWithAesResp:          encryptedAikCert,
-			fetchEkResp: &FetchEKResp{
-				EkPublicKey: &dummyEkKey.PublicKey,
+			// sendError is handled directly in the stub's Send method.
+		},
+		{
+			desc:        "Error closing stream after finalize",
+			wantErrResp: errorResp,
+			recvResponses: []*epb.RotateAIKCertResponse{
+				{
+					Value: &epb.RotateAIKCertResponse_ApplicationIdentityRequest{
+						ApplicationIdentityRequest: []byte("dummy identity request"),
+					},
+					ControlCardId: vendorID,
+				},
+				{
+					Value: &epb.RotateAIKCertResponse_AikCert{
+						AikCert: aikCert,
+					},
+				},
+				{}, // Simulate a non-EOF response after finalize send
 			},
-			encryptWithPublicKeyResp: encryptedAesKey,
+			// closeSendError is handled directly in the stub's CloseSend method.
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
-			deps := &stubRotateAIKCertInfraDeps{
-				fetchEkResp:                 tc.fetchEkResp,
-				parseIdentityReqResp:        tc.parseIdentityReqResp,
-				parseSymmetricKeyResp:       tc.parseSymmetricKeyResp,
-				parseIdentityProofResp:      tc.parseIdentityProofResp,
-				verifySignatureResp:         tc.verifySignatureResp,
-				issueAikCertResp:            tc.issueAikCertResp,
-				encryptWithAesResp:          tc.encryptWithAesResp,
-				encryptWithPublicKeyResp:    tc.encryptWithPublicKeyResp,
-				decryptWithPrivateKeyResp:   tc.decryptWithPrivateKeyResp,
-				decryptWithSymmetricKeyResp: tc.decryptWithSymmetricKeyResp,
-				rotateAikCertClient:         tc.rotateAikCertClient,
-				rotateAikCertStreamError:    tc.rotateAikCertStreamError,
-				errorResp:                   tc.wantErrResp,
+			// Create a new stubRotateAIKCertClient for each test run.
+			stubClient := &stubRotateAIKCertClient{
+				recvResponses:   tc.recvResponses,
+				sendError:       tc.wantErrResp, // Inject send error if expected
+				recvError:       tc.wantErrResp, // Inject recv error if expected
+				closeSendError:  tc.wantErrResp, // Inject closeSend error if expected
+				recvResponseIdx: 0,
 			}
+			// Override specific errors if defined in the test case.
+			if tc.rotateAikCertStreamError != nil {
+				stubClient.recvError = tc.rotateAikCertStreamError
+				stubClient.sendError = tc.rotateAikCertStreamError
+				stubClient.closeSendError = tc.rotateAikCertStreamError
+			}
+			if tc.desc == "Error sending issuer public key" {
+				stubClient.sendError = errorResp
+				stubClient.recvError = nil // Don't error on recv for this case
+			}
+			if tc.desc == "Error receiving application identity request" {
+				stubClient.recvError = errorResp
+			}
+			if tc.desc == "Error sending finalize message" {
+				stubClient.sendError = errorResp
+			}
+			if tc.desc == "Error closing stream after finalize" {
+				stubClient.closeSendError = errorResp
+			}
+
+			deps := &stubRotateAIKCertInfraDeps{
+				fetchEkErr:                   tc.fetchEkErr,
+				parseIdentityReqErr:          tc.parseIdentityReqErr,
+				parseSymmetricKeyErr:         tc.parseSymmetricKeyErr,
+				parseIdentityProofErr:        tc.parseIdentityProofErr,
+				verifySignatureErr:           tc.verifySignatureErr,
+				issueAikCertErr:              tc.issueAikCertErr,
+				encryptWithAesErr:            tc.encryptWithAesErr,
+				encryptWithPublicKeyErr:      tc.encryptWithPublicKeyErr,
+				decryptWithPrivateKeyErr:     tc.decryptWithPrivateKeyErr,
+				decryptWithSymmetricKeyErr:   tc.decryptWithSymmetricKeyErr,
+				constructIdentityContentsErr: tc.constructIdentityContentsErr,
+				serializeIdentityContentsErr: tc.serializeIdentityContentsErr,
+				rotateAikCertStreamError:     tc.rotateAikCertStreamError,
+				rotateAikCertClient:          stubClient,
+				customIssueAikCertResp:       tc.customIssueAikCertResp,
+				customVerifySignatureResp:    tc.customVerifySignatureResp,
+			}
+
 			req := &RotateAIKCertReq{
 				ControlCardSelection: controlCardSelection,
 				Deps:                 deps,

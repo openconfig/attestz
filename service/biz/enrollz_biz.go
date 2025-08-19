@@ -20,7 +20,11 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
+
+	// #nosec
+	"crypto/sha1"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"io"
 
@@ -137,8 +141,8 @@ type FetchEKResp struct {
 	EkPublicKey *rsa.PublicKey
 }
 
-// ROTdbClient is a client to fetch the EK Public Key from the RoT.
-type ROTdbClient interface {
+// ROTDBClient is a client to fetch the EK Public Key from the RoT.
+type ROTDBClient interface {
 	// FetchEK fetches the EK Public Key from the RoT.
 	FetchEK(ctx context.Context, req *FetchEKReq) (*FetchEKResp, error)
 }
@@ -162,7 +166,7 @@ type RotateAIKCertInfraDeps interface {
 	EnrollzInfraDeps
 
 	// Client to fetch the EK Public Key from the RoT database.
-	ROTdbClient
+	ROTDBClient
 
 	// TPM 1.2 utility functions.
 	TPM12Utils
@@ -591,11 +595,27 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 		return err
 	}
 
-	// TODO: Construct TPM_IDENTITY_CONTENTS and hash it
-	var identityContentsHash []byte
+	// Construct TPM_IDENTITY_CONTENTS
+	identityContents, err := req.Deps.ConstructIdentityContents(issuerPublicKey)
+	if err != nil {
+		return fmt.Errorf("failed to construct identity contents: %w", err)
+	}
+
+	// Serialize the identity contents.
+	identityContentsBytes, err := req.Deps.SerializeIdentityContents(identityContents)
+	if err != nil {
+		return fmt.Errorf("failed to serialize identity contents: %w", err)
+	}
+
+	// #nosec Hash the serialized identity contents using SHA1.
+	hasher := sha1.New()
+	if _, err := hasher.Write(identityContentsBytes); err != nil {
+		return fmt.Errorf("failed to write to hasher: %w", err)
+	}
+	identityContentsHash := hasher.Sum(nil)
 
 	// Verify signature of TPM_IDENTITY_CONTENTS in Identity proof using AIK pub key
-	isValid, err := req.Deps.VerifySignature(ctx, identityProof.AttestationIdentityKey.Pubkey.Key, identityProof.IdentityBinding, identityContentsHash, hash)
+	isValid, err := req.Deps.VerifySignature(ctx, identityProof.AttestationIdentityKey.PubKey.Key, identityProof.IdentityBinding, identityContentsHash, hash)
 	if err != nil {
 		err = fmt.Errorf("failed to verify identity contents signature: %w", err)
 		log.ErrorContext(ctx, err)
@@ -607,8 +627,19 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 		return err
 	}
 
-	// TODO: Add appropriate fields to IssueAikCertReq{}
-	issueAikCertResp, err := req.Deps.IssueAikCert(ctx, &IssueAikCertReq{})
+	// Get AIK public key from identityProof and convert to PEM.
+	aikPubKey := identityProof.AttestationIdentityKey.PubKey.Key
+	pemBlock := &pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: aikPubKey,
+	}
+	aikPubPem := pem.EncodeToMemory(pemBlock)
+
+	// Issue AIK cert
+	issueAikCertResp, err := req.Deps.IssueAikCert(ctx, &IssueAikCertReq{
+		CardID:    resp.GetControlCardId(),
+		AikPubPem: string(aikPubPem),
+	})
 	if err != nil {
 		err = fmt.Errorf("failed to issue AIK certificate: %w", err)
 		log.ErrorContext(ctx, err)
