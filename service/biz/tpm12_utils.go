@@ -438,6 +438,53 @@ func (u *DefaultTPM12Utils) ParseIdentityProof(_ []byte) (*TPMIdentityProof, err
 	return &TPMIdentityProof{}, nil
 }
 
+// ParsePubKeyFromReader parses a TPM_PUBKEY structure from a bytes.Reader.
+// Link to spec: https://trustedcomputinggroup.org/wp-content/uploads/TPM-Main-Part-2-TPM-Structures_v1.2_rev116_01032011.pdf#page=103
+func (u *DefaultTPM12Utils) ParsePubKeyFromReader(reader *bytes.Reader) (*TPMPubKey, error) {
+	result := &TPMPubKey{}
+
+	// Read AlgorithmParms (TPM_KEY_PARMS).
+	algorithmParms, err := u.ParseKeyParmsFromReader(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse AlgorithmParms: %w", err)
+	}
+	result.AlgorithmParms = *algorithmParms
+
+	// Read PubKey (TPM_STORE_PUBKEY).
+	PubKey, err := u.ParseStorePubKeyFromReader(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse PubKey: %w", err)
+	}
+	result.PubKey = *PubKey
+
+	return result, nil
+}
+
+// ParseStorePubKeyFromReader parses a TPM_STORE_PUBKEY structure from a bytes.Reader.
+// Link to spec: https://trustedcomputinggroup.org/wp-content/uploads/TPM-Main-Part-2-TPM-Structures_v1.2_rev116_01032011.pdf#page=102
+func (u *DefaultTPM12Utils) ParseStorePubKeyFromReader(reader *bytes.Reader) (*TPMStorePubKey, error) {
+	result := &TPMStorePubKey{}
+
+	// Read keyLength (4 bytes).
+	keyLength, err := readUint32(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read keyLength: %w", err)
+	}
+	if keyLength == 0 {
+		return nil, fmt.Errorf("keyLength cannot be zero")
+	}
+	result.KeyLength = keyLength
+
+	// Read key.
+	key, err := readBytes(reader, keyLength)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read key: %w", err)
+	}
+	result.Key = key
+
+	return result, nil
+}
+
 // EncryptWithPublicKey encrypts data using a public key.
 func (u *DefaultTPM12Utils) EncryptWithPublicKey(ctx context.Context, publicKey *rsa.PublicKey, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error) {
 	// TODO: Implement the encryption using a public key.
