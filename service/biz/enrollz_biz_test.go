@@ -28,6 +28,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	tpm12 "github.com/google/go-tpm/tpm"
+	"github.com/google/tink/go/keyset"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -843,6 +844,7 @@ type stubRotateAIKCertInfraDeps struct {
 	parseIdentityProofErr        error
 	verifySignatureErr           error
 	issueAikCertErr              error
+	newAESGCMKeyErr              error
 	encryptWithAesErr            error
 	encryptWithPublicKeyErr      error
 	decryptWithPrivateKeyErr     error
@@ -899,7 +901,14 @@ func (s *stubRotateAIKCertInfraDeps) VerifySignature(ctx context.Context, pubKey
 	return true, nil // Default success
 }
 
-func (s *stubRotateAIKCertInfraDeps) EncryptWithAes(key []byte, data []byte) ([]byte, error) {
+func (s *stubRotateAIKCertInfraDeps) NewAESGCMKey(tpm12.Algorithm) (*keyset.Handle, []byte, error) {
+	if s.newAESGCMKeyErr != nil {
+		return nil, nil, s.newAESGCMKeyErr
+	}
+	return &keyset.Handle{}, []byte("key"), nil // Default success
+}
+
+func (s *stubRotateAIKCertInfraDeps) EncryptWithAes(kh *keyset.Handle, data []byte) ([]byte, error) {
 	if s.encryptWithAesErr != nil {
 		return nil, s.encryptWithAesErr
 	}
@@ -1035,6 +1044,7 @@ func TestRotateAIKCert(t *testing.T) {
 		parseIdentityProofErr        error
 		verifySignatureErr           error
 		issueAikCertErr              error
+		newAESGCMKeyErr              error
 		encryptWithAesErr            error
 		encryptWithPublicKeyErr      error
 		decryptWithPrivateKeyErr     error
@@ -1152,6 +1162,12 @@ func TestRotateAIKCert(t *testing.T) {
 			desc:            "Error issuing AIK cert",
 			wantErrResp:     errorResp,
 			issueAikCertErr: errorResp,
+			recvResponses:   defaultRecvResponses,
+		},
+		{
+			desc:            "Error creating AES GCM key",
+			wantErrResp:     errorResp,
+			newAESGCMKeyErr: errorResp,
 			recvResponses:   defaultRecvResponses,
 		},
 		{
