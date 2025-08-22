@@ -647,20 +647,22 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	}
 
 	// Create AES key
-	aesKey := make([]byte, 32)
-	if _, err := rand.Read(aesKey); err != nil {
-		err = fmt.Errorf("failed to generate AES key: %w", err)
+	// Create a new Tink AEAD keyset handle.
+	kh, serializedAESKey, err := req.Deps.NewAESGCMKey(tpm12.AlgAES256)
+	if err != nil {
+		err = fmt.Errorf("failed to create Tink AEAD keyset handle: %w", err)
 		log.ErrorContext(ctx, err)
 		return err
 	}
 
 	// Encrypt AIK cert with AES key.
-	encryptedAikCert, err := req.Deps.EncryptWithAes(aesKey, []byte(issueAikCertResp.AikCertPem))
+	encryptedAikCert, err := req.Deps.EncryptWithAes(kh, []byte(issueAikCertResp.AikCertPem))
 	if err != nil {
 		err = fmt.Errorf("failed to encrypt AIK certificate: %w", err)
 		log.ErrorContext(ctx, err)
 		return err
 	}
+
 	// Get EK Public Key from RoT database.
 	fetchEKResp, err := req.Deps.FetchEK(ctx, &FetchEKReq{
 		Serial:   resp.GetControlCardId().GetChassisSerialNumber(),
@@ -678,10 +680,10 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	}
 	ekPublicKey := fetchEKResp.EkPublicKey
 	ekAlgo := tpm12.AlgRSA
-	var ekEncScheme = EsRSAEsOAEPSHA1MGF1
+	ekEncScheme := EsRSAEsOAEPSHA1MGF1
 
 	// Encrypt AES key with EK public key.
-	encryptedAesKey, err := req.Deps.EncryptWithPublicKey(ctx, ekPublicKey, aesKey, ekAlgo, ekEncScheme)
+	encryptedAesKey, err := req.Deps.EncryptWithPublicKey(ctx, ekPublicKey, serializedAESKey, ekAlgo, ekEncScheme)
 	if err != nil {
 		err = fmt.Errorf("failed to encrypt AES key: %w", err)
 		log.ErrorContext(ctx, err)

@@ -14,6 +14,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	tpm12 "github.com/google/go-tpm/tpm"
+	"github.com/google/tink/go/aead"
+	"github.com/google/tink/go/insecurecleartextkeyset"
+	"github.com/google/tink/go/keyset"
 )
 
 // TODO: refactor tests to split success and failure cases, and make create bytes helpers more readable.
@@ -1430,6 +1433,137 @@ func TestParsePubKeyFromReader_Failure(t *testing.T) {
 			_, err := u.ParsePubKeyFromReader(reader)
 			if err == nil || !strings.Contains(err.Error(), tc.expectedError) {
 				t.Errorf("ParsePubKeyFromReader(%v) got error %v, want error containing %q", tc.input, err, tc.expectedError)
+			}
+		})
+	}
+}
+
+func TestNewAESGCMKeySuccess(t *testing.T) {
+	tests := []struct {
+		name string
+		algo tpm12.Algorithm
+	}{
+		{
+			name: "AES128",
+			algo: tpm12.AlgAES128,
+		},
+		{
+			name: "AES256",
+			algo: tpm12.AlgAES256,
+		},
+	}
+
+	u := &DefaultTPM12Utils{}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			kh, keyBytes, err := u.NewAESGCMKey(test.algo)
+			if err != nil {
+				t.Fatalf("NewAESGCMKey(%v) failed: %v", test.algo, err)
+			}
+			if kh == nil {
+				t.Errorf("NewAESGCMKey(%v) returned nil keyset handle", test.algo)
+			}
+			if len(keyBytes) == 0 {
+				t.Errorf("NewAESGCMKey(%v) returned empty key bytes", test.algo)
+			}
+
+			// Verify that the keyBytes can be read back into a keyset handle.
+			reader := bytes.NewReader(keyBytes)
+			_, err = insecurecleartextkeyset.Read(keyset.NewBinaryReader(reader))
+			if err != nil {
+				t.Errorf("Failed to read keyset from binary bytes: %v", err)
+			}
+		})
+	}
+}
+
+func TestNewAESGCMKeyFailure(t *testing.T) {
+	tests := []struct {
+		name string
+		algo tpm12.Algorithm
+	}{
+		{
+			name: "UnsupportedRSA",
+			algo: tpm12.AlgRSA,
+		},
+		{
+			name: "UnsupportedSHA1",
+			algo: tpm12.AlgSHA,
+		},
+		{
+			name: "UnsupportedHMAC",
+			algo: tpm12.AlgHMAC,
+		},
+	}
+
+	u := &DefaultTPM12Utils{}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			kh, keyBytes, err := u.NewAESGCMKey(test.algo)
+			if err == nil {
+				t.Errorf("NewAESGCMKey(%v) succeeded, want error", test.algo)
+			}
+			if kh != nil {
+				t.Errorf("NewAESGCMKey(%v) returned non-nil keyset handle: %v, want nil", test.algo, kh)
+			}
+			if keyBytes != nil {
+				t.Errorf("NewAESGCMKey(%v) returned non-nil key bytes: %v, want nil", test.algo, keyBytes)
+			}
+		})
+	}
+}
+
+func TestEncryptWithAes(t *testing.T) {
+	u := &DefaultTPM12Utils{}
+	kh, _, err := u.NewAESGCMKey(tpm12.AlgAES256)
+	if err != nil {
+		t.Fatalf("NewAESGCMKey() failed: %v", err)
+	}
+
+	testCases := []struct {
+		name      string
+		data      []byte
+		expectErr bool
+	}{
+		{
+			name:      "Successful Encryption",
+			data:      []byte("This is a secret message."),
+			expectErr: false,
+		},
+		{
+			name:      "Empty Data",
+			data:      []byte{},
+			expectErr: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ciphertext, err := u.EncryptWithAes(kh, tc.data)
+
+			if tc.expectErr {
+				if err == nil {
+					t.Errorf("EncryptWithAes(%v) expected an error, got nil", tc.data)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("EncryptWithAes(%v) returned an unexpected error: %v", tc.data, err)
+				}
+				if bytes.Equal(ciphertext, tc.data) && len(tc.data) > 0 {
+					t.Errorf("EncryptWithAes(%v) returned ciphertext equal to plaintext, expected different", tc.data)
+				}
+				// Decrypt to verify
+				a, err := aead.New(kh)
+				if err != nil {
+					t.Fatalf("Failed to create AEAD for decryption: %v", err)
+				}
+				decrypted, err := a.Decrypt(ciphertext, []byte(""))
+				if err != nil {
+					t.Errorf("Failed to decrypt ciphertext: %v", err)
+				}
+				if !bytes.Equal(decrypted, tc.data) {
+					t.Errorf("Decrypted data mismatch: got %v, want %v", decrypted, tc.data)
+				}
 			}
 		})
 	}
