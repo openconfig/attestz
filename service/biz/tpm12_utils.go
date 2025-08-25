@@ -550,56 +550,29 @@ func (u *DefaultTPM12Utils) EncryptWithAes(kh *keyset.Handle, data []byte) ([]by
 	return ciphertext, nil
 }
 
-// DecryptWithSymmetricKey decrypts data using a private key.
+// DecryptWithSymmetricKey decrypts data using a symmetric key.
 func (u *DefaultTPM12Utils) DecryptWithSymmetricKey(ctx context.Context, symKey []byte, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error) {
-	if encScheme != EsSymCBCPKCS5 {
-		return nil, fmt.Errorf("unsupported symmetric encryption scheme: %v", encScheme)
-	}
-
-	// Create a new AES cipher block from the symmetric key.
-	block, err := aes.NewCipher(symKey)
+	// Create a keyset handle from the binary keyset (symKey).
+	reader := keyset.NewBinaryReader(bytes.NewReader(symKey))
+	kh, err := insecurecleartextkeyset.Read(reader)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create AES cipher: %w", err)
+		return nil, fmt.Errorf("failed to read keyset from binary: %w", err)
 	}
 
-	// The IV is prepended to the ciphertext. For AES, the IV size is
-	// the same as the block size.
-	ivSize := block.BlockSize()
-	if len(data) < ivSize {
-		return nil, fmt.Errorf("ciphertext is shorter than IV size of %d bytes", ivSize)
+	// Get the AEAD primitive from the keyset handle.
+	a, err := aead.New(kh)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create AEAD primitive from keyset handle: %w", err)
 	}
 
-	// Extract the IV from the beginning of the data.
-	iv := data[:ivSize]
-	// The rest of the data is the actual ciphertext.
-	ciphertext := data[ivSize:]
-
-	// The ciphertext must be a multiple of the block size.
-	if len(ciphertext)%ivSize != 0 {
-		return nil, fmt.Errorf("ciphertext is not a multiple of the block size")
+	// Decrypt the data. Associated data must match what was used for encryption.
+	associatedData := []byte("")
+	plaintext, err := a.Decrypt(data, associatedData)
+	if err != nil {
+		return nil, fmt.Errorf("symmetric key decryption failed: %w", err)
 	}
 
-	// Create a new CBC decrypter.
-	mode := cipher.NewCBCDecrypter(block, iv)
-
-	// Decrypt the data. The decrypted plaintext will be stored in the same
-	// underlying array as the ciphertext.
-	mode.CryptBlocks(ciphertext, ciphertext)
-
-	// Unpad the decrypted plaintext using PKCS#5/PKCS#7.
-	plaintext := ciphertext
-	padding := int(plaintext[len(plaintext)-1])
-	if padding > len(plaintext) || padding == 0 {
-		return nil, fmt.Errorf("invalid PKCS#5 padding value: %d", padding)
-	}
-	// Verify that all padding bytes are correct.
-	for i := len(plaintext) - padding; i < len(plaintext); i++ {
-		if int(plaintext[i]) != padding {
-			return nil, fmt.Errorf("invalid PKCS#5 padding found")
-		}
-	}
-
-	return plaintext[:len(plaintext)-padding], nil
+	return plaintext, nil
 }
 
 // VerifySignature verifies a signature using a public key.
