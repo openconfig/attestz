@@ -241,9 +241,3 @@ def attestz_go_deps():
         sum = "h1:E7g+9GITq07hpfrRu66IVDexMakfv52eLZ2CXBWiKr4=",
         version = "v0.0.0-20191204190536-9bdfabe68543",
     )
-    go_repository(
-        name = "com_github_google_tink",
-        importpath = "github.com/google/tink/go",
-        sum = "h1:6Eox8zONGebBFcCBqkVmt60LaWZa6xg1cl/DwAh/J1w=",
-        version = "v1.17.0",
-    )
