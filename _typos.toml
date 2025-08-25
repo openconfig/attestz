@@ -9,7 +9,9 @@ check-file = false
 [default.extend-words]
 "Parms" = "Parms"
 "PARMS" = "PARMS"
+"Encrypter" = "Encrypter"
 
 [default.extend-identifiers]
 "Parms" = "Parms"
 "PARMS" = "PARMS"
+"Encrypter" = "Encrypter"
