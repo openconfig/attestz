@@ -21,6 +21,13 @@ import "github.com/openconfig/attestz/proto/common_definitions.proto";
 
 option go_package = "github.com/openconfig/attestz";
 
+// Type of Key to be used for enrollment with TPM 2.0 for devices without idevid provisioned.
+enum Key {
+  KEY_UNSPECIFIED = 0;
+  KEY_EK = 1;
+  KEY_PPK = 2;
+}
+
 // Request for a given control card to return its Initial Attestation Key (IAK)
 // certificate signed by the network device vendor CA.
 message GetIakCertRequest {
@@ -137,12 +144,6 @@ message GetIdevidCsrRequest {
   // Switch control card selected identifier.
   ControlCardSelection control_card_selection = 1;
   
-  // Type of Key to be used for enrollment.
-  enum Key {
-    KEY_UNSPECIFIED = 0;
-    KEY_EK = 1;
-    KEY_PPK = 2;
-  }
   Key key = 2;
 }
 
@@ -160,6 +161,7 @@ message ChallengeRequest {
   ControlCardSelection control_card_selection = 1;
   // Random 16-byte nonce.
   bytes encrypted_nonce = 2;
+  Key key = 3;
 }
 
 // Response containing the decrypted nonce from the TPM.
