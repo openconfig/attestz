@@ -21,8 +21,7 @@ import "github.com/openconfig/attestz/proto/common_definitions.proto";
 
 option go_package = "github.com/openconfig/attestz";
 
-// Type of Key to be used for enrollment with TPM 2.0 for devices without
-// idevid provisioned.
+// Type of TPM restricted key. These can be used for enrollment with TPM 2.0.
 enum Key {
   KEY_UNSPECIFIED = 0;
   KEY_EK = 1;
