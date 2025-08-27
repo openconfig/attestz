@@ -13,3 +13,6 @@ check-file = false
 [default.extend-identifiers]
 "Parms" = "Parms"
 "PARMS" = "PARMS"
+
+[default.extend-words]
+"Encrypter" = "Encrypter"
