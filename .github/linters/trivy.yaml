@@ -1,0 +1,3 @@
+scan:
+  skip-files:
+    - .github/linters/.gitleaks.toml
