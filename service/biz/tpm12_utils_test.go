@@ -1,15 +1,14 @@
 package biz
 
+
 import (
 	"bytes"
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rand"
 	"crypto/rsa"
-<<<<<<< HEAD
 	"encoding/binary"
-=======
-	"crypto/aes"
->>>>>>> 4a8a7e5 (Implement DecryptWithSymmetricKey)
 
 	// #nosec
 	"crypto/sha1"
@@ -18,9 +17,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	tpm12 "github.com/google/go-tpm/tpm"
-	"github.com/google/tink/go/aead"
-	"github.com/google/tink/go/insecurecleartextkeyset"
-	"github.com/google/tink/go/keyset"
 )
 
 // TODO: refactor tests to split success and failure cases, and make create bytes helpers more readable.
@@ -652,7 +648,6 @@ func TestDecryptWithPrivateKey(t *testing.T) {
 	}
 }
 
-<<<<<<< HEAD
 // createSymmetricKeyBytes creates a byte slice representing a TPMSymmetricKey structure.
 func createSymmetricKeyBytes(key []byte) []byte {
 	buffer := new(bytes.Buffer)
@@ -1670,46 +1665,50 @@ func TestParseIdentityProof_Failure(t *testing.T) {
 	}
 }
 
-func TestNewAESGCMKeySuccess(t *testing.T) {
+func TestNewAESCBCKeySuccess(t *testing.T) {
 	tests := []struct {
-		name string
-		algo tpm12.Algorithm
+		name        string
+		algo        tpm12.Algorithm
+		expectedLen int
 	}{
 		{
-			name: "AES128",
-			algo: tpm12.AlgAES128,
+			name:        "AES128",
+			algo:        tpm12.AlgAES128,
+			expectedLen: 16,
 		},
 		{
-			name: "AES256",
-			algo: tpm12.AlgAES256,
+			name:        "AES192",
+			algo:        tpm12.AlgAES192,
+			expectedLen: 24,
+		},
+		{
+			name:        "AES256",
+			algo:        tpm12.AlgAES256,
+			expectedLen: 32,
 		},
 	}
 
 	u := &DefaultTPM12Utils{}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			kh, keyBytes, err := u.NewAESGCMKey(test.algo)
+			symKey, err := u.NewAESCBCKey(test.algo)
 			if err != nil {
-				t.Fatalf("NewAESGCMKey(%v) failed: %v", test.algo, err)
+				t.Fatalf("NewAESCBCKey(%v) failed: %v", test.algo, err)
 			}
-			if kh == nil {
-				t.Errorf("NewAESGCMKey(%v) returned nil keyset handle", test.algo)
+			if symKey.AlgID != test.algo {
+				t.Errorf("NewAESCBCKey(%v) returned AlgID %v, want %v", test.algo, symKey.AlgID, test.algo)
 			}
-			if len(keyBytes) == 0 {
-				t.Errorf("NewAESGCMKey(%v) returned empty key bytes", test.algo)
+			if symKey.EncScheme != EsSymCBCPKCS5 {
+				t.Errorf("NewAESCBCKey(%v) returned EncScheme %v, want %v", test.algo, symKey.EncScheme, EsSymCBCPKCS5)
 			}
-
-			// Verify that the keyBytes can be read back into a keyset handle.
-			reader := bytes.NewReader(keyBytes)
-			_, err = insecurecleartextkeyset.Read(keyset.NewBinaryReader(reader))
-			if err != nil {
-				t.Errorf("Failed to read keyset from binary bytes: %v", err)
+			if len(symKey.Key) != test.expectedLen {
+				t.Errorf("NewAESCBCKey(%v) returned key of length %d, want %d", test.algo, len(symKey.Key), test.expectedLen)
 			}
 		})
 	}
 }
 
-func TestNewAESGCMKeyFailure(t *testing.T) {
+func TestNewAESCBCKeyFailure(t *testing.T) {
 	tests := []struct {
 		name string
 		algo tpm12.Algorithm
@@ -1731,159 +1730,241 @@ func TestNewAESGCMKeyFailure(t *testing.T) {
 	u := &DefaultTPM12Utils{}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			kh, keyBytes, err := u.NewAESGCMKey(test.algo)
+			symKey, err := u.NewAESCBCKey(test.algo)
 			if err == nil {
-				t.Errorf("NewAESGCMKey(%v) succeeded, want error", test.algo)
+				t.Errorf("NewAESCBCKey(%v) succeeded, want error", test.algo)
 			}
-			if kh != nil {
-				t.Errorf("NewAESGCMKey(%v) returned non-nil keyset handle: %v, want nil", test.algo, kh)
-			}
-			if keyBytes != nil {
-				t.Errorf("NewAESGCMKey(%v) returned non-nil key bytes: %v, want nil", test.algo, keyBytes)
+			if symKey != nil {
+				t.Errorf("NewAESCBCKey(%v) returned non-nil symmetric key: %v, want nil", test.algo, symKey)
 			}
 		})
 	}
 }
-
-func TestEncryptWithAes(t *testing.T) {
+func TestEncryptWithAESSuccess(t *testing.T) {
 	u := &DefaultTPM12Utils{}
-	kh, _, err := u.NewAESGCMKey(tpm12.AlgAES256)
+	symKey, err := u.NewAESCBCKey(tpm12.AlgAES128)
 	if err != nil {
-		t.Fatalf("NewAESGCMKey() failed: %v", err)
+		t.Fatalf("NewAESCBCKey() failed: %v", err)
 	}
+	blockSize := aes.BlockSize
 
 	testCases := []struct {
-		name      string
-		data      []byte
-		expectErr bool
+		name string
+		data []byte
 	}{
 		{
-			name:      "Successful Encryption",
-			data:      []byte("This is a secret message."),
-			expectErr: false,
+			name: "Successful Encryption",
+			data: []byte("This is a secret message."),
 		},
 		{
-			name:      "Empty Data",
-			data:      []byte{},
-			expectErr: false,
+			name: "Data size equals block size",
+			data: bytes.Repeat([]byte{0x01}, blockSize),
+		},
+		{
+			name: "Data size slightly less than block size",
+			data: bytes.Repeat([]byte{0x02}, blockSize-1),
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			ciphertext, err := u.EncryptWithAes(kh, tc.data)
+			ciphertext, keyParms, err := u.EncryptWithAES(symKey, tc.data)
+			if err != nil {
+				t.Errorf("EncryptWithAES(%v) returned an unexpected error: %v", tc.data, err)
+			}
+			if bytes.Equal(ciphertext, tc.data) && len(tc.data) > 0 {
+				t.Errorf("EncryptWithAES(%v) returned ciphertext equal to plaintext, expected different", tc.data)
+			}
+			if keyParms.Params.SymParams == nil {
+				t.Errorf("EncryptWithAES(%v) returned nil SymParams", tc.data)
+			}
+			if len(keyParms.Params.SymParams.IV) != blockSize {
+				t.Errorf("EncryptWithAES(%v) returned IV of incorrect size: got %d, want %d", tc.data, len(keyParms.Params.SymParams.IV), blockSize)
+			}
 
-			if tc.expectErr {
-				if err == nil {
-					t.Errorf("EncryptWithAes(%v) expected an error, got nil", tc.data)
+			iv := keyParms.Params.SymParams.IV
+			encrypted := ciphertext
+
+			block, err := aes.NewCipher(symKey.Key)
+			if err != nil {
+				t.Fatalf("Failed to create AES cipher for decryption: %v", err)
+			}
+
+			if len(encrypted)%blockSize != 0 {
+				t.Fatalf("Ciphertext is not a multiple of the block size")
+			}
+
+			decrypted := make([]byte, len(encrypted))
+			mode := cipher.NewCBCDecrypter(block, iv)
+			mode.CryptBlocks(decrypted, encrypted)
+
+			// Remove PKCS5 padding
+			if len(decrypted) == 0 {
+				t.Errorf("Decrypted data is empty")
+			}
+			padding := int(decrypted[len(decrypted)-1])
+			if padding > blockSize || padding == 0 {
+				t.Errorf("Invalid padding value: %d", padding)
+			}
+			// Check if the padding bytes are all equal to the padding value.
+			for i := 0; i < padding; i++ {
+				if decrypted[len(decrypted)-1-i] != byte(padding) {
+					t.Errorf("Padding bytes mismatch: expected %d, got %d at index %d", padding, decrypted[len(decrypted)-1-i], len(decrypted)-1-i)
 				}
-			} else {
-				if err != nil {
-					t.Errorf("EncryptWithAes(%v) returned an unexpected error: %v", tc.data, err)
-				}
-				if bytes.Equal(ciphertext, tc.data) && len(tc.data) > 0 {
-					t.Errorf("EncryptWithAes(%v) returned ciphertext equal to plaintext, expected different", tc.data)
-				}
-				// Decrypt to verify
-				a, err := aead.New(kh)
-				if err != nil {
-					t.Fatalf("Failed to create AEAD for decryption: %v", err)
-				}
-				decrypted, err := a.Decrypt(ciphertext, []byte(""))
-				if err != nil {
-					t.Errorf("Failed to decrypt ciphertext: %v", err)
-				}
-				if !bytes.Equal(decrypted, tc.data) {
-					t.Errorf("Decrypted data mismatch: got %v, want %v", decrypted, tc.data)
-=======
-func TestDecryptWithSymmetricKey(t *testing.T) {
-	// Setup a valid encrypted payload for testing decryption.
-	plaintext := []byte("a secret message")
-	key := make([]byte, 16) // AES-128
-	if _, err := rand.Read(key); err != nil {
-		t.Fatalf("failed to generate random key: %v", err)
+			}
+			decrypted = decrypted[:len(decrypted)-padding]
+
+			if !bytes.Equal(decrypted, tc.data) {
+				t.Errorf("Decrypted data mismatch: got %v, want %v", decrypted, tc.data)
+			}
+		})
 	}
+}
 
-	// Manually perform PKCS#7 padding.
-	padding := aes.BlockSize - len(plaintext)%aes.BlockSize
-	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
-	paddedPlaintext := append(plaintext, padtext...)
-
-	// Encrypt the padded data using AES-CBC to create a valid test case.
-	block, err := aes.NewCipher(key)
+func TestEncryptWithAESFailure(t *testing.T) {
+	u := &DefaultTPM12Utils{}
+	validSymKey, err := u.NewAESCBCKey(tpm12.AlgAES128)
 	if err != nil {
-		t.Fatalf("failed to create cipher: %v", err)
+		t.Fatalf("NewAESCBCKey() failed: %v", err)
 	}
-	iv := make([]byte, aes.BlockSize)
-	if _, err := rand.Read(iv); err != nil {
-		t.Fatalf("failed to generate IV: %v", err)
+
+	invalidEncSchemeKey := &TPMSymmetricKey{
+		AlgID:     tpm12.AlgAES128,
+		EncScheme: EsNone, // Invalid
+		Key:       bytes.Repeat([]byte{0x01}, 16),
 	}
-	ciphertext := make([]byte, len(paddedPlaintext))
-	mode := cipher.NewCBCEncrypter(block, iv)
-	mode.CryptBlocks(ciphertext, paddedPlaintext)
+	invalidAlgIDKey := &TPMSymmetricKey{
+		AlgID:     tpm12.AlgRSA, // Invalid
+		EncScheme: EsSymCBCPKCS5,
+		Key:       bytes.Repeat([]byte{0x01}, 16),
+	}
 
-	// Per the function's contract, the IV is prepended to the ciphertext.
-	encryptedDataWithIV := append(iv, ciphertext...)
-
-	tests := []struct {
-		name      string
-		desc      string
-		key       []byte
-		data      []byte
-		encScheme TPMEncodingScheme
-		wantErr   bool
-		want      []byte
+	testCases := []struct {
+		name          string
+		symKey        *TPMSymmetricKey
+		data          []byte
+		expectedError string
 	}{
 		{
-			name:      "Success",
-			desc:      "Should correctly decrypt a valid AES-CBC payload.",
-			key:       key,
-			data:      encryptedDataWithIV,
-			encScheme: EsSymCBCPKCS5,
-			wantErr:   false,
-			want:      plaintext,
+			name:          "Empty Data",
+			symKey:        validSymKey,
+			data:          []byte{},
+			expectedError: "data to encrypt cannot be empty",
 		},
 		{
-			name:      "UnsupportedScheme",
-			desc:      "Should return an error for an unsupported encryption scheme.",
-			key:       key,
-			data:      encryptedDataWithIV,
-			encScheme: TPMEncodingScheme(0), // An invalid scheme.
-			wantErr:   true,
+			name:          "Invalid Symmetric Key - Wrong EncScheme",
+			symKey:        invalidEncSchemeKey,
+			data:          []byte("some data"),
+			expectedError: "unsupported encoding scheme for symmetric key",
 		},
 		{
-			name:      "CiphertextTooShort",
-			desc:      "Should return an error if ciphertext is smaller than the IV.",
-			key:       key,
-			data:      []byte("short"),
-			encScheme: EsSymCBCPKCS5,
-			wantErr:   true,
-		},
-		{
-			name: "InvalidPadding",
-			desc: "Should return an error for a payload with invalid PKCS#7 padding.",
-			key:  key,
-			// Manually create a ciphertext with bad padding.
-			data:    append(iv, []byte("123456789012345\x07")...),
-			encScheme: EsSymCBCPKCS5,
-			wantErr:   true,
+			name:          "Invalid Symmetric Key - Wrong AlgID",
+			symKey:        invalidAlgIDKey,
+			data:          []byte("some data"),
+			expectedError: "unsupported algorithm for EncryptWithSymmetricKey",
 		},
 	}
 
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, _, err := u.EncryptWithAES(tc.symKey, tc.data)
+			assertError(t, err, tc.expectedError, "EncryptWithAES")
+		})
+	}
+}
+
+
+
+// Helper function to encrypt with AES-CBC for testing purposes.
+// This function prepends the IV to the ciphertext.
+func encryptWithAESCBC(t *testing.T, key, plaintext []byte) []byte {
+	t.Helper()
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		t.Fatalf("Failed to create AES cipher: %v", err)
+	}
+
+	// PKCS#7 Padding
+	padding := aes.BlockSize - len(plaintext)%aes.BlockSize
+	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
+	plaintext = append(plaintext, padtext...)
+
+	if len(plaintext)%aes.BlockSize != 0 {
+		t.Fatalf("Plaintext is not a multiple of the block size after padding")
+	}
+
+	ciphertext := make([]byte, aes.BlockSize+len(plaintext))
+	iv := ciphertext[:aes.BlockSize]
+	// Use crypto/rand.Read directly to fill the IV
+	if _, err := rand.Read(iv); err != nil {
+		t.Fatalf("Failed to generate IV: %v", err)
+	}
+
+	mode := cipher.NewCBCEncrypter(block, iv)
+	mode.CryptBlocks(ciphertext[aes.BlockSize:], plaintext)
+
+	return ciphertext
+}
+
+
+
+func TestDecryptWithSymmetricKey(t *testing.T) {
 	u := &DefaultTPM12Utils{}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := u.DecryptWithSymmetricKey(context.Background(), tt.key, tt.data, tpm12.AlgAES128, tt.encScheme)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("DecryptWithSymmetricKey() with desc: %q, error = %v, wantErr %v", tt.desc, err, tt.wantErr)
-				return
+	ctx := context.Background()
+	plaintext := []byte("This is a secret message.")
+
+	// Key sizes to test
+	key16 := []byte("0123456789abcdef")                 // AES-128
+	key24 := []byte("0123456789abcdef01234567")         // AES-192
+	key32 := []byte("0123456789abcdef0123456789abcdef") // AES-256
+
+	// Success test cases
+	successTestCases := []struct {
+		name string
+		key  []byte
+		algo tpm12.Algorithm
+	}{
+		{"Success AES128", key16, tpm12.AlgAES128},
+		{"Success AES192", key24, tpm12.AlgAES192},
+		{"Success AES256", key32, tpm12.AlgAES256},
+	}
+
+	for _, tc := range successTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			validCiphertext := encryptWithAESCBC(t, tc.key, plaintext)
+			decrypted, err := u.DecryptWithSymmetricKey(ctx, tc.key, validCiphertext, tc.algo, EsSymCBCPKCS5)
+			assertError(t, err, "", "DecryptWithSymmetricKey Success")
+			if diff := cmp.Diff(plaintext, decrypted); diff != "" {
+				t.Errorf("DecryptWithSymmetricKey returned diff (-want +got):\n%s", diff)
 			}
-			if !tt.wantErr {
-				if diff := cmp.Diff(tt.want, got); diff != "" {
-					t.Errorf("DecryptWithSymmetricKey() with desc: %q, returned diff (-want +got):\n%s", tt.desc, diff)
->>>>>>> 4a8a7e5 (Implement DecryptWithSymmetricKey)
-				}
-			}
+		})
+	}
+
+	// Failure test cases
+	validCiphertext32 := encryptWithAESCBC(t, key32, plaintext)
+	tamperedInvalidPaddingValue := make([]byte, len(validCiphertext32))
+	copy(tamperedInvalidPaddingValue, validCiphertext32)
+	tamperedInvalidPaddingValue[len(tamperedInvalidPaddingValue)-1] = byte(aes.BlockSize + 1)
+
+	failureTestCases := []struct {
+		name          string
+		key           []byte
+		data          []byte
+		encScheme     TPMEncodingScheme
+		expectedError string
+	}{
+		{"Failure Unsupported Scheme", key32, validCiphertext32, EsNone, "unsupported symmetric encryption scheme"},
+		{"Failure Short Ciphertext", key32, []byte("short"), EsSymCBCPKCS5, "ciphertext is shorter than IV size"},
+		{"Failure Not Multiple of Block Size", key32, validCiphertext32[:len(validCiphertext32)-1], EsSymCBCPKCS5, "ciphertext is not a multiple of the block size"},
+		{"Failure Invalid Padding Value", key32, tamperedInvalidPaddingValue, EsSymCBCPKCS5, "invalid PKCS#7 padding value"},
+		{"Failure Wrong Key Size", []byte("wrong size"), validCiphertext32, EsSymCBCPKCS5, "failed to create AES cipher: crypto/aes: invalid key size"},
+		{"Failure Different Key Same Size", []byte("a-different-32-byte-secret-key!!"), validCiphertext32, EsSymCBCPKCS5, "invalid PKCS#7 padding"},
+	}
+
+	for _, tc := range failureTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := u.DecryptWithSymmetricKey(ctx, tc.key, tc.data, tpm12.AlgAES256, tc.encScheme)
+			assertError(t, err, tc.expectedError, "DecryptWithSymmetricKey Failure")
 		})
 	}
 }
