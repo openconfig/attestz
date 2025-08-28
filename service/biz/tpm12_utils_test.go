@@ -8,7 +8,11 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/rsa"
+<<<<<<< HEAD
 	"encoding/binary"
+=======
+	"crypto/aes"
+>>>>>>> 4a8a7e5 (Implement DecryptWithSymmetricKey)
 
 	// #nosec
 	"crypto/sha1"
@@ -648,6 +652,7 @@ func TestDecryptWithPrivateKey(t *testing.T) {
 	}
 }
 
+<<<<<<< HEAD
 // createSymmetricKeyBytes creates a byte slice representing a TPMSymmetricKey structure.
 func createSymmetricKeyBytes(key []byte) []byte {
 	buffer := new(bytes.Buffer)
@@ -1785,7 +1790,7 @@ func TestEncryptWithAESSuccess(t *testing.T) {
 			iv := keyParms.Params.SymParams.IV
 			encrypted := ciphertext
 
-			block, err := aes.NewCipher(symKey.Key)
+			cipherBlock, err := aes.NewCipher(symKey.Key)
 			if err != nil {
 				t.Fatalf("Failed to create AES cipher for decryption: %v", err)
 			}
@@ -1795,8 +1800,8 @@ func TestEncryptWithAESSuccess(t *testing.T) {
 			}
 
 			decrypted := make([]byte, len(encrypted))
-			mode := cipher.NewCBCDecrypter(block, iv)
-			mode.CryptBlocks(decrypted, encrypted)
+			encrypter := cipher.NewCBCDecrypter(cipherBlock, iv)
+			encrypter.CryptBlocks(decrypted, encrypted)
 
 			// Remove PKCS5 padding
 			if len(decrypted) == 0 {
@@ -1905,7 +1910,6 @@ func encryptWithAESCBC(t *testing.T, key, plaintext []byte) []byte {
 
 	return ciphertext
 }
-
 
 
 func TestDecryptWithSymmetricKey(t *testing.T) {

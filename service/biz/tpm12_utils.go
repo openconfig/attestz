@@ -710,10 +710,6 @@ func (u *DefaultTPM12Utils) EncryptWithAES(symKey *TPMSymmetricKey, data []byte)
 
 	return ciphertext, keyParms, nil
 }
-
-	
-	
-	
 	
 // DecryptWithSymmetricKey decrypts data using a private key.
 func (u *DefaultTPM12Utils) DecryptWithSymmetricKey(ctx context.Context, symKey []byte, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error) {
@@ -727,7 +723,8 @@ func (u *DefaultTPM12Utils) DecryptWithSymmetricKey(ctx context.Context, symKey 
 		return nil, fmt.Errorf("failed to create AES cipher: %w", err)
 	}
 
-	// The IV is prepended to the ciphertext.
+	// The IV is prepended to the ciphertext. For AES, the IV size is
+	// the same as the block size.
 	ivSize := block.BlockSize()
 	if len(data) < ivSize {
 		return nil, fmt.Errorf("ciphertext is shorter than IV size of %d bytes", ivSize)
@@ -735,8 +732,10 @@ func (u *DefaultTPM12Utils) DecryptWithSymmetricKey(ctx context.Context, symKey 
 
 	// Extract the IV from the beginning of the data.
 	iv := data[:ivSize]
+	// The rest of the data is the actual ciphertext.
 	ciphertext := data[ivSize:]
 
+	// The ciphertext must be a multiple of the block size.
 	if len(ciphertext)%ivSize != 0 {
 		return nil, fmt.Errorf("ciphertext is not a multiple of the block size")
 	}
@@ -744,19 +743,20 @@ func (u *DefaultTPM12Utils) DecryptWithSymmetricKey(ctx context.Context, symKey 
 	// Create a new CBC decrypter.
 	mode := cipher.NewCBCDecrypter(block, iv)
 
-	// Decrypt the data in-place.
+	// Decrypt the data. The decrypted plaintext will be stored in the same
+	// underlying array as the ciphertext.
 	mode.CryptBlocks(ciphertext, ciphertext)
 
-	// Unpad the decrypted plaintext using PKCS#7.
+	// Unpad the decrypted plaintext using PKCS#5/PKCS#7.
 	plaintext := ciphertext
 	padding := int(plaintext[len(plaintext)-1])
 	if padding > len(plaintext) || padding == 0 {
-		return nil, fmt.Errorf("invalid PKCS#7 padding value: %d", padding)
+		return nil, fmt.Errorf("invalid PKCS#5 padding value: %d", padding)
 	}
 	// Verify that all padding bytes are correct.
 	for i := len(plaintext) - padding; i < len(plaintext); i++ {
 		if int(plaintext[i]) != padding {
-			return nil, fmt.Errorf("invalid PKCS#7 padding found")
+			return nil, fmt.Errorf("invalid PKCS#5 padding found")
 		}
 	}
 
