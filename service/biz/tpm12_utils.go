@@ -18,9 +18,12 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rand"
 	"crypto/rsa"
 	"math"
+	"slices"
 
 	// #nosec
 	"crypto/sha1"
@@ -28,9 +31,6 @@ import (
 	"fmt"
 
 	tpm12 "github.com/google/go-tpm/tpm"
-	"github.com/google/tink/go/aead"
-	"github.com/google/tink/go/insecurecleartextkeyset"
-	"github.com/google/tink/go/keyset"
 )
 
 const (
@@ -178,8 +178,8 @@ type TPM12Utils interface {
 	ParseIdentityProof(data []byte) (*TPMIdentityProof, error)
 	EncryptWithPublicKey(ctx context.Context, publicKey *rsa.PublicKey, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error)
 	DecryptWithPrivateKey(ctx context.Context, privateKey *rsa.PrivateKey, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error)
-	NewAESGCMKey(algo tpm12.Algorithm) (*keyset.Handle, []byte, error)
-	EncryptWithAes(kh *keyset.Handle, data []byte) ([]byte, error)
+	NewAESCBCKey(algo tpm12.Algorithm) (*TPMSymmetricKey, error)
+	EncryptWithAES(symKey *TPMSymmetricKey, data []byte) ([]byte, *TPMKeyParms, error)
 	DecryptWithSymmetricKey(ctx context.Context, symKey []byte, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error)
 	VerifySignature(ctx context.Context, pubKey []byte, signature []byte, data []byte, hash crypto.Hash) (bool, error)
 	SerializeStorePubKey(pubKey *TPMStorePubKey) ([]byte, error)
@@ -611,42 +611,111 @@ func (u *DefaultTPM12Utils) DecryptWithPrivateKey(ctx context.Context, privateKe
 	}
 }
 
-// NewAESGCMKey creates a new AES GCM keyset handle and returns the keyset handle and the binary keyset.
-func (u *DefaultTPM12Utils) NewAESGCMKey(algo tpm12.Algorithm) (*keyset.Handle, []byte, error) {
-	var kh *keyset.Handle
-	var err error
+// NewAESCBCKey creates a new AES CBC symmetric key.
+func (u *DefaultTPM12Utils) NewAESCBCKey(algo tpm12.Algorithm) (*TPMSymmetricKey, error) {
+	var keyBytesSize int
 	switch algo {
 	case tpm12.AlgAES128:
-		kh, err = keyset.NewHandle(aead.AES128GCMKeyTemplate())
+		keyBytesSize = 16
+	case tpm12.AlgAES192:
+		keyBytesSize = 24
 	case tpm12.AlgAES256:
-		kh, err = keyset.NewHandle(aead.AES256GCMKeyTemplate())
+		keyBytesSize = 32
 	default:
-		return nil, nil, fmt.Errorf("unsupported algorithm for NewAESGCMKey: %v", tpm12.AlgMap[algo])
-	}
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create AES key handle: %w", err)
+		return nil, fmt.Errorf("unsupported algorithm for NewAESCBCKey: %v", tpm12.AlgMap[algo])
 	}
 
-	// Create a buffer for the binary keyset.
-	buf := new(bytes.Buffer)
-	if err := insecurecleartextkeyset.Write(kh, keyset.NewBinaryWriter(buf)); err != nil {
-		return nil, nil, fmt.Errorf("failed to write keyset to binary: %w", err)
+	key := make([]byte, keyBytesSize)
+	if _, err := rand.Read(key); err != nil {
+		return nil, fmt.Errorf("failed to generate random key: %w", err)
 	}
-	return kh, buf.Bytes(), nil
+
+	symKey := &TPMSymmetricKey{
+		AlgID:     algo,
+		EncScheme: EsSymCBCPKCS5,
+		Key:       key,
+	}
+	return symKey, nil
 }
 
-// EncryptWithAes encrypts data using an AES key.
-func (u *DefaultTPM12Utils) EncryptWithAes(kh *keyset.Handle, data []byte) ([]byte, error) {
-	a, err := aead.New(kh)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create AEAD primitive: %w", err)
+// validateSymmetricKey validates the symmetric key parameters.
+func validateSymmetricKey(symKey *TPMSymmetricKey) error {
+	if symKey.EncScheme != EsSymCBCPKCS5 {
+		return fmt.Errorf("unsupported encoding scheme for symmetric key: %v", symKey.EncScheme)
 	}
-	associatedData := []byte("")
-	ciphertext, err := a.Encrypt(data, associatedData)
-	if err != nil {
-		return nil, fmt.Errorf("symmetric key encryption failed: %w", err)
+	acceptableAlgs := []tpm12.Algorithm{
+		tpm12.AlgAES128,
+		tpm12.AlgAES192,
+		tpm12.AlgAES256,
 	}
-	return ciphertext, nil
+	if !slices.Contains(acceptableAlgs, symKey.AlgID) {
+		return fmt.Errorf("unsupported algorithm for symmetric key: %v", symKey.AlgID)
+	}
+	return nil
+}
+
+// EncryptWithAES encrypts data using a symmetric key with AES CBC and returns the ciphertext and the
+// key parameters.
+func (u *DefaultTPM12Utils) EncryptWithAES(symKey *TPMSymmetricKey, data []byte) ([]byte, *TPMKeyParms, error) {
+	if err := validateSymmetricKey(symKey); err != nil {
+		return nil, nil, fmt.Errorf("invalid symmetric key: %w", err)
+	}
+	if len(data) == 0 {
+		return nil, nil, fmt.Errorf("data to encrypt cannot be empty")
+	}
+
+	cipherBlock, err := aes.NewCipher(symKey.Key)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create AES cipher block: %w", err)
+	}
+
+	blockSize := cipherBlock.BlockSize()
+	if blockSize > math.MaxUint32 {
+		return nil, nil, fmt.Errorf("symmetric block size (%d) exceeds maximum uint32 size", blockSize)
+	}
+	// #nosec
+	blockSizeInUint32 := uint32(blockSize)
+
+	if len(data) == 0 {
+		return nil, nil, fmt.Errorf("data to encrypt cannot be empty")
+	}
+
+	// PKCS5 Padding: padding is the number of bytes to pad the data to the next multiple of the
+	// block size.
+	padding := blockSize - (len(data) % blockSize)
+	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
+	paddedData := append(data, padtext...)
+
+	// Generate a random IV
+	iv := make([]byte, blockSize)
+	if _, err := rand.Read(iv); err != nil {
+		return nil, nil, fmt.Errorf("failed to generate random IV: %w", err)
+	}
+
+	ciphertext := make([]byte, len(paddedData))
+	encrypter := cipher.NewCBCEncrypter(cipherBlock, iv)
+	encrypter.CryptBlocks(ciphertext, paddedData)
+
+	kLen := len(symKey.Key)
+	if kLen > math.MaxUint32 {
+		return nil, nil, fmt.Errorf("symmetric key length (%d) exceeds maximum uint32 size", kLen)
+	}
+	keyLen := uint32(kLen)
+
+	keyParms := &TPMKeyParms{
+		AlgID:     symKey.AlgID,
+		EncScheme: symKey.EncScheme,
+		SigScheme: SsNone,
+		Params: TPMParams{
+			SymParams: &TPMSymmetricKeyParms{
+				KeyLength: keyLen,
+				BlockSize: blockSizeInUint32,
+				IV:        iv,
+			},
+		},
+	}
+
+	return ciphertext, keyParms, nil
 }
 
 // DecryptWithSymmetricKey decrypts data using a private key.
