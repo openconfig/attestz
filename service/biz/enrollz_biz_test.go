@@ -845,6 +845,8 @@ type stubRotateAIKCertInfraDeps struct {
 	issueAikCertErr              error
 	newAESCBCKeyErr              error
 	encryptWithAesErr            error
+	constructAsymCAContentsErr   error
+	serializeAsymCAContentsErr   error
 	encryptWithPublicKeyErr      error
 	decryptWithPrivateKeyErr     error
 	decryptWithSymmetricKeyErr   error
@@ -912,6 +914,20 @@ func (s *stubRotateAIKCertInfraDeps) EncryptWithAES(symKey *TPMSymmetricKey, dat
 		return nil, nil, s.encryptWithAesErr
 	}
 	return []byte("encrypted"), &TPMKeyParms{}, nil // Default success
+}
+
+func (s *stubRotateAIKCertInfraDeps) ConstructAsymCAContents(symKey *TPMSymmetricKey, identityKey *TPMPubKey) (*TPMAsymCAContents, error) {
+	if s.constructAsymCAContentsErr != nil {
+		return nil, s.constructAsymCAContentsErr
+	}
+	return &TPMAsymCAContents{}, nil
+}
+
+func (s *stubRotateAIKCertInfraDeps) SerializeAsymCAContents(asymCAContents *TPMAsymCAContents) ([]byte, error) {
+	if s.serializeAsymCAContentsErr != nil {
+		return nil, s.serializeAsymCAContentsErr
+	}
+	return []byte("serialized"), nil
 }
 
 func (s *stubRotateAIKCertInfraDeps) EncryptWithPublicKey(ctx context.Context, publicKey *rsa.PublicKey, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error) {
@@ -1045,6 +1061,8 @@ func TestRotateAIKCert(t *testing.T) {
 		issueAikCertErr              error
 		newAESCBCKeyErr              error
 		encryptWithAesErr            error
+		constructAsymCAContentsErr   error
+		serializeAsymCAContentsErr   error
 		encryptWithPublicKeyErr      error
 		decryptWithPrivateKeyErr     error
 		decryptWithSymmetricKeyErr   error
@@ -1168,6 +1186,18 @@ func TestRotateAIKCert(t *testing.T) {
 			wantErrResp:     errorResp,
 			newAESCBCKeyErr: errorResp,
 			recvResponses:   defaultRecvResponses,
+		},
+		{
+			desc:                       "Construction of TPMAsymCaContents failed",
+			wantErrResp:                errorResp,
+			constructAsymCAContentsErr: errorResp,
+			recvResponses:              defaultRecvResponses,
+		},
+		{
+			desc:                       "Serialization of TPMAsymCaContents failed",
+			wantErrResp:                errorResp,
+			serializeAsymCAContentsErr: errorResp,
+			recvResponses:              defaultRecvResponses,
 		},
 		{
 			desc:              "Error encrypting AIK cert",
@@ -1294,6 +1324,8 @@ func TestRotateAIKCert(t *testing.T) {
 				verifySignatureErr:           tc.verifySignatureErr,
 				issueAikCertErr:              tc.issueAikCertErr,
 				encryptWithAesErr:            tc.encryptWithAesErr,
+				constructAsymCAContentsErr:   tc.constructAsymCAContentsErr,
+				serializeAsymCAContentsErr:   tc.constructIdentityContentsErr,
 				encryptWithPublicKeyErr:      tc.encryptWithPublicKeyErr,
 				decryptWithPrivateKeyErr:     tc.decryptWithPrivateKeyErr,
 				decryptWithSymmetricKeyErr:   tc.decryptWithSymmetricKeyErr,

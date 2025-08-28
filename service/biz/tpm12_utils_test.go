@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/binary"
+	"math"
 
 	// #nosec
 	"crypto/sha1"
@@ -2054,6 +2055,307 @@ func TestEncryptWithAESFailure(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			_, _, err := u.EncryptWithAES(tc.symKey, tc.data)
 			assertError(t, err, tc.expectedError, "EncryptWithAES")
+		})
+	}
+}
+
+func TestConstructAsymCAContentsSuccess(t *testing.T) {
+	u := &DefaultTPM12Utils{}
+
+	// Create a sample symmetric key
+	symKey := &TPMSymmetricKey{
+		AlgID:     tpm12.AlgAES128,
+		EncScheme: EsSymCBCPKCS5,
+		Key:       bytes.Repeat([]byte{0x11}, 16),
+	}
+
+	// Create a sample IdentityPubKey
+	identityKey := &TPMPubKey{
+		AlgorithmParms: TPMKeyParms{
+			AlgID:     tpm12.AlgRSA,
+			EncScheme: EsRSAEsOAEPSHA1MGF1,
+			SigScheme: SsRSASaPKCS1v15SHA1,
+			Params: TPMParams{
+				RSAParams: &TPMRSAKeyParms{
+					KeyLength: 2048,
+					NumPrimes: 2,
+					Exponent:  []byte{0x01, 0x00, 0x01},
+				},
+			},
+		},
+		PubKey: TPMStorePubKey{
+			KeyLength: 256,
+			Key:       bytes.Repeat([]byte{0xAA}, 256),
+		},
+	}
+
+	// Serialize the identityKey to compute the expected digest
+	identityKeyBytes, err := u.SerializePubKey(identityKey)
+	if err != nil {
+		t.Fatalf("Failed to serialize identityKey: %v", err)
+	}
+	expectedDigest := sha1.Sum(identityKeyBytes)
+
+	// Call the function under test
+	asymCAContents, err := u.ConstructAsymCAContents(symKey, identityKey)
+	if err != nil {
+		t.Errorf("ConstructAsymCAContents(%+v, %+v) returned an unexpected error: %v", symKey, identityKey, err)
+	}
+
+	// Verify the results
+	if !cmp.Equal(asymCAContents.SessionKey, *symKey) {
+		t.Errorf("SessionKey mismatch: got %+v, want %+v", asymCAContents.SessionKey, *symKey)
+	}
+	if !bytes.Equal(asymCAContents.IDDigest[:], expectedDigest[:]) {
+		t.Errorf("IDDigest mismatch: got %x, want %x", asymCAContents.IDDigest, expectedDigest)
+	}
+}
+
+func TestConstructAsymCAContentsFailure(t *testing.T) {
+	u := &DefaultTPM12Utils{}
+
+	// Sample symmetric key and identity key for valid cases
+	symKey := &TPMSymmetricKey{
+		AlgID:     tpm12.AlgAES128,
+		EncScheme: EsSymCBCPKCS5,
+		Key:       bytes.Repeat([]byte{0x11}, 16),
+	}
+	invalidAlgIDSymKey := &TPMSymmetricKey{
+		AlgID:     tpm12.AlgRSA, // Invalid
+		EncScheme: EsSymCBCPKCS5,
+		Key:       bytes.Repeat([]byte{0x01}, 16),
+	}
+	identityKey := &TPMPubKey{
+		AlgorithmParms: TPMKeyParms{
+			AlgID: tpm12.AlgRSA,
+		},
+		PubKey: TPMStorePubKey{
+			KeyLength: 256,
+			Key:       bytes.Repeat([]byte{0xAA}, 256),
+		},
+	}
+
+	testCases := []struct {
+		name          string
+		symKey        *TPMSymmetricKey
+		identityKey   *TPMPubKey
+		expectedError string
+	}{
+		{
+			name:          "Nil Symmetric Key",
+			symKey:        nil,
+			identityKey:   identityKey,
+			expectedError: "nil symmetric key",
+		},
+		{
+			name:          "Invalid Alg ID for Symmetric Key",
+			symKey:        invalidAlgIDSymKey,
+			identityKey:   identityKey,
+			expectedError: "unsupported algorithm for symmetric key",
+		},
+		{
+			name:          "Nil Identity Key",
+			symKey:        symKey,
+			identityKey:   nil,
+			expectedError: "identityKey cannot be nil",
+		},
+		{
+			name:   "SerializePubKey failure",
+			symKey: symKey,
+			identityKey: &TPMPubKey{
+				AlgorithmParms: TPMKeyParms{
+					AlgID: tpm12.AlgMGF1,
+					Params: TPMParams{
+						RSAParams: &TPMRSAKeyParms{},
+					},
+				},
+			}, // RSA Params with non RSA algo will cause serialization error
+			expectedError: "failed to serialize AlgorithmParms",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := u.ConstructAsymCAContents(tc.symKey, tc.identityKey)
+			if tc.expectedError == "" {
+				if err != nil {
+					t.Errorf("ConstructAsymCAContents: got unexpected error: %v", err)
+				}
+			} else {
+				if err == nil || !strings.Contains(err.Error(), tc.expectedError) {
+					t.Errorf("ConstructAsymCAContents: got error %v, expected error substring: %v", err, tc.expectedError)
+				}
+			}
+		})
+	}
+}
+func TestSerializeSymmetricKeySuccess(t *testing.T) {
+	u := &DefaultTPM12Utils{}
+
+	testCases := []struct {
+		name          string
+		symKey        *TPMSymmetricKey
+		expectedBytes []byte
+	}{
+		{
+			name: "AES128",
+			symKey: &TPMSymmetricKey{
+				AlgID:     tpm12.AlgAES128,
+				EncScheme: EsSymCBCPKCS5,
+				Key:       bytes.Repeat([]byte{0x11}, 16),
+			},
+			expectedBytes: symmetricKey{key: bytes.Repeat([]byte{0x11}, 16)}.toBytes(),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			gotBytes, err := u.SerializeSymmetricKey(tc.symKey)
+			if err != nil {
+				t.Errorf("SerializeSymmetricKey(%+v) returned unexpected error: %v", tc.symKey, err)
+			}
+			if diff := cmp.Diff(tc.expectedBytes, gotBytes); diff != "" {
+				t.Errorf("SerializeSymmetricKey(%+v) mismatch (-want +got):\n%s", tc.symKey, diff)
+			}
+		})
+	}
+}
+
+func TestSerializeSymmetricKeyFailure(t *testing.T) {
+	u := &DefaultTPM12Utils{}
+
+	testCases := []struct {
+		name          string
+		symKey        *TPMSymmetricKey
+		expectedError string
+	}{
+		{
+			name:          "Nil Symmetric Key",
+			symKey:        nil,
+			expectedError: "nil symmetric key",
+		},
+		{
+			name: "Invalid AlgID",
+			symKey: &TPMSymmetricKey{
+				AlgID:     tpm12.AlgRSA, // Invalid
+				EncScheme: EsSymCBCPKCS5,
+				Key:       bytes.Repeat([]byte{0x11}, 16),
+			},
+			expectedError: "unsupported algorithm for symmetric key: RSA",
+		},
+		{
+			name: "Invalid EncScheme",
+			symKey: &TPMSymmetricKey{
+				AlgID:     tpm12.AlgAES128,
+				EncScheme: EsNone, // Invalid
+				Key:       bytes.Repeat([]byte{0x11}, 16),
+			},
+			expectedError: "invalid symmetric key: unsupported encoding scheme for symmetric key",
+		},
+		{
+			name: "Key too large",
+			symKey: &TPMSymmetricKey{
+				AlgID:     tpm12.AlgAES128,
+				EncScheme: EsSymCBCPKCS5,
+				Key:       bytes.Repeat([]byte{0x11}, math.MaxUint16+1),
+			},
+			expectedError: "symmetric key data size (65536) exceeds maximum UINT16 size",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := u.SerializeSymmetricKey(tc.symKey)
+			if tc.expectedError == "" {
+				if err != nil {
+					t.Errorf("SerializeSymmetricKey: got unexpected error: %v", err)
+				}
+			} else {
+				if err == nil || !strings.Contains(err.Error(), tc.expectedError) {
+					t.Errorf("SerializeSymmetricKey: got error %v, expected error substring: %v", err, tc.expectedError)
+				}
+			}
+		})
+	}
+}
+
+func TestSerializeAsymCAContentsSuccess(t *testing.T) {
+	u := &DefaultTPM12Utils{}
+	symKey := &TPMSymmetricKey{
+		AlgID:     tpm12.AlgAES128,
+		EncScheme: EsSymCBCPKCS5,
+		Key:       bytes.Repeat([]byte{0x11}, 16),
+	}
+	idDigest := [20]byte{
+		0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a,
+		0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14,
+	}
+	asymCAContents := &TPMAsymCAContents{
+		SessionKey: *symKey,
+		IDDigest:   idDigest,
+	}
+
+	// Manually construct expected bytes
+	sessionKeyBytes, err := u.SerializeSymmetricKey(symKey)
+	if err != nil {
+		t.Fatalf("Failed to serialize symmetric key for test setup: %v", err)
+	}
+	var expectedBuf bytes.Buffer
+	expectedBuf.Write(sessionKeyBytes)
+	expectedBuf.Write(idDigest[:])
+	expectedBytes := expectedBuf.Bytes()
+
+	gotBytes, err := u.SerializeAsymCAContents(asymCAContents)
+	if err != nil {
+		t.Errorf("SerializeAsymCAContents(%+v) returned unexpected error: %v", asymCAContents, err)
+	}
+
+	if diff := cmp.Diff(expectedBytes, gotBytes); diff != "" {
+		t.Errorf("SerializeAsymCAContents(%+v) mismatch (-want +got):\n%s", asymCAContents, diff)
+	}
+}
+
+func TestSerializeAsymCAContentsFailure(t *testing.T) {
+	u := &DefaultTPM12Utils{}
+	validIDDigest := [20]byte{}
+
+	invalidSymKeyAlg := &TPMSymmetricKey{
+		AlgID:     tpm12.AlgRSA, // Invalid AlgID
+		EncScheme: EsSymCBCPKCS5,
+		Key:       bytes.Repeat([]byte{0x11}, 16),
+	}
+	testCases := []struct {
+		name           string
+		asymCAContents *TPMAsymCAContents
+		expectedError  string
+	}{
+		{
+			name:           "Nil AsymCAContents",
+			asymCAContents: nil,
+			expectedError:  "asymCAContents cannot be nil",
+		},
+		{
+			name: "Invalid SessionKey - Serialization Failure",
+			asymCAContents: &TPMAsymCAContents{
+				SessionKey: *invalidSymKeyAlg,
+				IDDigest:   validIDDigest,
+			},
+			expectedError: "unsupported algorithm for symmetric key: RSA",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := u.SerializeAsymCAContents(tc.asymCAContents)
+			if tc.expectedError == "" {
+				if err != nil {
+					t.Errorf("SerializeAsymCAContents: got unexpected error: %v", err)
+				}
+			} else {
+				if err == nil || !strings.Contains(err.Error(), tc.expectedError) {
+					t.Errorf("SerializeAsymCAContents: got error %v, expected error substring: %v", err, tc.expectedError)
+				}
+			}
 		})
 	}
 }
