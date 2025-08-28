@@ -613,14 +613,14 @@ func (u *DefaultTPM12Utils) DecryptWithPrivateKey(ctx context.Context, privateKe
 
 // NewAESCBCKey creates a new AES CBC symmetric key.
 func (u *DefaultTPM12Utils) NewAESCBCKey(algo tpm12.Algorithm) (*TPMSymmetricKey, error) {
-	var keySize int
+	var keyBytesSize int
 	switch algo {
 	case tpm12.AlgAES128:
-		keySize = 16 // 128 bits
+		keyBytesSize = 16
 	case tpm12.AlgAES192:
-		keySize = 24 // 192 bits
+		keyBytesSize = 24
 	case tpm12.AlgAES256:
-		keySize = 32 // 256 bits
+		keyBytesSize = 32
 	default:
 		return nil, fmt.Errorf("unsupported algorithm for NewAESCBCKey: %v", tpm12.AlgMap[algo])
 	}
@@ -718,69 +718,6 @@ func (u *DefaultTPM12Utils) EncryptWithAES(symKey *TPMSymmetricKey, data []byte)
 	return ciphertext, keyParms, nil
 }
 
-// EncryptWithAES encrypts data using a symmetric key with AES CBC and returns the ciphertext and the
-// key parameters.
-func (u *DefaultTPM12Utils) EncryptWithAES(symKey *TPMSymmetricKey, data []byte) ([]byte, *TPMKeyParms, error) {
-	if err := validateSymmetricKey(symKey); err != nil {
-		return nil, nil, fmt.Errorf("invalid symmetric key: %w", err)
-	}
-	if len(data) == 0 {
-		return nil, nil, fmt.Errorf("data to encrypt cannot be empty")
-	}
-
-	block, err := aes.NewCipher(symKey.Key)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create AES cipher block: %w", err)
-	}
-
-	blockSize := block.BlockSize()
-	if len(data) == 0 {
-		return nil, nil, fmt.Errorf("data to encrypt cannot be empty")
-	}
-
-	// PKCS5 Padding: padding is the number of bytes to pad the data to the next multiple of the
-	// block size.
-	padding := blockSize - (len(data) % blockSize)
-	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
-	paddedData := append(data, padtext...)
-
-	// Generate a random IV
-	iv := make([]byte, blockSize)
-	if _, err := rand.Read(iv); err != nil {
-		return nil, nil, fmt.Errorf("failed to generate random IV: %w", err)
-	}
-
-	ciphertext := make([]byte, len(paddedData))
-	mode := cipher.NewCBCEncrypter(block, iv)
-	mode.CryptBlocks(ciphertext, paddedData)
-
-	kLen := len(symKey.Key)
-	if kLen > math.MaxUint32 {
-		return nil, nil, fmt.Errorf("symmetric key length (%d) exceeds maximum uint32 size", kLen)
-	}
-	keyLen := uint32(kLen)
-
-	if blockSize > math.MaxUint32 {
-		return nil, nil, fmt.Errorf("symmetric block size (%d) exceeds maximum uint32 size", blockSize)
-	}
-	blockSizeInUint32 := uint32(blockSize)
-
-	keyParms := &TPMKeyParms{
-		AlgID:     symKey.AlgID,
-		EncScheme: symKey.EncScheme,
-		SigScheme: SsNone,
-		Params: TPMParams{
-			SymParams: &TPMSymmetricKeyParms{
-				KeyLength: keyLen,
-				BlockSize: blockSizeInUint32,
-				IV:        iv,
-			},
-		},
-	}
-
-	return ciphertext, keyParms, nil
-}
-	
 // DecryptWithSymmetricKey decrypts data using a private key.
 func (u *DefaultTPM12Utils) DecryptWithSymmetricKey(ctx context.Context, symKey []byte, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error) {
 	if encScheme != EsSymCBCPKCS5 {
@@ -1066,5 +1003,3 @@ func (u *DefaultTPM12Utils) ConstructIdentityContents(publicKey *rsa.PublicKey) 
 		IdentityPubKey:    *tpmPubKey,
 	}, nil
 }
-	
-

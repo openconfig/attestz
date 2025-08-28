@@ -1,6 +1,5 @@
 package biz
 
-
 import (
 	"bytes"
 	"context"
@@ -1696,13 +1695,13 @@ func TestNewAESCBCKeySuccess(t *testing.T) {
 				t.Fatalf("NewAESCBCKey(%v) failed: %v", test.algo, err)
 			}
 			if symKey.AlgID != test.algo {
-				t.Errorf("NewAESCBCKey(%v) returned AlgID %v, want %v", test.algo, symKey.AlgID, test.algo)
+				t.Errorf("NewAESCBCKey returned AlgID %v(%v), want %v(%v)", symKey.AlgID.String(), symKey.AlgID, test.algo.String(), test.algo)
 			}
 			if symKey.EncScheme != EsSymCBCPKCS5 {
-				t.Errorf("NewAESCBCKey(%v) returned EncScheme %v, want %v", test.algo, symKey.EncScheme, EsSymCBCPKCS5)
+				t.Errorf("NewAESCBCKey(%v) returned EncScheme %v, want %v", test.algo.String(), symKey.EncScheme, EsSymCBCPKCS5)
 			}
 			if len(symKey.Key) != test.expectedLen {
-				t.Errorf("NewAESCBCKey(%v) returned key of length %d, want %d", test.algo, len(symKey.Key), test.expectedLen)
+				t.Errorf("NewAESCBCKey(%v) returned key of length %d, want %d", test.algo.String(), len(symKey.Key), test.expectedLen)
 			}
 		})
 	}
@@ -1740,6 +1739,8 @@ func TestNewAESCBCKeyFailure(t *testing.T) {
 		})
 	}
 }
+
+// TODO: Add vector based test to test encryption and padding for EncryptWithAES
 func TestEncryptWithAESSuccess(t *testing.T) {
 	u := &DefaultTPM12Utils{}
 	symKey, err := u.NewAESCBCKey(tpm12.AlgAES128)
@@ -1861,7 +1862,7 @@ func TestEncryptWithAESFailure(t *testing.T) {
 			name:          "Invalid Symmetric Key - Wrong AlgID",
 			symKey:        invalidAlgIDKey,
 			data:          []byte("some data"),
-			expectedError: "unsupported algorithm for EncryptWithSymmetricKey",
+			expectedError: "unsupported algorithm for symmetric key",
 		},
 	}
 
@@ -1872,8 +1873,6 @@ func TestEncryptWithAESFailure(t *testing.T) {
 		})
 	}
 }
-
-
 
 // Helper function to encrypt with AES-CBC for testing purposes.
 // This function prepends the IV to the ciphertext.
