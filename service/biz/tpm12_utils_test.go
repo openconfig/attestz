@@ -8,11 +8,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/rsa"
-<<<<<<< HEAD
 	"encoding/binary"
-=======
-	"crypto/aes"
->>>>>>> 4a8a7e5 (Implement DecryptWithSymmetricKey)
 
 	// #nosec
 	"crypto/sha1"
@@ -652,7 +648,6 @@ func TestDecryptWithPrivateKey(t *testing.T) {
 	}
 }
 
-<<<<<<< HEAD
 // createSymmetricKeyBytes creates a byte slice representing a TPMSymmetricKey structure.
 func createSymmetricKeyBytes(key []byte) []byte {
 	buffer := new(bytes.Buffer)
