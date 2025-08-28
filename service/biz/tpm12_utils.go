@@ -23,6 +23,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"math"
+	"slices"
 
 	// #nosec
 	"crypto/sha1"
@@ -624,7 +625,7 @@ func (u *DefaultTPM12Utils) NewAESCBCKey(algo tpm12.Algorithm) (*TPMSymmetricKey
 		return nil, fmt.Errorf("unsupported algorithm for NewAESCBCKey: %v", tpm12.AlgMap[algo])
 	}
 
-	key := make([]byte, keySize)
+	key := make([]byte, keyBytesSize)
 	if _, err := rand.Read(key); err != nil {
 		return nil, fmt.Errorf("failed to generate random key: %w", err)
 	}
@@ -642,10 +643,79 @@ func validateSymmetricKey(symKey *TPMSymmetricKey) error {
 	if symKey.EncScheme != EsSymCBCPKCS5 {
 		return fmt.Errorf("unsupported encoding scheme for symmetric key: %v", symKey.EncScheme)
 	}
-	if symKey.AlgID != tpm12.AlgAES128 && symKey.AlgID != tpm12.AlgAES192 && symKey.AlgID != tpm12.AlgAES256 {
-		return fmt.Errorf("unsupported algorithm for EncryptWithSymmetricKey: %v", symKey.AlgID)
+	acceptableAlgs := []tpm12.Algorithm{
+		tpm12.AlgAES128,
+		tpm12.AlgAES192,
+		tpm12.AlgAES256,
+	}
+	if !slices.Contains(acceptableAlgs, symKey.AlgID) {
+		return fmt.Errorf("unsupported algorithm for symmetric key: %v", symKey.AlgID)
 	}
 	return nil
+}
+
+// EncryptWithAES encrypts data using a symmetric key with AES CBC and returns the ciphertext and the
+// key parameters.
+func (u *DefaultTPM12Utils) EncryptWithAES(symKey *TPMSymmetricKey, data []byte) ([]byte, *TPMKeyParms, error) {
+	if err := validateSymmetricKey(symKey); err != nil {
+		return nil, nil, fmt.Errorf("invalid symmetric key: %w", err)
+	}
+	if len(data) == 0 {
+		return nil, nil, fmt.Errorf("data to encrypt cannot be empty")
+	}
+
+	cipherBlock, err := aes.NewCipher(symKey.Key)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create AES cipher block: %w", err)
+	}
+
+	blockSize := cipherBlock.BlockSize()
+	if blockSize > math.MaxUint32 {
+		return nil, nil, fmt.Errorf("symmetric block size (%d) exceeds maximum uint32 size", blockSize)
+	}
+	// #nosec
+	blockSizeInUint32 := uint32(blockSize)
+
+	if len(data) == 0 {
+		return nil, nil, fmt.Errorf("data to encrypt cannot be empty")
+	}
+
+	// PKCS5 Padding: padding is the number of bytes to pad the data to the next multiple of the
+	// block size.
+	padding := blockSize - (len(data) % blockSize)
+	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
+	paddedData := append(data, padtext...)
+
+	// Generate a random IV
+	iv := make([]byte, blockSize)
+	if _, err := rand.Read(iv); err != nil {
+		return nil, nil, fmt.Errorf("failed to generate random IV: %w", err)
+	}
+
+	ciphertext := make([]byte, len(paddedData))
+	encrypter := cipher.NewCBCEncrypter(cipherBlock, iv)
+	encrypter.CryptBlocks(ciphertext, paddedData)
+
+	kLen := len(symKey.Key)
+	if kLen > math.MaxUint32 {
+		return nil, nil, fmt.Errorf("symmetric key length (%d) exceeds maximum uint32 size", kLen)
+	}
+	keyLen := uint32(kLen)
+
+	keyParms := &TPMKeyParms{
+		AlgID:     symKey.AlgID,
+		EncScheme: symKey.EncScheme,
+		SigScheme: SsNone,
+		Params: TPMParams{
+			SymParams: &TPMSymmetricKeyParms{
+				KeyLength: keyLen,
+				BlockSize: blockSizeInUint32,
+				IV:        iv,
+			},
+		},
+	}
+
+	return ciphertext, keyParms, nil
 }
 
 // EncryptWithAES encrypts data using a symmetric key with AES CBC and returns the ciphertext and the

@@ -646,17 +646,16 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 		return err
 	}
 
-	// Create AES key
-	// Create a new Tink AEAD keyset handle.
-	kh, serializedAESKey, err := req.Deps.NewAESGCMKey(tpm12.AlgAES256)
+	// Create a new AES CBC key.
+	aesCBCKey, err := req.Deps.NewAESCBCKey(tpm12.AlgAES256)
 	if err != nil {
-		err = fmt.Errorf("failed to create Tink AEAD keyset handle: %w", err)
+		err = fmt.Errorf("failed to create AES CBC key: %w", err)
 		log.ErrorContext(ctx, err)
 		return err
 	}
 
 	// Encrypt AIK cert with AES key.
-	encryptedAikCert, err := req.Deps.EncryptWithAes(kh, []byte(issueAikCertResp.AikCertPem))
+	encryptedAikCert, _, err := req.Deps.EncryptWithAES(aesCBCKey, []byte(issueAikCertResp.AikCertPem))
 	if err != nil {
 		err = fmt.Errorf("failed to encrypt AIK certificate: %w", err)
 		log.ErrorContext(ctx, err)
@@ -683,7 +682,7 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	ekEncScheme := EsRSAEsOAEPSHA1MGF1
 
 	// Encrypt AES key with EK public key.
-	encryptedAesKey, err := req.Deps.EncryptWithPublicKey(ctx, ekPublicKey, serializedAESKey, ekAlgo, ekEncScheme)
+	encryptedAesKey, err := req.Deps.EncryptWithPublicKey(ctx, ekPublicKey, aesCBCKey.Key, ekAlgo, ekEncScheme)
 	if err != nil {
 		err = fmt.Errorf("failed to encrypt AES key: %w", err)
 		log.ErrorContext(ctx, err)
