@@ -1946,18 +1946,18 @@ func TestDecryptWithSymmetricKey(t *testing.T) {
 			expectedError: "ciphertext is shorter than IV size",
 		},
 		{
-			name:          "Failure Invalid Padding Value",
-			key:           key,
-			data:          tamperedInvalidPaddingValue,
-			encScheme:     EsSymCBCPKCS5,
+			name:      "Failure Invalid Padding Value",
+			key:       key,
+			data:      tamperedInvalidPaddingValue,
+			encScheme: EsSymCBCPKCS5,
 			// FIX: Updated expected error message
 			expectedError: "invalid PKCS#5 padding value",
 		},
 		{
-			name:          "Failure Different Key Same Size",
-			key:           []byte("a-different-32-byte-secret-key!!"),
-			data:          validCiphertext,
-			encScheme:     EsSymCBCPKCS5,
+			name:      "Failure Different Key Same Size",
+			key:       []byte("a-different-32-byte-secret-key!!"),
+			data:      validCiphertext,
+			encScheme: EsSymCBCPKCS5,
 			// FIX: Updated expected error message
 			expectedError: "invalid PKCS#5 padding",
 		},
