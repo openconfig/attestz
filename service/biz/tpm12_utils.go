@@ -718,11 +718,29 @@ func (u *DefaultTPM12Utils) EncryptWithAES(symKey *TPMSymmetricKey, data []byte)
 	return ciphertext, keyParms, nil
 }
 
-// DecryptWithSymmetricKey decrypts data using a private key.
+// DecryptWithSymmetricKey decrypts data using a symmetric key.
 func (u *DefaultTPM12Utils) DecryptWithSymmetricKey(ctx context.Context, symKey []byte, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error) {
-	// TODO: Implement the decryption using a symmetric key.
-	// For now, we just return the data as is.
-	return data, nil
+	// Create a keyset handle from the binary keyset (symKey).
+	reader := keyset.NewBinaryReader(bytes.NewReader(symKey))
+	kh, err := insecurecleartextkeyset.Read(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read keyset from binary: %w", err)
+	}
+
+	// Get the AEAD primitive from the keyset handle.
+	a, err := aead.New(kh)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create AEAD primitive from keyset handle: %w", err)
+	}
+
+	// Decrypt the data. Associated data must match what was used for encryption.
+	associatedData := []byte("")
+	plaintext, err := a.Decrypt(data, associatedData)
+	if err != nil {
+		return nil, fmt.Errorf("symmetric key decryption failed: %w", err)
+	}
+
+	return plaintext, nil
 }
 
 // VerifySignature verifies a signature using a public key.
