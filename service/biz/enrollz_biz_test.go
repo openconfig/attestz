@@ -16,7 +16,6 @@ package biz
 
 import (
 	"context"
-	"crypto"
 	"crypto/rsa"
 	"crypto/x509"
 	"errors"
@@ -841,7 +840,7 @@ type stubRotateAIKCertInfraDeps struct {
 	parseIdentityReqErr          error
 	parseSymmetricKeyErr         error
 	parseIdentityProofErr        error
-	verifySignatureErr           error
+	verifySignatureWithRSAKeyErr error
 	issueAikCertErr              error
 	newAESCBCKeyErr              error
 	encryptWithAesErr            error
@@ -890,9 +889,9 @@ func (s *stubRotateAIKCertInfraDeps) ParseIdentityProof(data []byte) (*TPMIdenti
 	return &TPMIdentityProof{}, nil // Default success
 }
 
-func (s *stubRotateAIKCertInfraDeps) VerifySignature(ctx context.Context, pubKey []byte, signature []byte, data []byte, hash crypto.Hash) (bool, error) {
-	if s.verifySignatureErr != nil {
-		return false, s.verifySignatureErr
+func (s *stubRotateAIKCertInfraDeps) VerifySignatureWithRSAKey(ctx context.Context, pubKey *TPMPubKey, signature []byte, digest []byte) (bool, error) {
+	if s.verifySignatureWithRSAKeyErr != nil {
+		return false, s.verifySignatureWithRSAKeyErr
 	}
 	if s.customVerifySignatureResp != false {
 		return s.customVerifySignatureResp, nil
@@ -1041,7 +1040,7 @@ func TestRotateAIKCert(t *testing.T) {
 		parseIdentityReqErr          error
 		parseSymmetricKeyErr         error
 		parseIdentityProofErr        error
-		verifySignatureErr           error
+		verifySignatureWithRSAKeyErr error
 		issueAikCertErr              error
 		newAESCBCKeyErr              error
 		encryptWithAesErr            error
@@ -1140,10 +1139,10 @@ func TestRotateAIKCert(t *testing.T) {
 			recvResponses:                defaultRecvResponses,
 		},
 		{
-			desc:               "Error verifying signature",
-			wantErrResp:        errorResp,
-			verifySignatureErr: errorResp,
-			recvResponses:      defaultRecvResponses,
+			desc:                         "Error verifying signature",
+			wantErrResp:                  errorResp,
+			verifySignatureWithRSAKeyErr: errorResp,
+			recvResponses:                defaultRecvResponses,
 		},
 		{
 			desc:                      "Signature verification failed",
@@ -1291,7 +1290,7 @@ func TestRotateAIKCert(t *testing.T) {
 				parseIdentityReqErr:          tc.parseIdentityReqErr,
 				parseSymmetricKeyErr:         tc.parseSymmetricKeyErr,
 				parseIdentityProofErr:        tc.parseIdentityProofErr,
-				verifySignatureErr:           tc.verifySignatureErr,
+				verifySignatureWithRSAKeyErr: tc.verifySignatureWithRSAKeyErr,
 				issueAikCertErr:              tc.issueAikCertErr,
 				encryptWithAesErr:            tc.encryptWithAesErr,
 				encryptWithPublicKeyErr:      tc.encryptWithPublicKeyErr,

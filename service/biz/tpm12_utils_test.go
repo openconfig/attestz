@@ -3,11 +3,13 @@ package biz
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/binary"
+	"math/big"
 
 	// #nosec
 	"crypto/sha1"
@@ -2054,6 +2056,274 @@ func TestEncryptWithAESFailure(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			_, _, err := u.EncryptWithAES(tc.symKey, tc.data)
 			assertError(t, err, tc.expectedError, "EncryptWithAES")
+		})
+	}
+}
+
+func TestTpmPubKeyToRSAPubKey_Success(t *testing.T) {
+	testCases := []struct {
+		name      string
+		tpmPubKey *TPMPubKey
+		expected  *rsa.PublicKey
+	}{
+		{
+			name: "Valid TPMPubKey with default exponent",
+			tpmPubKey: &TPMPubKey{
+				AlgorithmParms: TPMKeyParms{
+					AlgID: tpm12.AlgRSA,
+					Params: TPMParams{
+						RSAParams: &TPMRSAKeyParms{
+							Exponent: []byte{}, // Empty exponent means default 65537
+						},
+					},
+				},
+				PubKey: TPMStorePubKey{
+					Key: []byte{0x01, 0x02, 0x03}, // Sample modulus
+				},
+			},
+			expected: &rsa.PublicKey{
+				N: new(big.Int).SetBytes([]byte{0x01, 0x02, 0x03}),
+				E: 65537,
+			},
+		},
+		{
+			name: "Valid TPMPubKey with specific exponent",
+			tpmPubKey: &TPMPubKey{
+				AlgorithmParms: TPMKeyParms{
+					AlgID: tpm12.AlgRSA,
+					Params: TPMParams{
+						RSAParams: &TPMRSAKeyParms{
+							Exponent: []byte{0x03}, // Exponent of 3
+						},
+					},
+				},
+				PubKey: TPMStorePubKey{
+					Key: []byte{0x0A, 0x0B, 0x0C}, // Sample modulus
+				},
+			},
+			expected: &rsa.PublicKey{
+				N: new(big.Int).SetBytes([]byte{0x0A, 0x0B, 0x0C}),
+				E: 3,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			u := &DefaultTPM12Utils{}
+			rsaPubKey, err := u.TpmPubKeyToRSAPubKey(tc.tpmPubKey)
+			if err != nil {
+				t.Fatalf("tpmPubKeyToRSAPubKey(%+v) returned unexpected error: %v", tc.tpmPubKey, err)
+			}
+			if diff := cmp.Diff(tc.expected, rsaPubKey); diff != "" {
+				t.Errorf("tpmPubKeyToRSAPubKey(%+v) mismatch (-want +got):\n%s", tc.tpmPubKey, diff)
+			}
+		})
+	}
+}
+
+func TestTpmPubKeyToRSAPubKey_Failure(t *testing.T) {
+	testCases := []struct {
+		name          string
+		tpmPubKey     *TPMPubKey
+		expectedError string
+	}{
+		{
+			name:          "Nil TPMPubKey",
+			tpmPubKey:     nil,
+			expectedError: "pubKey is nil",
+		},
+		{
+			name: "Not RSA Algorithm",
+			tpmPubKey: &TPMPubKey{
+				AlgorithmParms: TPMKeyParms{
+					AlgID: tpm12.AlgAES128, // Not RSA
+				},
+			},
+			expectedError: "unsupported algorithm",
+		},
+		{
+			name: "Nil RSA Params",
+			tpmPubKey: &TPMPubKey{
+				AlgorithmParms: TPMKeyParms{
+					AlgID: tpm12.AlgRSA,
+					Params: TPMParams{
+						RSAParams: nil, // Missing RSA params
+					},
+				},
+			},
+			expectedError: "RSA params are nil",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			u := &DefaultTPM12Utils{}
+			_, err := u.TpmPubKeyToRSAPubKey(tc.tpmPubKey)
+			if err == nil {
+				t.Fatalf("tpmPubKeyToRSAPubKey(%+v) got nil error, want error containing %q", tc.tpmPubKey, tc.expectedError)
+			}
+			if !strings.Contains(err.Error(), tc.expectedError) {
+				t.Errorf("tpmPubKeyToRSAPubKey(%+v) got error %v, want error containing %q", tc.tpmPubKey, err, tc.expectedError)
+			}
+		})
+	}
+}
+
+func TestVerifySignatureWithRSAKey_Success(t *testing.T) {
+	u := &DefaultTPM12Utils{}
+	ctx := context.Background()
+	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate RSA key: %v", err)
+	}
+	pubKey := &privKey.PublicKey
+
+	tpmPubKey, err := u.ConstructPubKey(pubKey)
+	if err != nil {
+		t.Fatalf("Failed to construct TPMPubKey: %v", err)
+	}
+
+	data := []byte("test data")
+	// SHA1 digest
+	hashedSHA1 := sha1.Sum(data)
+
+	// Signature with PKCS1v15 SHA1
+	signatureSHA1, err := rsa.SignPKCS1v15(rand.Reader, privKey, crypto.SHA1, hashedSHA1[:])
+	if err != nil {
+		t.Fatalf("Failed to sign with SHA1: %v", err)
+	}
+
+	// Signature with PKCS1v15 DER (no hashing before signing)
+	signatureDER, err := rsa.SignPKCS1v15(rand.Reader, privKey, crypto.Hash(0), data)
+	if err != nil {
+		t.Fatalf("Failed to sign with DER: %v", err)
+	}
+
+	testCases := []struct {
+		name      string
+		sigScheme TPMSignatureScheme
+		signature []byte
+		digest    []byte
+	}{
+		{
+			name:      "Valid PKCS1v15 SHA1",
+			sigScheme: SsRSASaPKCS1v15SHA1,
+			signature: signatureSHA1,
+			digest:    hashedSHA1[:],
+		},
+		{
+			name:      "Valid PKCS1v15 DER",
+			sigScheme: SsRSASaPKCS1v15DER,
+			signature: signatureDER,
+			digest:    data, // For DER, the digest is the original data
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			currentPubKey := *tpmPubKey
+			currentPubKey.AlgorithmParms.SigScheme = tc.sigScheme
+
+			valid, err := u.VerifySignatureWithRSAKey(ctx, &currentPubKey, tc.signature, tc.digest)
+			if err != nil {
+				t.Errorf("VerifySignatureWithRSAKey() returned unexpected error: %v", err)
+			}
+			if !valid {
+				t.Errorf("VerifySignatureWithRSAKey() returned false, want true")
+			}
+		})
+	}
+}
+
+func TestVerifySignatureWithRSAKey_Failure(t *testing.T) {
+	u := &DefaultTPM12Utils{}
+	ctx := context.Background()
+	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate RSA key: %v", err)
+	}
+	pubKey := &privKey.PublicKey
+
+	tpmPubKey, err := u.ConstructPubKey(pubKey)
+	if err != nil {
+		t.Fatalf("Failed to construct TPMPubKey: %v", err)
+	}
+
+	data := []byte("test data")
+	hashedSHA1 := sha1.Sum(data)
+	badSignature := []byte("bad signature")
+
+	testCases := []struct {
+		name          string
+		pubKey        *TPMPubKey
+		signature     []byte
+		digest        []byte
+		expectedError string
+	}{
+		{
+			name:          "Invalid TPMPubKey",
+			pubKey:        &TPMPubKey{}, // Invalid
+			signature:     []byte{},
+			digest:        []byte{},
+			expectedError: "failed to parse TPM public key",
+		},
+		{
+			name: "Unsupported Signature Scheme",
+			pubKey: &TPMPubKey{
+				AlgorithmParms: TPMKeyParms{
+					AlgID:     tpmPubKey.AlgorithmParms.AlgID,
+					EncScheme: tpmPubKey.AlgorithmParms.EncScheme,
+					SigScheme: SsNone, // Unsupported scheme
+					Params:    tpmPubKey.AlgorithmParms.Params,
+				},
+				PubKey: tpmPubKey.PubKey,
+			},
+			signature:     []byte{},
+			digest:        []byte{},
+			expectedError: "unsupported signature scheme",
+		},
+		{
+			name: "Invalid Signature PKCS1v15 SHA1",
+			pubKey: &TPMPubKey{
+				AlgorithmParms: TPMKeyParms{
+					AlgID:     tpmPubKey.AlgorithmParms.AlgID,
+					EncScheme: tpmPubKey.AlgorithmParms.EncScheme,
+					SigScheme: SsRSASaPKCS1v15SHA1,
+					Params:    tpmPubKey.AlgorithmParms.Params,
+				},
+				PubKey: tpmPubKey.PubKey,
+			},
+			signature:     badSignature,
+			digest:        hashedSHA1[:],
+			expectedError: "invalid PKCS1v15 SHA1 signature",
+		},
+		{
+			name: "Invalid Signature PKCS1v15 DER",
+			pubKey: &TPMPubKey{
+				AlgorithmParms: TPMKeyParms{
+					AlgID:     tpmPubKey.AlgorithmParms.AlgID,
+					EncScheme: tpmPubKey.AlgorithmParms.EncScheme,
+					SigScheme: SsRSASaPKCS1v15DER,
+					Params:    tpmPubKey.AlgorithmParms.Params,
+				},
+				PubKey: tpmPubKey.PubKey,
+			},
+			signature:     badSignature,
+			digest:        hashedSHA1[:],
+			expectedError: "invalid PKCS1v15 DER signature",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := u.VerifySignatureWithRSAKey(ctx, tc.pubKey, tc.signature, tc.digest)
+			if err == nil {
+				t.Fatalf("VerifySignatureWithRSAKey() got nil error, want error containing %q", tc.expectedError)
+			}
+			if !strings.Contains(err.Error(), tc.expectedError) {
+				t.Errorf("VerifySignatureWithRSAKey() got error %v, want error containing %q", err, tc.expectedError)
+			}
 		})
 	}
 }
