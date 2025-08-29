@@ -17,7 +17,6 @@ package biz
 
 import (
 	"context"
-	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 
@@ -564,7 +563,6 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	}
 
 	// Decrypt AsymBlob to get a symmetric key using issuer private key
-	var hash crypto.Hash
 	symKeyBytes, err := req.Deps.DecryptWithPrivateKey(ctx, issuerPrivateKey, applicationIdentityRequest.AsymBlob, applicationIdentityRequest.AsymAlgorithm.AlgID, applicationIdentityRequest.AsymAlgorithm.EncScheme)
 	if err != nil {
 		err = fmt.Errorf("failed to decrypt AsymBlob: %w", err)
@@ -615,7 +613,7 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	identityContentsHash := hasher.Sum(nil)
 
 	// Verify signature of TPM_IDENTITY_CONTENTS in Identity proof using AIK pub key
-	isValid, err := req.Deps.VerifySignature(ctx, identityProof.AttestationIdentityKey.PubKey.Key, identityProof.IdentityBinding, identityContentsHash, hash)
+	isValid, err := req.Deps.VerifySignatureWithRSAKey(ctx, &identityProof.AttestationIdentityKey, identityProof.IdentityBinding, identityContentsHash)
 	if err != nil {
 		err = fmt.Errorf("failed to verify identity contents signature: %w", err)
 		log.ErrorContext(ctx, err)
