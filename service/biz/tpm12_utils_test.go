@@ -2057,3 +2057,100 @@ func TestEncryptWithAESFailure(t *testing.T) {
 		})
 	}
 }
+
+// Helper function to encrypt with AES-CBC for testing purposes.
+// This function prepends the IV to the ciphertext.
+func encryptWithAESCBC(t *testing.T, key, plaintext []byte) []byte {
+	t.Helper()
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		t.Fatalf("Failed to create AES cipher: %v", err)
+	}
+
+	// PKCS#7 Padding
+	padding := aes.BlockSize - len(plaintext)%aes.BlockSize
+	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
+	plaintext = append(plaintext, padtext...)
+
+	if len(plaintext)%aes.BlockSize != 0 {
+		t.Fatalf("Plaintext is not a multiple of the block size after padding")
+	}
+
+	ciphertext := make([]byte, aes.BlockSize+len(plaintext))
+	iv := ciphertext[:aes.BlockSize]
+	// Use crypto/rand.Read directly to fill the IV
+	if _, err := rand.Read(iv); err != nil {
+		t.Fatalf("Failed to generate IV: %v", err)
+	}
+
+	mode := cipher.NewCBCEncrypter(block, iv)
+	mode.CryptBlocks(ciphertext[aes.BlockSize:], plaintext)
+
+	return ciphertext
+}
+
+func TestDecryptWithSymmetricKey(t *testing.T) {
+	u := &DefaultTPM12Utils{}
+	ctx := context.Background()
+	key := []byte("0123456789abcdef0123456789abcdef") // 32 bytes for AES-256
+	plaintext := []byte("This is a secret message.")
+
+	validCiphertext := encryptWithAESCBC(t, key, plaintext)
+
+	tamperedInvalidPaddingValue := make([]byte, len(validCiphertext))
+	copy(tamperedInvalidPaddingValue, validCiphertext)
+	tamperedInvalidPaddingValue[len(tamperedInvalidPaddingValue)-1] = byte(aes.BlockSize + 1)
+
+	failureTestCases := []struct {
+		name          string
+		key           []byte
+		data          []byte
+		encScheme     TPMEncodingScheme
+		expectedError string
+	}{
+		{
+			name:          "Success",
+			key:           key,
+			data:          validCiphertext,
+			encScheme:     EsSymCBCPKCS5,
+			expectedError: "",
+		},
+		{
+			name:          "Failure Unsupported Scheme",
+			key:           key,
+			data:          validCiphertext,
+			encScheme:     EsNone,
+			expectedError: "unsupported symmetric encryption scheme",
+		},
+		{
+			name:          "Failure Short Ciphertext",
+			key:           key,
+			data:          []byte("short"),
+			encScheme:     EsSymCBCPKCS5,
+			expectedError: "ciphertext is shorter than IV size",
+		},
+		{
+			name:      "Failure Invalid Padding Value",
+			key:       key,
+			data:      tamperedInvalidPaddingValue,
+			encScheme: EsSymCBCPKCS5,
+			// FIX: Updated expected error message
+			expectedError: "invalid PKCS#5 padding value",
+		},
+		{
+			name:      "Failure Different Key Same Size",
+			key:       []byte("a-different-32-byte-secret-key!!"),
+			data:      validCiphertext,
+			encScheme: EsSymCBCPKCS5,
+			// FIX: Updated expected error message
+			expectedError: "invalid PKCS#5 padding",
+		},
+	}
+
+	for _, tc := range failureTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := u.DecryptWithSymmetricKey(ctx, tc.key, tc.data, tpm12.AlgAES256, tc.encScheme)
+			assertError(t, err, tc.expectedError, "DecryptWithSymmetricKey Failure")
+		})
+	}
+}
