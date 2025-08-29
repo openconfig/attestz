@@ -157,6 +157,13 @@ type TPMIdentityContents struct {
 	IdentityPubKey    TPMPubKey    // Identity Key (AIK) public key - TPM_PUBKEY.
 }
 
+// TPMAsymCAContents is the structure that contains the asymmetric CA contents.
+// TPM_ASYM_CA_CONTENTS from TPM 1.2 specification.
+type TPMAsymCAContents struct {
+	SessionKey TPMSymmetricKey // The session key.
+	IDDigest   [20]byte        // The digest of the identity key (TPM_PUBKEY)
+}
+
 // TPMIdentityReq is a response from the TPM containing the identity proof and binding.
 // TPM_IDENTITY_REQ from TPM 1.2 specification.
 type TPMIdentityReq struct {
@@ -190,6 +197,9 @@ type TPM12Utils interface {
 	SerializeIdentityContents(identityContents *TPMIdentityContents) ([]byte, error)
 	ConstructPubKey(publicKey *rsa.PublicKey) (*TPMPubKey, error)
 	ConstructIdentityContents(publicKey *rsa.PublicKey) (*TPMIdentityContents, error)
+	ConstructAsymCAContents(symKey *TPMSymmetricKey, identityKey *TPMPubKey) (*TPMAsymCAContents, error)
+	SerializeAsymCAContents(asymCAContents *TPMAsymCAContents) ([]byte, error)
+	SerializeSymmetricKey(symKey *TPMSymmetricKey) ([]byte, error)
 }
 
 // DefaultTPM12Utils is a concrete implementation of the TPM12Utils interface.
@@ -640,6 +650,9 @@ func (u *DefaultTPM12Utils) NewAESCBCKey(algo tpm12.Algorithm) (*TPMSymmetricKey
 
 // validateSymmetricKey validates the symmetric key parameters.
 func validateSymmetricKey(symKey *TPMSymmetricKey) error {
+	if symKey == nil {
+		return fmt.Errorf("nil symmetric key")
+	}
 	if symKey.EncScheme != EsSymCBCPKCS5 {
 		return fmt.Errorf("unsupported encoding scheme for symmetric key: %v", symKey.EncScheme)
 	}
@@ -723,6 +736,74 @@ func (u *DefaultTPM12Utils) DecryptWithSymmetricKey(ctx context.Context, symKey 
 	// TODO: Implement the decryption using a symmetric key.
 	// For now, we just return the data as is.
 	return data, nil
+}
+
+// ConstructAsymCAContents constructs TPMAsymCAContents.
+func (u *DefaultTPM12Utils) ConstructAsymCAContents(symKey *TPMSymmetricKey, identityKey *TPMPubKey) (*TPMAsymCAContents, error) {
+	if err := validateSymmetricKey(symKey); err != nil {
+		return nil, fmt.Errorf("invalid symmetric key: %w", err)
+	}
+	if identityKey == nil {
+		return nil, fmt.Errorf("identityKey cannot be nil")
+	}
+	identityKeyBytes, err := u.SerializePubKey(identityKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize identityKey: %w", err)
+	}
+	// #nosec
+	idDigest := sha1.Sum(identityKeyBytes)
+	return &TPMAsymCAContents{
+		SessionKey: *symKey,
+		IDDigest:   idDigest,
+	}, nil
+}
+
+// SerializeSymmetricKey serializes a TPMSymmetricKey to bytes.
+func (u *DefaultTPM12Utils) SerializeSymmetricKey(symKey *TPMSymmetricKey) ([]byte, error) {
+	if err := validateSymmetricKey(symKey); err != nil {
+		return nil, fmt.Errorf("invalid symmetric key: %w", err)
+	}
+
+	var buf bytes.Buffer
+	if err := binary.Write(&buf, binary.BigEndian, uint32(symKey.AlgID)); err != nil {
+		return nil, fmt.Errorf("failed to write the algorithm ID to the buffer: %w", err)
+	}
+	if err := binary.Write(&buf, binary.BigEndian, uint16(symKey.EncScheme)); err != nil {
+		return nil, fmt.Errorf("failed to write the encoding scheme to the buffer: %w", err)
+	}
+
+	keyLen := len(symKey.Key)
+	if keyLen > math.MaxUint16 {
+		return nil, fmt.Errorf("symmetric key data size (%d) exceeds maximum UINT16 size", keyLen)
+	}
+	if err := binary.Write(&buf, binary.BigEndian, uint16(keyLen)); err != nil {
+		return nil, fmt.Errorf("failed to write the key size to the buffer: %w", err)
+	}
+	if err := binary.Write(&buf, binary.BigEndian, symKey.Key); err != nil {
+		return nil, fmt.Errorf("failed to write the key data to the buffer: %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
+// SerializeAsymCAContents serializes a TPMAsymCAContents to bytes.
+func (u *DefaultTPM12Utils) SerializeAsymCAContents(asymCAContents *TPMAsymCAContents) ([]byte, error) {
+	if asymCAContents == nil {
+		return nil, fmt.Errorf("asymCAContents cannot be nil")
+	}
+
+	sessionKeyBytes, err := u.SerializeSymmetricKey(&asymCAContents.SessionKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize SessionKey: %w", err)
+	}
+
+	var buf bytes.Buffer
+	buf.Write(sessionKeyBytes)
+	err = binary.Write(&buf, binary.BigEndian, asymCAContents.IDDigest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to write asymCAContents.IDDigest to buffer: %w", err)
+	}
+
+	return buf.Bytes(), nil
 }
 
 // VerifySignature verifies a signature using a public key.
