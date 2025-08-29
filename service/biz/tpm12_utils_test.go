@@ -19,13 +19,41 @@ import (
 )
 
 // TODO: refactor tests to split success and failure cases, and make create bytes helpers more readable.
-// createSymmetricKeyParmsBytes creates a byte slice representing a TPMSymmetricKeyParms structure.
-func createSymmetricKeyParmsBytes(keyLength, blockSize, ivSize uint32, iv []byte) []byte {
+// This function creates a byte slice representing a TPMSymmetricKeyParms structure.
+type symmetricKeyParms struct {
+	keyLength *uint32
+	blockSize *uint32
+	ivSize    *uint32
+	iv        *[]byte
+}
+
+func (opts symmetricKeyParms) toBytes() []byte {
 	buffer := new(bytes.Buffer)
+
+	keyLength := uint32(16)
+	if opts.keyLength != nil {
+		keyLength = *opts.keyLength
+	}
 	binaryWriteUint32(buffer, keyLength)
+
+	blockSize := uint32(16)
+	if opts.blockSize != nil {
+		blockSize = *opts.blockSize
+	}
 	binaryWriteUint32(buffer, blockSize)
+
+	ivSize := uint32(16)
+	if opts.ivSize != nil {
+		ivSize = *opts.ivSize
+	}
 	binaryWriteUint32(buffer, ivSize)
+
+	iv := make([]byte, 16)
+	if opts.iv != nil {
+		iv = *opts.iv
+	}
 	buffer.Write(iv)
+
 	return buffer.Bytes()
 }
 
@@ -41,208 +69,247 @@ func assertError(t *testing.T, err error, expectedError string, message string) 
 	}
 }
 
-func TestParseSymmetricKeyParms(t *testing.T) {
-	// Valid cases
+func TestParseSymmetricKeyParms_Success(t *testing.T) {
+	iv := make([]byte, 16)
+	data := symmetricKeyParms{
+		keyLength: ptrUint32(16),
+		blockSize: ptrUint32(16),
+		ivSize:    ptrUint32(16),
+		iv:        &iv,
+	}.toBytes()
+	u := &DefaultTPM12Utils{}
+	result, err := u.ParseSymmetricKeyParms(data)
+
+	if err != nil {
+		t.Fatalf("ParseSymmetricKeyParms(%v) returned err: %v, want nil", data, err)
+	}
+
+	expected := &TPMSymmetricKeyParms{
+		KeyLength: uint32(16),
+		BlockSize: uint32(16),
+		IV:        make([]byte, 16),
+	}
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("ParseSymmetricKeyParms(%v) returned diff (-want +got):\n%s", data, diff)
+	}
+}
+
+func TestParseSymmetricKeyParms_Failure(t *testing.T) {
 	testCases := []struct {
 		name          string
-		keyLength     uint32
-		blockSize     uint32
-		ivSize        uint32
-		iv            []byte
+		params        symmetricKeyParms
 		expectedError string
 	}{
 		{
-			name:          "Valid params",
-			keyLength:     16,
-			blockSize:     16,
-			ivSize:        16,
-			iv:            make([]byte, 16),
-			expectedError: "",
-		},
-		{
-			name:          "invalid zero IV",
-			keyLength:     16,
-			blockSize:     16,
-			ivSize:        0,
-			iv:            []byte{},
+			name: "invalid zero IV",
+			params: symmetricKeyParms{
+				ivSize: ptrUint32(0),
+				iv:     &[]byte{},
+			},
 			expectedError: "failed to read ivSize: read uint32 is zero, expected non-zero",
 		},
 		{
-			name:          "Invalid zero keyLength",
-			keyLength:     0,
-			blockSize:     16,
-			ivSize:        16,
-			iv:            make([]byte, 16),
+			name: "Invalid zero keyLength",
+			params: symmetricKeyParms{
+				keyLength: ptrUint32(0),
+			},
 			expectedError: "failed to read keyLength",
 		},
 		{
-			name:          "Invalid zero blockSize",
-			keyLength:     16,
-			blockSize:     0,
-			ivSize:        16,
-			iv:            make([]byte, 16),
+			name: "Invalid zero blockSize",
+			params: symmetricKeyParms{
+				blockSize: ptrUint32(0),
+			},
 			expectedError: "failed to read blockSize",
 		},
 		{
-			name:          "Invalid ivSize too small",
-			keyLength:     16,
-			blockSize:     16,
-			ivSize:        8,
-			iv:            make([]byte, 16),
+			name: "Invalid ivSize too small",
+			params: symmetricKeyParms{
+				ivSize: ptrUint32(8),
+			},
 			expectedError: "leftover bytes in TPM_SYMMETRIC_KEY_PARMS block",
 		},
 		{
-			name:          "Invalid ivSize bigger than iv",
-			keyLength:     16,
-			blockSize:     16,
-			ivSize:        32,
-			iv:            make([]byte, 16),
+			name: "Invalid ivSize bigger than iv",
+			params: symmetricKeyParms{
+				ivSize: ptrUint32(32),
+			},
 			expectedError: "failed to read IV",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			data := createSymmetricKeyParmsBytes(tc.keyLength, tc.blockSize, tc.ivSize, tc.iv)
+			data := tc.params.toBytes()
 			u := &DefaultTPM12Utils{}
-			result, err := u.ParseSymmetricKeyParms(data)
-
-			assertError(t, err, tc.expectedError, "ParseSymmetricKeyParms")
-
-			if tc.expectedError == "" {
-				if result.KeyLength != tc.keyLength {
-					t.Errorf("KeyLength mismatch: got %v, expected %v", result.KeyLength, tc.keyLength)
-				}
-				if result.BlockSize != tc.blockSize {
-					t.Errorf("BlockSize mismatch: got %v, expected %v", result.BlockSize, tc.blockSize)
-				}
-				if result.IV == nil && tc.ivSize != 0 {
-					t.Errorf("IV mismatch: got nil, expected %v", tc.iv)
-				}
-				if tc.ivSize != 0 && !cmp.Equal(result.IV, tc.iv) {
-					t.Errorf("IV mismatch: got %v, expected %v", result.IV, tc.iv)
-				}
+			_, err := u.ParseSymmetricKeyParms(data)
+			if err == nil {
+				t.Fatalf("ParseSymmetricKeyParms(%v) got nil error, want error containing %q", data, tc.expectedError)
+			}
+			if !strings.Contains(err.Error(), tc.expectedError) {
+				t.Errorf("ParseSymmetricKeyParms(%v) got error %v, want error containing %q", data, err, tc.expectedError)
 			}
 		})
 	}
 }
 
-func createRSAKeyParmsBytes(keyLength, numPrimes, exponentSize uint32, exponent []byte) []byte {
+// rsaKeyParms provides options for creating TPM_RSA_KEY_PARMS bytes.
+type rsaKeyParms struct {
+	keyLength    *uint32
+	numPrimes    *uint32
+	exponent     *[]byte
+	exponentSize *uint32
+}
+
+// This function creates a byte slice representing TPM_RSA_KEY_PARMS structure
+func (opts rsaKeyParms) toBytes() []byte {
 	buffer := new(bytes.Buffer)
+
+	keyLength := uint32(2048)
+	if opts.keyLength != nil {
+		keyLength = *opts.keyLength
+	}
 	binaryWriteUint32(buffer, keyLength)
+
+	numPrimes := uint32(2)
+	if opts.numPrimes != nil {
+		numPrimes = *opts.numPrimes
+	}
 	binaryWriteUint32(buffer, numPrimes)
+
+	exponent := []byte{1, 2, 3}
+	if opts.exponent != nil {
+		exponent = *opts.exponent
+	}
+	exponentSize := uint32(len(exponent))
+	if opts.exponentSize != nil {
+		exponentSize = *opts.exponentSize
+	}
 	binaryWriteUint32(buffer, exponentSize)
 	buffer.Write(exponent)
+
 	return buffer.Bytes()
 }
 
-func TestParseRSAKeyParms(t *testing.T) {
-	// Valid cases
+func TestParseRSAKeyParms_Success(t *testing.T) {
+	u := &DefaultTPM12Utils{}
+	data := rsaKeyParms{
+		keyLength: ptrUint32(2048),
+		numPrimes: ptrUint32(2),
+		exponent:  &[]byte{1, 2, 3},
+	}.toBytes()
+	result, err := u.ParseRSAKeyParms(data)
+
+	if err != nil {
+		t.Fatalf("ParseRSAKeyParms(%v) returned err: %v, want nil", data, err)
+	}
+
+	expected := &TPMRSAKeyParms{
+		KeyLength: 2048,
+		NumPrimes: 2,
+		Exponent:  []byte{1, 2, 3},
+	}
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("ParseRSAKeyParms(%v) returned diff (-want +got):\n%s", data, diff)
+	}
+}
+
+func TestParseRSAKeyParms_Failure(t *testing.T) {
 	testCases := []struct {
 		name          string
-		keyLength     uint32
-		numPrimes     uint32
-		exponentSize  uint32
-		exponent      []byte
-		input         []byte
+		params        rsaKeyParms
 		expectedError string
 	}{
 		{
-			name:          "Valid params",
-			keyLength:     2048,
-			numPrimes:     2,
-			exponentSize:  3,
-			exponent:      []byte{1, 2, 3},
-			expectedError: "",
-		},
-		{
-			name:          "Invalid zero keyLength",
-			keyLength:     0,
-			numPrimes:     2,
-			exponentSize:  3,
-			exponent:      []byte{1, 2, 3},
+			name: "Invalid zero keyLength",
+			params: rsaKeyParms{
+				keyLength: ptrUint32(0),
+			},
 			expectedError: "failed to read keyLength: read uint32 is zero, expected non-zero",
 		},
 		{
-			name:          "Invalid zero numPrimes",
-			keyLength:     2048,
-			numPrimes:     0,
-			exponentSize:  3,
-			exponent:      []byte{1, 2, 3},
+			name: "Invalid zero numPrimes",
+			params: rsaKeyParms{
+				numPrimes: ptrUint32(0),
+			},
 			expectedError: "failed to read numPrimes: read uint32 is zero, expected non-zero",
 		},
 		{
-			name:          "Invalid exponentSize too big",
-			keyLength:     2048,
-			numPrimes:     2,
-			exponentSize:  257,
-			exponent:      make([]byte, 256),
-			expectedError: "failed to read exponent",
-		},
-		{
-			name:          "Invalid exponentSize too small",
-			keyLength:     2048,
-			numPrimes:     2,
-			exponentSize:  2,
-			exponent:      make([]byte, 3),
+			name: "Invalid exponentSize too big",
+			params: rsaKeyParms{
+				exponent:     &[]byte{1, 2, 3, 4},
+				exponentSize: ptrUint32(3), // Smaller than actual exponent
+			},
 			expectedError: "leftover bytes in TPM_RSA_KEY_PARMS block",
 		},
 		{
-			name:          "Not enough bytes",
-			input:         createRSAKeyParmsBytes(2048, 2, 3, []byte{1, 2}),
+			name: "Invalid exponentSize too small",
+			params: rsaKeyParms{
+				exponentSize: ptrUint32(2),
+			},
+			expectedError: "leftover bytes in TPM_RSA_KEY_PARMS block",
+		},
+		{
+			name: "Not enough bytes for exponent",
+			params: rsaKeyParms{
+				exponent:     &[]byte{1, 2, 3},
+				exponentSize: ptrUint32(4), // Larger than actual exponent
+			},
 			expectedError: "failed to read exponent",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			data := tc.input
-			if data == nil {
-				data = createRSAKeyParmsBytes(tc.keyLength, tc.numPrimes, tc.exponentSize, tc.exponent)
-			}
 			u := &DefaultTPM12Utils{}
-			result, err := u.ParseRSAKeyParms(data)
+			data := tc.params.toBytes()
+			_, err := u.ParseRSAKeyParms(data)
 
-			assertError(t, err, tc.expectedError, "ParseRSAKeyParms")
-
-			if tc.expectedError == "" {
-				if result.KeyLength != tc.keyLength {
-					t.Errorf("KeyLength mismatch: got %v, expected %v", result.KeyLength, tc.keyLength)
-				}
-				if result.NumPrimes != tc.numPrimes {
-					t.Errorf("numPrimes mismatch: got %v, expected %v", result.NumPrimes, tc.numPrimes)
-				}
-				if !cmp.Equal(result.Exponent, tc.exponent) {
-					t.Errorf("Exponent mismatch: got %v, expected %v", result.Exponent, tc.exponent)
-				}
+			if err == nil {
+				t.Errorf("ParseRSAKeyParms(%v) got nil error, want error containing %q", data, tc.expectedError)
+			} else if !strings.Contains(err.Error(), tc.expectedError) {
+				t.Errorf("ParseRSAKeyParms(%v) got error %v, want error containing %q", data, err, tc.expectedError)
 			}
 		})
 	}
 }
 
-// createKeyParmsBytes creates a byte slice representing a TPM_KEY_PARMS structure.
-func createKeyParmsBytes(algID tpm12.Algorithm, encScheme TPMEncodingScheme, sigScheme TPMSignatureScheme, parms []byte) []byte {
+// keyParms provides options for creating TPM_KEY_PARMS bytes.
+type keyParms struct {
+	algID     tpm12.Algorithm
+	encScheme TPMEncodingScheme
+	sigScheme TPMSignatureScheme
+	parms     []byte
+}
+
+// This function creates a byte slice representing a TPM_KEY_PARMS structure.
+func (opts keyParms) toBytes() []byte {
 	buffer := new(bytes.Buffer)
-	binaryWriteUint32(buffer, uint32(algID))
-	binaryWriteUint16(buffer, uint16(encScheme))
-	binaryWriteUint16(buffer, uint16(sigScheme))
-	binaryWriteUint32(buffer, uint32(len(parms))) // paramSize
-	buffer.Write(parms)
+	binaryWriteUint32(buffer, uint32(opts.algID))
+	binaryWriteUint16(buffer, uint16(opts.encScheme))
+	binaryWriteUint16(buffer, uint16(opts.sigScheme))
+	binaryWriteUint32(buffer, uint32(len(opts.parms))) // paramSize
+	buffer.Write(opts.parms)
 	return buffer.Bytes()
 }
 
-func TestParseKeyParmsFromReader(t *testing.T) {
+func TestParseKeyParmsFromReader_Success(t *testing.T) {
 	testCases := []struct {
-		name          string
-		input         []byte
-		expected      *TPMKeyParms
-		expectedError string
+		name     string
+		input    []byte
+		expected *TPMKeyParms
 	}{
 		{
 			name: "Valid RSA KeyParms",
-			input: createKeyParmsBytes(
-				tpm12.AlgRSA, EsRSAEsPKCSv15, SsRSASaPKCS1v15SHA1, createRSAKeyParmsBytes(2048, 2, 3, []byte{1, 2, 3}),
-			),
+			input: keyParms{
+				algID:     tpm12.AlgRSA,
+				encScheme: EsRSAEsPKCSv15,
+				sigScheme: SsRSASaPKCS1v15SHA1,
+				parms:     rsaKeyParms{}.toBytes(), // Use defaults
+			}.toBytes(),
+
 			expected: &TPMKeyParms{
 				AlgID:     tpm12.AlgRSA,
 				EncScheme: EsRSAEsPKCSv15,
@@ -255,13 +322,16 @@ func TestParseKeyParmsFromReader(t *testing.T) {
 					},
 				},
 			},
-			expectedError: "",
 		},
 		{
 			name: "Valid Symmetric KeyParms (AES128)",
-			input: createKeyParmsBytes(
-				tpm12.AlgAES128, EsSymCBCPKCS5, SsNone, createSymmetricKeyParmsBytes(16, 16, 16, make([]byte, 16)),
-			),
+			input: keyParms{
+				algID:     tpm12.AlgAES128,
+				encScheme: EsSymCBCPKCS5,
+				sigScheme: SsNone,
+				parms:     symmetricKeyParms{}.toBytes(), // Use defaults
+			}.toBytes(),
+
 			expected: &TPMKeyParms{
 				AlgID:     tpm12.AlgAES128,
 				EncScheme: EsSymCBCPKCS5,
@@ -274,86 +344,21 @@ func TestParseKeyParmsFromReader(t *testing.T) {
 					},
 				},
 			},
-			expectedError: "",
 		},
 		{
 			name: "Valid KeyParms with no specific params (SHA1)",
-			input: createKeyParmsBytes(
-				tpm12.AlgSHA, EsNone, SsNone, []byte{}, // No params
-			),
+			input: keyParms{
+				algID:     tpm12.AlgSHA,
+				encScheme: EsNone,
+				sigScheme: SsNone,
+				parms:     []byte{}, // No params
+			}.toBytes(),
 			expected: &TPMKeyParms{
 				AlgID:     tpm12.AlgSHA,
 				EncScheme: EsNone,
 				SigScheme: SsNone,
 				Params:    TPMParams{}, // Should be empty
 			},
-			expectedError: "",
-		},
-		{
-			name:          "Input too short for AlgID",
-			input:         []byte{1, 2, 3}, // 3 bytes, needs 4 for AlgID
-			expectedError: "failed to read algorithmID",
-		},
-		{
-			name:          "Invalid AlgID",
-			input:         []byte{1, 2, 3, 4},
-			expectedError: "invalid algorithmID",
-		},
-		{
-			name: "Input too short for EncScheme",
-			input: createKeyParmsBytes(
-				tpm12.AlgRSA, EsRSAEsPKCSv15, SsRSASaPKCS1v15SHA1, createRSAKeyParmsBytes(2048, 2, 3, []byte{1, 2, 3}),
-			)[:4], // Truncate after AlgID
-			expectedError: "failed to read encScheme",
-		},
-		{
-			name: "Input too short for SigScheme",
-			input: createKeyParmsBytes(
-				tpm12.AlgRSA, EsRSAEsPKCSv15, SsRSASaPKCS1v15SHA1, createRSAKeyParmsBytes(2048, 2, 3, []byte{1, 2, 3}),
-			)[:6], // Truncate after EncScheme
-			expectedError: "failed to read sigScheme",
-		},
-		{
-			name: "Input too short for ParamSize",
-			input: createKeyParmsBytes(
-				tpm12.AlgRSA, EsRSAEsPKCSv15, SsRSASaPKCS1v15SHA1, createRSAKeyParmsBytes(2048, 2, 3, []byte{1, 2, 3}),
-			)[:8], // Truncate after SigScheme
-			expectedError: "failed to read paramSize",
-		},
-		{
-			name: "ParamSize too small for RSA params",
-			input: createKeyParmsBytes(
-				tpm12.AlgRSA, EsRSAEsPKCSv15, SsRSASaPKCS1v15SHA1, []byte{1, 2}, // ParamSize will be 2, but RSA params need at least 4 bytes for KeyLength
-			),
-			expectedError: "failed to parse RSA key parms",
-		},
-		{
-			name: "Input too short for Parms data",
-			input: createKeyParmsBytes(
-				tpm12.AlgRSA, EsRSAEsPKCSv15, SsRSASaPKCS1v15SHA1, createRSAKeyParmsBytes(2048, 2, 3, []byte{1, 2, 3}),
-			)[:14], // Truncate in the middle of parms
-			expectedError: "failed to read parms", // Error from readBytes
-		},
-		{
-			name: "Invalid RSA Parms (zero keyLength)",
-			input: createKeyParmsBytes(
-				tpm12.AlgRSA, EsRSAEsPKCSv15, SsRSASaPKCS1v15SHA1, createRSAKeyParmsBytes(0, 2, 3, []byte{1, 2, 3}),
-			),
-			expectedError: "failed to parse RSA key parms: failed to read keyLength: read uint32 is zero, expected non-zero",
-		},
-		{
-			name: "Invalid Symmetric Parms (zero ivSize)",
-			input: createKeyParmsBytes(
-				tpm12.AlgAES128, EsSymCBCPKCS5, SsNone, createSymmetricKeyParmsBytes(16, 16, 0, []byte{}),
-			),
-			expectedError: "failed to parse Symmetric key parms: failed to read ivSize: read uint32 is zero, expected non-zero",
-		},
-		{
-			name: "Unexpected paramSize for SHA1 (no params expected)",
-			input: createKeyParmsBytes(
-				tpm12.AlgSHA, EsNone, SsNone, []byte{1, 2, 3}, // Should be empty, but has data
-			),
-			expectedError: "unexpected params size for algorithm SHA1",
 		},
 	}
 
@@ -363,55 +368,183 @@ func TestParseKeyParmsFromReader(t *testing.T) {
 			u := &DefaultTPM12Utils{}
 			result, err := u.ParseKeyParmsFromReader(reader)
 
-			assertError(t, err, tc.expectedError, "ParseKeyParms")
+			if err != nil {
+				t.Fatalf("ParseKeyParmsFromReader(%v) returned unexpected error: %v", tc.input, err)
+			}
 
-			if tc.expectedError == "" {
-				if !cmp.Equal(result, tc.expected) {
-					t.Errorf("ParseKeyParms mismatch:\nGot: %+v\nExpected: %+v", result, tc.expected)
-				}
+			if !cmp.Equal(result, tc.expected) {
+				t.Errorf("ParseKeyParmsFromReader(%v) return mismatch:\nGot: %+v\nExpected: %+v", tc.input, result, tc.expected)
 			}
 		})
 	}
 }
 
-// IdentityRequestOptions provides options for creating TPMIdentityReq bytes.
-// Fields, if nil or empty, will use default values.
-type IdentityRequestOptions struct {
-	AsymBlobSize *uint32
-	SymBlobSize  *uint32
-	AsymKeyParms []byte
-	SymKeyParms  []byte
-	AsymBlob     []byte
-	SymBlob      []byte
+func TestParseKeyParmsFromReader_Failure(t *testing.T) {
+	testCases := []struct {
+		name          string
+		input         []byte
+		expectedError string
+	}{
+		{
+			name:          "Invalid AlgID",
+			input:         []byte{1, 2, 3, 4},
+			expectedError: "invalid algorithmID",
+		},
+		{
+			name:          "Input too short for AlgID",
+			input:         []byte{1, 2, 3}, // 3 bytes, needs 4 for AlgID
+			expectedError: "failed to read algorithmID",
+		},
+		{
+			name: "Input too short for EncScheme",
+			input: keyParms{
+				algID:     tpm12.AlgRSA,
+				encScheme: EsRSAEsPKCSv15,
+				sigScheme: SsRSASaPKCS1v15SHA1,
+				parms:     rsaKeyParms{}.toBytes(),
+			}.toBytes()[:4], // Truncate after AlgID
+			expectedError: "failed to read encScheme",
+		},
+		{
+			name: "Input too short for SigScheme",
+			input: keyParms{
+				algID:     tpm12.AlgRSA,
+				encScheme: EsRSAEsPKCSv15,
+				sigScheme: SsRSASaPKCS1v15SHA1,
+				parms:     rsaKeyParms{}.toBytes(),
+			}.toBytes()[:6], // Truncate after encScheme
+			expectedError: "failed to read sigScheme",
+		},
+		{
+			name: "Input too short for ParamSize",
+			input: keyParms{
+				algID:     tpm12.AlgRSA,
+				encScheme: EsRSAEsPKCSv15,
+				sigScheme: SsRSASaPKCS1v15SHA1,
+				parms:     rsaKeyParms{}.toBytes(),
+			}.toBytes()[:8], // Truncate after SigScheme
+			expectedError: "failed to read paramSize",
+		},
+		{
+			name: "ParamSize too small for RSA params",
+			input: keyParms{
+				algID:     tpm12.AlgRSA,
+				encScheme: EsRSAEsPKCSv15,
+				sigScheme: SsRSASaPKCS1v15SHA1,
+				parms:     []byte{1, 2}, // ParamSize will be 2, but RSA params need at least 4 bytes for KeyLength
+			}.toBytes(),
+			expectedError: "failed to parse RSA key parms",
+		},
+		{
+			name: "Input too short for Parms data",
+			input: keyParms{
+				algID:     tpm12.AlgRSA,
+				encScheme: EsRSAEsPKCSv15,
+				sigScheme: SsRSASaPKCS1v15SHA1,
+				parms:     rsaKeyParms{}.toBytes(),
+			}.toBytes()[:14], // Truncate in the middle of parms
+			expectedError: "failed to read parms", // Error from readBytes
+		},
+		{
+			name: "Invalid RSA Parms (zero keyLength)",
+			input: keyParms{
+				algID:     tpm12.AlgRSA,
+				encScheme: EsRSAEsPKCSv15,
+				sigScheme: SsRSASaPKCS1v15SHA1,
+				parms: rsaKeyParms{
+					keyLength: ptrUint32(0),
+				}.toBytes(),
+			}.toBytes(),
+			expectedError: "failed to parse RSA key parms: failed to read keyLength: read uint32 is zero, expected non-zero",
+		},
+		{
+			name: "Invalid Symmetric Parms (zero ivSize)",
+			input: keyParms{
+				algID:     tpm12.AlgAES128,
+				encScheme: EsSymCBCPKCS5,
+				sigScheme: SsNone,
+				parms: symmetricKeyParms{
+					ivSize: ptrUint32(0),
+					iv:     &[]byte{},
+				}.toBytes(),
+			}.toBytes(),
+			expectedError: "failed to parse Symmetric key parms: failed to read ivSize: read uint32 is zero, expected non-zero",
+		},
+		{
+			name: "Unexpected paramSize for SHA1 (no params expected)",
+			input: keyParms{
+				algID:     tpm12.AlgSHA,
+				encScheme: EsNone,
+				sigScheme: SsNone,
+				parms:     []byte{1, 2, 3}, // Should be empty, but has data
+			}.toBytes(),
+			expectedError: "unexpected params size for algorithm SHA1",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			reader := bytes.NewReader(tc.input)
+			u := &DefaultTPM12Utils{}
+			_, err := u.ParseKeyParmsFromReader(reader)
+			if err == nil {
+				t.Fatalf("ParseKeyParmsFromReader(%v) got nil error, want error containing %q", tc.input, tc.expectedError)
+			}
+			if !strings.Contains(err.Error(), tc.expectedError) {
+				t.Errorf("ParseKeyParmsFromReader(%v) got error %v, want error containing %q", tc.input, err, tc.expectedError)
+			}
+		})
+	}
 }
 
-// createIdentityRequestBytes creates a byte slice representing a TPM_IDENTITY_REQ structure
+// identityRequest provides options for creating TPMIdentityReq bytes.
+// Fields, if nil or empty, will use default values.
+type identityRequest struct {
+	asymBlobSize *uint32
+	symBlobSize  *uint32
+	asymKeyParms []byte
+	symKeyParms  []byte
+	asymBlob     []byte
+	symBlob      []byte
+}
+
+// This function creates a byte slice representing a TPM_IDENTITY_REQ structure
 // based on the provided options. Default values are used for any unset fields.
-func createIdentityRequestBytes(opts IdentityRequestOptions) []byte {
+func (opts identityRequest) toBytes() []byte {
 	// Apply defaults if not provided.
 	asymBlobSize := uint32(10)
-	if opts.AsymBlobSize != nil {
-		asymBlobSize = *opts.AsymBlobSize
+	if opts.asymBlobSize != nil {
+		asymBlobSize = *opts.asymBlobSize
 	}
 	symBlobSize := uint32(16)
-	if opts.SymBlobSize != nil {
-		symBlobSize = *opts.SymBlobSize
+	if opts.symBlobSize != nil {
+		symBlobSize = *opts.symBlobSize
 	}
-	asymKeyParms := createKeyParmsBytes(tpm12.AlgRSA, EsRSAEsPKCSv15, SsRSASaPKCS1v15SHA1, createRSAKeyParmsBytes(2048, 2, 3, []byte{1, 2, 3}))
-	if opts.AsymKeyParms != nil {
-		asymKeyParms = opts.AsymKeyParms
+	asymKeyParms := keyParms{
+		algID:     tpm12.AlgRSA,
+		encScheme: EsRSAEsPKCSv15,
+		sigScheme: SsRSASaPKCS1v15SHA1,
+		parms:     rsaKeyParms{}.toBytes(), // Use defaults
+	}.toBytes()
+	if opts.asymKeyParms != nil {
+		asymKeyParms = opts.asymKeyParms
 	}
-	symKeyParms := createKeyParmsBytes(tpm12.AlgAES128, EsSymCBCPKCS5, SsNone, createSymmetricKeyParmsBytes(16, 16, 16, make([]byte, 16)))
-	if opts.SymKeyParms != nil {
-		symKeyParms = opts.SymKeyParms
+	symKeyParms := keyParms{
+		algID:     tpm12.AlgAES128,
+		encScheme: EsSymCBCPKCS5,
+		sigScheme: SsNone,
+		parms:     symmetricKeyParms{}.toBytes(), // Use defaults
+	}.toBytes()
+	if opts.symKeyParms != nil {
+		symKeyParms = opts.symKeyParms
 	}
 	asymBlob := make([]byte, asymBlobSize)
-	if opts.AsymBlob != nil {
-		asymBlob = opts.AsymBlob
+	if opts.asymBlob != nil {
+		asymBlob = opts.asymBlob
 	}
 	symBlob := make([]byte, symBlobSize)
-	if opts.SymBlob != nil {
-		symBlob = opts.SymBlob
+	if opts.symBlob != nil {
+		symBlob = opts.symBlob
 	}
 
 	buffer := new(bytes.Buffer)
@@ -432,7 +565,7 @@ func TestParseIdentityRequestSuccess(t *testing.T) {
 	}{
 		{
 			name:  "Valid request with RSA and AES, small blobs",
-			input: createIdentityRequestBytes(IdentityRequestOptions{}), // Use all defaults
+			input: identityRequest{}.toBytes(), // Use all defaults
 			expected: &TPMIdentityReq{
 				AsymAlgorithm: TPMKeyParms{
 					AlgID:     tpm12.AlgRSA,
@@ -487,18 +620,18 @@ func TestParseIdentityRequestFailure(t *testing.T) {
 	}{
 		{
 			name: "invalid request with no asymblob",
-			input: createIdentityRequestBytes(IdentityRequestOptions{
-				AsymBlobSize: ptrUint32(0),
-				AsymBlob:     []byte{},
-			}),
+			input: identityRequest{
+				asymBlobSize: ptrUint32(0),
+				asymBlob:     []byte{},
+			}.toBytes(),
 			expectedError: "failed to read asymBlobSize: read uint32 is zero, expected non-zero",
 		},
 		{
 			name: "invalid request with no symblob",
-			input: createIdentityRequestBytes(IdentityRequestOptions{
-				SymBlobSize: ptrUint32(0),
-				SymBlob:     []byte{},
-			}),
+			input: identityRequest{
+				symBlobSize: ptrUint32(0),
+				symBlob:     []byte{},
+			}.toBytes(),
 			expectedError: "failed to read symBlobSize: read uint32 is zero, expected non-zero",
 		},
 		{
@@ -513,51 +646,66 @@ func TestParseIdentityRequestFailure(t *testing.T) {
 		},
 		{
 			name: "Input too short for asymAlgorithm",
-			input: createIdentityRequestBytes(IdentityRequestOptions{
-				AsymKeyParms: []byte{1, 2, 3}, // Invalid asymKeyParms
-			}),
+			input: identityRequest{
+				asymKeyParms: []byte{1, 2, 3}, // Invalid asymKeyParms
+			}.toBytes(),
 			expectedError: "failed to parse asymAlgorithm (TPM_KEY_PARMS): invalid algorithmID",
 		},
 		{
 			name: "Input too short for symAlgorithm",
-			input: createIdentityRequestBytes(IdentityRequestOptions{
-				SymKeyParms: []byte{1, 2, 3}, // Invalid symKeyParms
-			}),
+			input: identityRequest{
+				symKeyParms: []byte{1, 2, 3}, // Invalid symKeyParms
+			}.toBytes(),
 			expectedError: "failed to parse symAlgorithm (TPM_KEY_PARMS): invalid algorithmID",
 		},
 		{
 			name: "Input too short for asymBlob",
-			input: createIdentityRequestBytes(IdentityRequestOptions{
-				AsymBlobSize: ptrUint32(10),
-				AsymBlob:     make([]byte, 5),
-			}),
+			input: identityRequest{
+				asymBlobSize: ptrUint32(10),
+				asymBlob:     make([]byte, 5),
+			}.toBytes(),
 			expectedError: "failed to read symBlob",
 		},
 		{
 			name: "Input too short for symBlob",
-			input: createIdentityRequestBytes(IdentityRequestOptions{
-				SymBlobSize: ptrUint32(10),
-				SymBlob:     make([]byte, 5),
-			}),
+			input: identityRequest{
+				symBlobSize: ptrUint32(10),
+				symBlob:     make([]byte, 5),
+			}.toBytes(),
 			expectedError: "failed to read symBlob",
 		},
 		{
 			name: "Invalid asymKeyParms (zero keyLength)",
-			input: createIdentityRequestBytes(IdentityRequestOptions{
-				AsymKeyParms: createKeyParmsBytes(tpm12.AlgRSA, EsRSAEsPKCSv15, SsRSASaPKCS1v15SHA1, createRSAKeyParmsBytes(0, 2, 3, []byte{1, 2, 3})),
-			}),
+			input: identityRequest{
+				asymKeyParms: keyParms{
+					algID:     tpm12.AlgRSA,
+					encScheme: EsRSAEsPKCSv15,
+					sigScheme: SsRSASaPKCS1v15SHA1,
+					parms: rsaKeyParms{
+						keyLength: ptrUint32(0),
+					}.toBytes(),
+				}.toBytes(),
+			}.toBytes(),
 			expectedError: "failed to parse asymAlgorithm (TPM_KEY_PARMS): failed to parse RSA key parms",
 		},
 		{
 			name: "Invalid symKeyParms (zero ivSize)",
-			input: createIdentityRequestBytes(IdentityRequestOptions{
-				SymKeyParms: createKeyParmsBytes(tpm12.AlgAES128, EsSymCBCPKCS5, SsNone, createSymmetricKeyParmsBytes(16, 16, 0, []byte{})),
-			}),
+			input: identityRequest{
+				symKeyParms: keyParms{
+					algID:     tpm12.AlgAES128,
+					encScheme: EsSymCBCPKCS5,
+					sigScheme: SsNone,
+					parms: symmetricKeyParms{
+						ivSize: ptrUint32(0),
+						iv:     &[]byte{},
+					}.toBytes(),
+				}.toBytes(),
+			}.toBytes(),
 			expectedError: "failed to parse symAlgorithm (TPM_KEY_PARMS): failed to parse Symmetric key parms",
 		},
 		{
 			name:          "leftover bytes",
-			input:         append(createIdentityRequestBytes(IdentityRequestOptions{}), 1, 2, 3),
+			input:         append(identityRequest{}.toBytes(), 1, 2, 3),
 			expectedError: "leftover bytes in TPM_IDENTITY_REQ after parsing",
 		},
 	}
@@ -566,7 +714,12 @@ func TestParseIdentityRequestFailure(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			u := &DefaultTPM12Utils{}
 			_, err := u.ParseIdentityRequest(tc.input)
-			assertError(t, err, tc.expectedError, "ParseIdentityRequest")
+			if err == nil {
+				t.Fatalf("ParseIdentityRequest(%v) got nil error, want error containing %q", tc.input, tc.expectedError)
+			}
+			if !strings.Contains(err.Error(), tc.expectedError) {
+				t.Errorf("ParseIdentityRequest(%v) got error %v, want error containing %q", tc.input, err, tc.expectedError)
+			}
 		})
 	}
 }
@@ -647,11 +800,33 @@ func TestDecryptWithPrivateKey(t *testing.T) {
 	}
 }
 
-// createSymmetricKeyBytes creates a byte slice representing a TPMSymmetricKey structure.
-func createSymmetricKeyBytes(key []byte) []byte {
+// symmetricKey provides options for creating TPMSymmetricKey bytes.
+type symmetricKey struct {
+	algID     *tpm12.Algorithm
+	encScheme *TPMEncodingScheme
+	key       []byte
+}
+
+// This function creates a byte slice representing a TPMSymmetricKey structure.
+func (opts symmetricKey) toBytes() []byte {
 	buffer := new(bytes.Buffer)
-	binaryWriteUint32(buffer, uint32(tpm12.AlgAES128))
-	binaryWriteUint16(buffer, uint16(EsSymCBCPKCS5))
+
+	algID := tpm12.AlgAES128
+	if opts.algID != nil {
+		algID = *opts.algID
+	}
+	binaryWriteUint32(buffer, uint32(algID))
+
+	encScheme := EsSymCBCPKCS5
+	if opts.encScheme != nil {
+		encScheme = *opts.encScheme
+	}
+	binaryWriteUint16(buffer, uint16(encScheme))
+
+	key := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	if opts.key != nil {
+		key = opts.key
+	}
 	binaryWriteUint16(buffer, uint16(len(key)))
 	buffer.Write(key)
 	return buffer.Bytes()
@@ -665,8 +840,9 @@ func TestParseSymmetricKey(t *testing.T) {
 		expectedError string
 	}{
 		{
-			name:  "Valid key",
-			input: createSymmetricKeyBytes([]byte{1, 2, 3, 4}),
+			name: "Valid key",
+			input: symmetricKey{
+				key: []byte{1, 2, 3, 4}}.toBytes(),
 			expected: &TPMSymmetricKey{
 				AlgID:     tpm12.AlgAES128,
 				EncScheme: EsSymCBCPKCS5,
@@ -675,8 +851,9 @@ func TestParseSymmetricKey(t *testing.T) {
 			expectedError: "",
 		},
 		{
-			name:          "Invalid empty key",
-			input:         createSymmetricKeyBytes([]byte{}),
+			name: "Invalid empty key",
+			input: symmetricKey{
+				key: []byte{}}.toBytes(),
 			expectedError: "key cannot be empty",
 		},
 		{
@@ -685,28 +862,27 @@ func TestParseSymmetricKey(t *testing.T) {
 			expectedError: "failed to read algorithmID",
 		},
 		{
-			name:          "Invalid AlgID",
-			input:         []byte{1, 2, 3, 4},
-			expectedError: "invalid algorithmID",
-		},
-		{
-			name:          "Input too short for EncScheme",
-			input:         createSymmetricKeyBytes([]byte{1, 2, 3, 4})[:4],
+			name: "Input too short for EncScheme",
+			input: symmetricKey{
+				key: []byte{1, 2, 3, 4}}.toBytes()[:4],
 			expectedError: "failed to read encScheme",
 		},
 		{
-			name:          "Input too short for keySize",
-			input:         createSymmetricKeyBytes([]byte{1, 2, 3, 4})[:6],
+			name: "Input too short for keySize",
+			input: symmetricKey{
+				key: []byte{1, 2, 3, 4}}.toBytes()[:6],
 			expectedError: "failed to read keySize",
 		},
 		{
-			name:          "Input too short for key data",
-			input:         createSymmetricKeyBytes([]byte{1, 2, 3, 4})[:10], // 4+2+2+2 bytes
+			name: "Input too short for key data",
+			input: symmetricKey{
+				key: []byte{1, 2, 3, 4}}.toBytes()[:10], // 4+2+2+2 bytes
 			expectedError: "failed to read key (size 4)",
 		},
 		{
-			name:          "Leftover bytes",
-			input:         append(createSymmetricKeyBytes([]byte{1, 2, 3, 4}), 0xDE, 0xAD, 0xBE, 0xEF),
+			name: "Leftover bytes",
+			input: append(symmetricKey{
+				key: []byte{1, 2, 3, 4}}.toBytes(), 0xDE, 0xAD, 0xBE, 0xEF),
 			expectedError: "leftover bytes in TPMSymmetricKey block",
 		},
 	}
@@ -982,16 +1158,16 @@ func TestSerializePubKey(t *testing.T) {
 	}
 
 	u := &DefaultTPM12Utils{}
-	keyParmsBytes, err := u.SerializeKeyParms(&tpmPubKey.AlgorithmParms)
+	keyParms, err := u.SerializeKeyParms(&tpmPubKey.AlgorithmParms)
 	if err != nil {
 		t.Fatalf("SerializeKeyParms returned unexpected error: %v", err)
 	}
-	pubKeyBytes, err := u.SerializeStorePubKey(&tpmPubKey.PubKey)
+	pubKey, err := u.SerializeStorePubKey(&tpmPubKey.PubKey)
 	if err != nil {
 		t.Fatalf("SerializeStorePubKey returned unexpected error: %v", err)
 	}
 
-	expectedBytes := append(keyParmsBytes, pubKeyBytes...)
+	expectedBytes := append(keyParms, pubKey...)
 
 	gotBytes, err := u.SerializePubKey(tpmPubKey)
 	if err != nil {
@@ -1200,23 +1376,23 @@ func defaultTestAik() TPMPubKey {
 	}
 }
 
-// CreateStorePubKeyBytesOptions provides options for creating TPM_STORE_PUBKEY bytes.
-type CreateStorePubKeyBytesOptions struct {
-	Key       []byte
-	KeyLength *uint32
+// storePubkey provides options for creating TPM_STORE_PUBKEY bytes.
+type storePubkey struct {
+	key       []byte
+	keyLength *uint32
 }
 
-// createStorePubKeyBytes creates a byte slice representing a TPM_STORE_PUBKEY structure.
-func createStorePubKeyBytes(opts CreateStorePubKeyBytesOptions) []byte {
+// This function creates a byte slice representing a TPM_STORE_PUBKEY structure.
+func (opts storePubkey) toBytes() []byte {
 	buffer := new(bytes.Buffer)
-	key := opts.Key
+	key := opts.key
 	if key == nil {
 		key = []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10} // Default key
 	}
 
 	var keyLength uint32
-	if opts.KeyLength != nil {
-		keyLength = *opts.KeyLength
+	if opts.keyLength != nil {
+		keyLength = *opts.keyLength
 	} else {
 		keyLength = uint32(len(key))
 	}
@@ -1226,48 +1402,56 @@ func createStorePubKeyBytes(opts CreateStorePubKeyBytesOptions) []byte {
 	return buffer.Bytes()
 }
 
-// CreatePubKeyBytesOptions provides options for creating TPM_PUBKEY bytes.
-type CreatePubKeyBytesOptions struct {
-	AlgID     *tpm12.Algorithm
-	EncScheme *TPMEncodingScheme
-	SigScheme *TPMSignatureScheme
-	Parms     []byte
-	PubKey    []byte
-	PubKeyLen *uint32
+// pubKey provides options for creating TPM_PUBKEY bytes.
+type pubKey struct {
+	algID     *tpm12.Algorithm
+	encScheme *TPMEncodingScheme
+	sigScheme *TPMSignatureScheme
+	parms     []byte
+	pubKey    []byte
+	pubKeyLen *uint32
 }
 
-// createPubKeyBytes creates a byte slice representing a TPM_PUBKEY structure.
-func createPubKeyBytes(opts CreatePubKeyBytesOptions) []byte {
+// This function  creates a byte slice representing a TPM_PUBKEY structure.
+func (opts pubKey) toBytes() []byte {
 	buffer := new(bytes.Buffer)
 	aik := defaultTestAik()
 
 	algID := aik.AlgorithmParms.AlgID
-	if opts.AlgID != nil {
-		algID = *opts.AlgID
+	if opts.algID != nil {
+		algID = *opts.algID
 	}
 	encScheme := aik.AlgorithmParms.EncScheme
-	if opts.EncScheme != nil {
-		encScheme = *opts.EncScheme
+	if opts.encScheme != nil {
+		encScheme = *opts.encScheme
 	}
 	sigScheme := aik.AlgorithmParms.SigScheme
-	if opts.SigScheme != nil {
-		sigScheme = *opts.SigScheme
+	if opts.sigScheme != nil {
+		sigScheme = *opts.sigScheme
 	}
-	parms := createRSAKeyParmsBytes(
-		aik.AlgorithmParms.Params.RSAParams.KeyLength,
-		aik.AlgorithmParms.Params.RSAParams.NumPrimes,
-		uint32(len(aik.AlgorithmParms.Params.RSAParams.Exponent)),
-		aik.AlgorithmParms.Params.RSAParams.Exponent,
-	)
-	if opts.Parms != nil {
-		parms = opts.Parms
+	parms := rsaKeyParms{
+		keyLength: &aik.AlgorithmParms.Params.RSAParams.KeyLength,
+		numPrimes: &aik.AlgorithmParms.Params.RSAParams.NumPrimes,
+		exponent:  &aik.AlgorithmParms.Params.RSAParams.Exponent,
+	}.toBytes()
+	if opts.parms != nil {
+		parms = opts.parms
 	}
 
-	buffer.Write(createKeyParmsBytes(algID, encScheme, sigScheme, parms))
-	if opts.PubKey != nil || opts.PubKeyLen != nil {
-		buffer.Write(createStorePubKeyBytes(CreateStorePubKeyBytesOptions{Key: opts.PubKey, KeyLength: opts.PubKeyLen}))
+	buffer.Write(keyParms{
+		algID:     algID,
+		encScheme: encScheme,
+		sigScheme: sigScheme,
+		parms:     parms,
+	}.toBytes())
+	if opts.pubKey != nil || opts.pubKeyLen != nil {
+		buffer.Write(storePubkey{
+			key:       opts.pubKey,
+			keyLength: opts.pubKeyLen}.toBytes())
 	} else {
-		buffer.Write(createStorePubKeyBytes(CreateStorePubKeyBytesOptions{Key: aik.PubKey.Key, KeyLength: &aik.PubKey.KeyLength}))
+		buffer.Write(storePubkey{
+			key:       aik.PubKey.Key,
+			keyLength: &aik.PubKey.KeyLength}.toBytes())
 	}
 	return buffer.Bytes()
 }
@@ -1275,12 +1459,12 @@ func createPubKeyBytes(opts CreatePubKeyBytesOptions) []byte {
 func TestParseStorePubKeyFromReader_Success(t *testing.T) {
 	testCases := []struct {
 		name     string
-		options  CreateStorePubKeyBytesOptions
+		options  storePubkey
 		expected *TPMStorePubKey
 	}{
 		{
 			name:    "Valid TPMStorePubKey",
-			options: CreateStorePubKeyBytesOptions{},
+			options: storePubkey{},
 			expected: &TPMStorePubKey{
 				KeyLength: 10,
 				Key:       []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
@@ -1290,7 +1474,7 @@ func TestParseStorePubKeyFromReader_Success(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			reader := bytes.NewReader(createStorePubKeyBytes(tc.options))
+			reader := bytes.NewReader(tc.options.toBytes())
 			u := &DefaultTPM12Utils{}
 			result, err := u.ParseStorePubKeyFromReader(reader)
 
@@ -1321,12 +1505,12 @@ func TestParseStorePubKeyFromReader_Failure(t *testing.T) {
 		},
 		{
 			name:          "Input too short for Key",
-			input:         createStorePubKeyBytes(CreateStorePubKeyBytesOptions{KeyLength: ptrUint32(15)}),
+			input:         storePubkey{keyLength: ptrUint32(15)}.toBytes(),
 			expectedError: "failed to read key",
 		},
 		{
 			name:          "Zero KeyLength",
-			input:         createStorePubKeyBytes(CreateStorePubKeyBytesOptions{KeyLength: ptrUint32(0)}),
+			input:         storePubkey{keyLength: ptrUint32(0)}.toBytes(),
 			expectedError: "keyLength cannot be zero",
 		},
 	}
@@ -1344,7 +1528,7 @@ func TestParseStorePubKeyFromReader_Failure(t *testing.T) {
 }
 
 func TestParsePubKeyFromReader_Success(t *testing.T) {
-	defaultOpts := CreatePubKeyBytesOptions{}
+	defaultOpts := pubKey{}
 
 	testCases := []struct {
 		name     string
@@ -1353,7 +1537,7 @@ func TestParsePubKeyFromReader_Success(t *testing.T) {
 	}{
 		{
 			name:  "Valid TPMPubKey",
-			input: createPubKeyBytes(defaultOpts),
+			input: defaultOpts.toBytes(),
 			expected: &TPMPubKey{
 				AlgorithmParms: TPMKeyParms{
 					AlgID:     tpm12.AlgRSA,
@@ -1403,24 +1587,24 @@ func TestParsePubKeyFromReader_Failure(t *testing.T) {
 	}{
 		{
 			name: "Invalid AlgorithmParms",
-			input: createPubKeyBytes(CreatePubKeyBytesOptions{
-				Parms: []byte{1}, // Invalid parms
-			}),
+			input: pubKey{
+				parms: []byte{1}, // Invalid parms
+			}.toBytes(),
 			expectedError: "failed to parse AlgorithmParms",
 		},
 		{
 			name: "Input too short for AlgorithmParms",
-			input: createPubKeyBytes(CreatePubKeyBytesOptions{
-				Parms: []byte{1, 2, 3, 4, 5},
-			}),
+			input: pubKey{
+				parms: []byte{1, 2, 3, 4, 5},
+			}.toBytes(),
 			expectedError: "failed to parse AlgorithmParms",
 		},
 		{
 			name: "Input too short for PubKey",
-			input: createPubKeyBytes(CreatePubKeyBytesOptions{
-				PubKey:    []byte{1, 2, 3, 4, 5},
-				PubKeyLen: ptrUint32(10),
-			}),
+			input: pubKey{
+				pubKey:    []byte{1, 2, 3, 4, 5},
+				pubKeyLen: ptrUint32(10),
+			}.toBytes(),
 			expectedError: "failed to parse PubKey",
 		},
 	}
@@ -1437,9 +1621,9 @@ func TestParsePubKeyFromReader_Failure(t *testing.T) {
 	}
 }
 
-// identityProofBytes provides options for creating TPMIdentityProof bytes for testing.
+// identityProof provides options for creating TPMIdentityProof bytes for testing.
 // Fields left nil will use default values within the build function.
-type identityProofBytes struct {
+type identityProof struct {
 	TPMStructVer          *TPMStructVer
 	AIK                   *TPMPubKey
 	LabelArea             []byte
@@ -1456,7 +1640,7 @@ type identityProofBytes struct {
 	ConformanceCredentialSize *uint32
 }
 
-func buildIdentityProofBytes(t *testing.T, opts identityProofBytes) []byte {
+func buildIdentityProofBytes(t *testing.T, opts identityProof) []byte {
 	t.Helper()
 	buf := new(bytes.Buffer)
 
@@ -1547,12 +1731,12 @@ func TestParseIdentityProof_Success(t *testing.T) {
 	defaultAIK := defaultTestAik()
 	testCases := []struct {
 		name     string
-		options  identityProofBytes
+		options  identityProof
 		expected *TPMIdentityProof
 	}{
 		{
 			name:    "Valid Identity Proof",
-			options: identityProofBytes{}, // Use all defaults
+			options: identityProof{}, // Use all defaults
 			expected: &TPMIdentityProof{
 				TPMStructVer:           GetDefaultTPMStructVer(),
 				AttestationIdentityKey: defaultAIK,
@@ -1589,58 +1773,58 @@ func TestParseIdentityProof_Failure(t *testing.T) {
 		{
 			// Input is shorter than the minimum size of the TPMStructVer.
 			name:          "Input too short for TPMStructVer",
-			input:         buildIdentityProofBytes(t, identityProofBytes{})[:3],
+			input:         buildIdentityProofBytes(t, identityProof{})[:3],
 			expectedError: "failed to read TPMStructVer",
 		},
 		{
 			// Input is long enough for TPMStructVer, but too short for the LabelArea size field.
 			name:          "Input too short for LabelArea size",
-			input:         buildIdentityProofBytes(t, identityProofBytes{})[:4],
+			input:         buildIdentityProofBytes(t, identityProof{})[:4],
 			expectedError: "failed to read LabelArea size",
 		},
 		{
 			// Input is long enough for LabelArea size, but too short for the IdentityBinding size field.
 			name:          "Input too short for IdentityBinding size",
-			input:         buildIdentityProofBytes(t, identityProofBytes{})[:8],
+			input:         buildIdentityProofBytes(t, identityProof{})[:8],
 			expectedError: "failed to read IdentityBinding size",
 		},
 		{
 			// Input is truncated within the AttestationIdentityKey field.
 			name:          "Input too short for AIK",
-			input:         buildIdentityProofBytes(t, identityProofBytes{})[:24],
+			input:         buildIdentityProofBytes(t, identityProof{})[:24],
 			expectedError: "failed to parse AttestationIdentityKey",
 		},
 		{
 			name: "LabelAreaSize too large",
-			input: buildIdentityProofBytes(t, identityProofBytes{
+			input: buildIdentityProofBytes(t, identityProof{
 				LabelAreaSize: ptrUint32(100), // Larger than available bytes
 			}),
 			expectedError: "failed to read LabelArea",
 		},
 		{
 			name: "IdentityBindingSize too large",
-			input: buildIdentityProofBytes(t, identityProofBytes{
+			input: buildIdentityProofBytes(t, identityProof{
 				IdentityBindingSize: ptrUint32(100),
 			}),
 			expectedError: "failed to read IdentityBinding",
 		},
 		{
 			name: "EndorsementCredentialSize too large",
-			input: buildIdentityProofBytes(t, identityProofBytes{
+			input: buildIdentityProofBytes(t, identityProof{
 				EndorsementCredentialSize: ptrUint32(100),
 			}),
 			expectedError: "failed to read EndorsementCredential",
 		},
 		{
 			name: "PlatformCredentialSize too large",
-			input: buildIdentityProofBytes(t, identityProofBytes{
+			input: buildIdentityProofBytes(t, identityProof{
 				PlatformCredentialSize: ptrUint32(100),
 			}),
 			expectedError: "failed to read PlatformCredential",
 		},
 		{
 			name: "ConformanceCredentialSize too large",
-			input: buildIdentityProofBytes(t, identityProofBytes{
+			input: buildIdentityProofBytes(t, identityProof{
 				ConformanceCredentialSize: ptrUint32(100),
 			}),
 			expectedError: "failed to read ConformanceCredential",
@@ -1648,7 +1832,7 @@ func TestParseIdentityProof_Failure(t *testing.T) {
 		{
 			// Input has extra bytes appended after a valid TPMIdentityProof structure.
 			name:          "Leftover bytes",
-			input:         append(buildIdentityProofBytes(t, identityProofBytes{}), 0xDE, 0xAD),
+			input:         append(buildIdentityProofBytes(t, identityProof{}), 0xDE, 0xAD),
 			expectedError: "leftover bytes in TPM_IDENTITY_PROOF block",
 		},
 	}
