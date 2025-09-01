@@ -719,40 +719,31 @@ func (u *DefaultTPM12Utils) EncryptWithAES(symKey *TPMSymmetricKey, data []byte)
 }
 
 // DecryptWithSymmetricKey decrypts data using a private key.
-func (u *DefaultTPM12Utils) DecryptWithSymmetricKey(ctx context.Context, symKey []byte, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error) {
-	if encScheme != EsSymCBCPKCS5 {
-		return nil, fmt.Errorf("unsupported symmetric encryption scheme: %v", encScheme)
+func (u *DefaultTPM12Utils) DecryptWithSymmetricKey(ctx context.Context, symKey *TPMSymmetricKey, keyParams *TPMKeyParms, data []byte) ([]byte, error) {
+	if keyParams.EncScheme != EsSymCBCPKCS5 {
+		return nil, fmt.Errorf("unsupported symmetric encryption scheme: %v", keyParams.EncScheme)
 	}
 
 	// Create a new AES cipher block from the symmetric key.
-	block, err := aes.NewCipher(symKey)
+	cipherBlock, err := aes.NewCipher(symKey.Key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create AES cipher: %w", err)
 	}
 
-	// The IV is prepended to the ciphertext. For AES, the IV size is
-	// the same as the block size.
-	ivSize := block.BlockSize()
-	if len(data) < ivSize {
-		return nil, fmt.Errorf("ciphertext is shorter than IV size of %d bytes", ivSize)
-	}
-
-	// Extract the IV from the beginning of the data.
-	iv := data[:ivSize]
-	// The rest of the data is the actual ciphertext.
-	ciphertext := data[ivSize:]
+	iv := keyParams.Params.SymParams.IV
+	ciphertext := data
 
 	// The ciphertext must be a multiple of the block size.
-	if len(ciphertext)%ivSize != 0 {
+	if len(ciphertext)%cipherBlock.BlockSize() != 0 {
 		return nil, fmt.Errorf("ciphertext is not a multiple of the block size")
 	}
 
 	// Create a new CBC decrypter.
-	mode := cipher.NewCBCDecrypter(block, iv)
+	encrypter := cipher.NewCBCDecrypter(cipherBlock, iv)
 
 	// Decrypt the data. The decrypted plaintext will be stored in the same
 	// underlying array as the ciphertext.
-	mode.CryptBlocks(ciphertext, ciphertext)
+	encrypter.CryptBlocks(ciphertext, ciphertext)
 
 	// Unpad the decrypted plaintext using PKCS#5/PKCS#7.
 	plaintext := ciphertext
