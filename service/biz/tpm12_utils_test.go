@@ -2135,7 +2135,7 @@ func TestDecryptWithSymmetricKey(t *testing.T) {
 			key:       keyBytes,
 			keyParams: keyParams, data: tamperedInvalidPaddingValue,
 			encScheme:     EsSymCBCPKCS5,
-			expectedError: "invalid PKCS#5 padding value",
+			expectedError: "invalid PKCS#5 padding",
 		},
 		{
 			name:          "Failure Different Key Same Size",
@@ -2159,6 +2159,10 @@ func TestDecryptWithSymmetricKey(t *testing.T) {
 				}
 			} else {
 				assertError(t, err, tc.expectedError, "DecryptWithSymmetricKey Failure")
+			}
+		})
+	}
+}
 
 func TestConstructAsymCAContentsSuccess(t *testing.T) {
 	u := &DefaultTPM12Utils{}
