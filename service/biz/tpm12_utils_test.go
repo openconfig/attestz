@@ -2359,3 +2359,96 @@ func TestSerializeAsymCAContentsFailure(t *testing.T) {
 		})
 	}
 }
+
+func TestEncryptAndDecryptWithSymmetricKey(t *testing.T) {
+	u := &DefaultTPM12Utils{}
+	ctx := context.Background()
+	plaintext := []byte("this is a secret message")
+
+	testCases := []struct {
+		name          string
+		algo          tpm12.Algorithm
+		modifier      func(binaryKeyset []byte, ciphertext []byte) ([]byte, []byte) // Function to modify inputs for failure cases
+		expectedError string
+	}{
+		{
+			name: "Success AES256",
+			algo: tpm12.AlgAES256,
+			modifier: func(binaryKeyset, ciphertext []byte) ([]byte, []byte) {
+				return binaryKeyset, ciphertext // No-op
+			},
+			expectedError: "",
+		},
+		{
+			name: "Success AES128",
+			algo: tpm12.AlgAES128,
+			modifier: func(binaryKeyset, ciphertext []byte) ([]byte, []byte) {
+				return binaryKeyset, ciphertext // No-op
+			},
+			expectedError: "",
+		},
+		{
+			name: "Failure with wrong key",
+			algo: tpm12.AlgAES256,
+			modifier: func(binaryKeyset, ciphertext []byte) ([]byte, []byte) {
+				// Generate a completely different key to decrypt with.
+				_, wrongBinaryKeyset, err := u.NewAESGCMKey(tpm12.AlgAES256)
+				if err != nil {
+					t.Fatalf("Failed to generate wrong key for test: %v", err)
+				}
+				return wrongBinaryKeyset, ciphertext
+			},
+			expectedError: "symmetric key decryption failed",
+		},
+		{
+			name: "Failure with tampered ciphertext",
+			algo: tpm12.AlgAES256,
+			modifier: func(binaryKeyset, ciphertext []byte) ([]byte, []byte) {
+				// Tamper with the ciphertext by flipping a bit
+				tamperedCiphertext := make([]byte, len(ciphertext))
+				copy(tamperedCiphertext, ciphertext)
+				tamperedCiphertext[0] ^= 0xff
+				return binaryKeyset, tamperedCiphertext
+			},
+			expectedError: "symmetric key decryption failed",
+		},
+		{
+			name: "Failure with invalid keyset",
+			algo: tpm12.AlgAES256,
+			modifier: func(binaryKeyset, ciphertext []byte) ([]byte, []byte) {
+				// Provide a corrupted keyset
+				return []byte("this is not a valid keyset"), ciphertext
+			},
+			expectedError: "failed to read keyset from binary",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup: Encrypt the data first
+			kh, originalBinaryKeyset, err := u.NewAESGCMKey(tc.algo)
+			if err != nil {
+				t.Fatalf("NewAESGCMKey failed: %v", err)
+			}
+			originalCiphertext, err := u.EncryptWithAes(kh, plaintext)
+			if err != nil {
+				t.Fatalf("EncryptWithAes failed: %v", err)
+			}
+
+			// Apply modifications for failure test cases
+			modifiedKeyset, modifiedCiphertext := tc.modifier(originalBinaryKeyset, originalCiphertext)
+
+			// The actual test
+			decrypted, err := u.DecryptWithSymmetricKey(ctx, modifiedKeyset, modifiedCiphertext, tc.algo, 0)
+
+			assertError(t, err, tc.expectedError, "DecryptWithSymmetricKey")
+
+			// If it was a success case, check the result
+			if tc.expectedError == "" {
+				if diff := cmp.Diff(plaintext, decrypted); diff != "" {
+					t.Errorf("DecryptWithSymmetricKey returned diff (-want +got):\n%s", diff)
+				}
+			}
+		})
+	}
+}
