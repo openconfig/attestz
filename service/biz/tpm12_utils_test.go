@@ -2646,3 +2646,96 @@ func TestVerifySignatureWithRSAKey_Failure(t *testing.T) {
 		})
 	}
 }
+
+func TestEncryptWithPublicKey_Success(t *testing.T) {
+	// Generate a sample RSA key pair for testing.
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate RSA key: %v", err)
+	}
+	publicKey := &privateKey.PublicKey
+
+	sampleData := []byte("test data to encrypt")
+
+	u := &DefaultTPM12Utils{}
+	encryptedData, err := u.EncryptWithPublicKey(context.Background(), publicKey, sampleData, tpm12.AlgRSA, EsRSAEsOAEPSHA1MGF1)
+	if err != nil {
+		t.Fatalf("EncryptWithPublicKey(%v, %v, %v) failed: %v", publicKey, sampleData, EsRSAEsOAEPSHA1MGF1, err)
+	}
+	// the label "TCPA" encoded in UTF-16BE for RSAES-OAEP.
+	label := []byte(tpmLabel)
+	// #nosec
+	decryptedData, err := rsa.DecryptOAEP(sha1.New(), nil, privateKey, encryptedData, label)
+	if err != nil {
+		t.Fatalf("rsa.DecryptOAEP failed: %v", err)
+	}
+	if !cmp.Equal(decryptedData, sampleData) {
+		t.Errorf("DecryptOAEP() = %v, want %v", decryptedData, sampleData)
+	}
+}
+
+func TestEncryptWithPublicKey_Failure(t *testing.T) {
+	// Generate a sample RSA key pair for testing.
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate RSA key: %v", err)
+	}
+	publicKey := &privateKey.PublicKey
+
+	sampleData := []byte("test data to encrypt")
+
+	testCases := []struct {
+		name          string
+		publicKey     *rsa.PublicKey
+		algo          tpm12.Algorithm
+		encScheme     TPMEncodingScheme
+		expectedError string
+	}{
+		{
+			name:          "Nil publicKey",
+			publicKey:     nil,
+			algo:          tpm12.AlgRSA,
+			encScheme:     EsRSAEsOAEPSHA1MGF1,
+			expectedError: "publicKey or its modulus cannot be nil",
+		},
+		{
+			name:          "Nil publicKey modulus",
+			publicKey:     &rsa.PublicKey{},
+			algo:          tpm12.AlgRSA,
+			encScheme:     EsRSAEsOAEPSHA1MGF1,
+			expectedError: "publicKey or its modulus cannot be nil",
+		},
+		{
+			name: "Zero size publicKey",
+			publicKey: &rsa.PublicKey{
+				N: big.NewInt(0),
+				E: 0,
+			},
+			algo:          tpm12.AlgRSA,
+			encScheme:     EsRSAEsOAEPSHA1MGF1,
+			expectedError: "publicKey size cannot be zero",
+		},
+		{
+			name:          "Unsupported algorithm",
+			publicKey:     publicKey,
+			algo:          tpm12.AlgAES128,
+			encScheme:     EsRSAEsPKCSv15,
+			expectedError: "unsupported algorithm",
+		},
+		{
+			name:          "Unsupported encoding scheme",
+			publicKey:     publicKey,
+			algo:          tpm12.AlgRSA,
+			encScheme:     EsSymCBCPKCS5,
+			expectedError: "unsupported encoding scheme",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			u := &DefaultTPM12Utils{}
+			_, err := u.EncryptWithPublicKey(context.Background(), tc.publicKey, sampleData, tc.algo, tc.encScheme)
+			assertError(t, err, tc.expectedError, "EncryptWithPublicKey")
+		})
+	}
+}
