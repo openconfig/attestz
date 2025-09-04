@@ -48,6 +48,9 @@ const (
 	SsRSASaPKCS1v15SHA1 TPMSignatureScheme = 0x0002
 	SsRSASaPKCS1v15DER  TPMSignatureScheme = 0x0003
 	SsRSASaPKCS1v15INFO TPMSignatureScheme = 0x0004
+
+	// tpmLabel is the label used in OAEP encryption and is "TCPA" encoded in UTF-16BE.
+	tpmLabel = "TCPA"
 )
 
 // Note: All the uint values in TPM_* structures in this file use big endian (network byte order).
@@ -602,9 +605,21 @@ func (u *DefaultTPM12Utils) ParseStorePubKeyFromReader(reader *bytes.Reader) (*T
 
 // EncryptWithPublicKey encrypts data using a public key.
 func (u *DefaultTPM12Utils) EncryptWithPublicKey(ctx context.Context, publicKey *rsa.PublicKey, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error) {
-	// TODO: Implement the encryption using a public key.
-	// For now, we just return the data as is.
-	return data, nil
+	if publicKey == nil || publicKey.N == nil {
+		return nil, fmt.Errorf("publicKey or its modulus cannot be nil")
+	}
+	if publicKey.Size() == 0 {
+		return nil, fmt.Errorf("publicKey size cannot be zero")
+	}
+	if algo != tpm12.AlgRSA {
+		return nil, fmt.Errorf("unsupported algorithm: %v", tpm12.AlgMap[algo])
+	}
+	if encScheme != EsRSAEsOAEPSHA1MGF1 {
+		return nil, fmt.Errorf("unsupported encoding scheme: %v", encScheme)
+	}
+	label := []byte(tpmLabel)
+	// #nosec
+	return rsa.EncryptOAEP(sha1.New(), rand.Reader, publicKey, data, label) /* #nosec G505 */
 }
 
 // DecryptWithPrivateKey decrypts data using a private key.
@@ -808,6 +823,7 @@ func (u *DefaultTPM12Utils) SerializeAsymCAContents(asymCAContents *TPMAsymCACon
 	return buf.Bytes(), nil
 }
 
+// TpmPubKeyToRSAPubKey converts a TPMPubKey structure to an rsa.PublicKey.
 func (u *DefaultTPM12Utils) TpmPubKeyToRSAPubKey(pubKey *TPMPubKey) (*rsa.PublicKey, error) {
 	if pubKey == nil {
 		return nil, fmt.Errorf("pubKey is nil")
