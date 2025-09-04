@@ -23,6 +23,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"math"
+	"math/big"
 	"slices"
 
 	// #nosec
@@ -188,7 +189,8 @@ type TPM12Utils interface {
 	NewAESCBCKey(algo tpm12.Algorithm) (*TPMSymmetricKey, error)
 	EncryptWithAES(symKey *TPMSymmetricKey, data []byte) ([]byte, *TPMKeyParms, error)
 	DecryptWithSymmetricKey(ctx context.Context, symKey []byte, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error)
-	VerifySignature(ctx context.Context, pubKey []byte, signature []byte, data []byte, hash crypto.Hash) (bool, error)
+	TpmPubKeyToRSAPubKey(pubKey *TPMPubKey) (*rsa.PublicKey, error)
+	VerifySignatureWithRSAKey(ctx context.Context, pubKey *TPMPubKey, signature []byte, digest []byte) (bool, error)
 	SerializeStorePubKey(pubKey *TPMStorePubKey) ([]byte, error)
 	SerializeRSAKeyParms(rsaParms *TPMRSAKeyParms) ([]byte, error)
 	SerializeSymmetricKeyParms(symParms *TPMSymmetricKeyParms) ([]byte, error)
@@ -806,10 +808,53 @@ func (u *DefaultTPM12Utils) SerializeAsymCAContents(asymCAContents *TPMAsymCACon
 	return buf.Bytes(), nil
 }
 
-// VerifySignature verifies a signature using a public key.
-func (u *DefaultTPM12Utils) VerifySignature(ctx context.Context, pubKey []byte, signature []byte, data []byte, hash crypto.Hash) (bool, error) {
-	// TODO: Implement the signature verification using a public key.
-	// For now, we just return true.
+func (u *DefaultTPM12Utils) TpmPubKeyToRSAPubKey(pubKey *TPMPubKey) (*rsa.PublicKey, error) {
+	if pubKey == nil {
+		return nil, fmt.Errorf("pubKey is nil")
+	}
+	if pubKey.AlgorithmParms.AlgID != tpm12.AlgRSA {
+		return nil, fmt.Errorf("unsupported algorithm: %v", pubKey.AlgorithmParms.AlgID)
+	}
+	if pubKey.AlgorithmParms.Params.RSAParams == nil {
+		return nil, fmt.Errorf("RSA params are nil")
+	}
+
+	n := new(big.Int).SetBytes(pubKey.PubKey.Key)
+	var e int
+	if len(pubKey.AlgorithmParms.Params.RSAParams.Exponent) == 0 {
+		e = 65537 // Default exponent
+	} else {
+		e = int(new(big.Int).SetBytes(pubKey.AlgorithmParms.Params.RSAParams.Exponent).Int64())
+	}
+
+	return &rsa.PublicKey{
+		N: n,
+		E: e,
+	}, nil
+}
+
+// VerifySignatureWithRSAKey verifies a signature using an RSA public key.
+// 'digest' is the result of hashing the original data with the 'hash' algorithm.
+func (u *DefaultTPM12Utils) VerifySignatureWithRSAKey(ctx context.Context, pubKey *TPMPubKey, signature []byte, digest []byte) (bool, error) {
+	rsaPubKey, err := u.TpmPubKeyToRSAPubKey(pubKey)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse TPM public key: %w", err)
+	}
+
+	var hash crypto.Hash
+	switch pubKey.AlgorithmParms.SigScheme {
+	case SsRSASaPKCS1v15SHA1:
+		hash = crypto.SHA1
+	case SsRSASaPKCS1v15DER:
+		// DER scheme doesn't mandate a specific hash, so we use the provided hash.
+		// However, VerifyPKCS1v15 still needs the hash type.
+		hash = crypto.Hash(0)
+	default:
+		return false, fmt.Errorf("unsupported signature scheme: %v", pubKey.AlgorithmParms.SigScheme)
+	}
+	if err := rsa.VerifyPKCS1v15(rsaPubKey, hash, digest, signature); err != nil {
+		return false, fmt.Errorf("invalid PKCS1v15 signature for scheme %v: %w", pubKey.AlgorithmParms.SigScheme, err)
+	}
 	return true, nil
 }
 

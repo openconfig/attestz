@@ -3,12 +3,14 @@ package biz
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/binary"
 	"math"
+	"math/big"
 
 	// #nosec
 	"crypto/sha1"
@@ -2355,6 +2357,291 @@ func TestSerializeAsymCAContentsFailure(t *testing.T) {
 				if err == nil || !strings.Contains(err.Error(), tc.expectedError) {
 					t.Errorf("SerializeAsymCAContents: got error %v, expected error substring: %v", err, tc.expectedError)
 				}
+			}
+		})
+	}
+}
+
+type tpmPubKeyOptions struct {
+	algID     *tpm12.Algorithm
+	exponent  *[]byte
+	modulus   *[]byte
+	sigScheme *TPMSignatureScheme
+}
+
+func (opts tpmPubKeyOptions) build() *TPMPubKey {
+	algID := tpm12.AlgRSA
+	if opts.algID != nil {
+		algID = *opts.algID
+	}
+
+	exponent := []byte{} // Default empty exponent
+	if opts.exponent != nil {
+		exponent = *opts.exponent
+	}
+
+	modulus := []byte{0x01, 0x02, 0x03} // Default modulus
+	if opts.modulus != nil {
+		modulus = *opts.modulus
+	}
+
+	sigScheme := SsRSASaPKCS1v15SHA1 // Default signature scheme
+	if opts.sigScheme != nil {
+		sigScheme = *opts.sigScheme
+	}
+
+	return &TPMPubKey{
+		AlgorithmParms: TPMKeyParms{
+			AlgID:     algID,
+			SigScheme: sigScheme,
+			Params: TPMParams{
+				RSAParams: &TPMRSAKeyParms{
+					Exponent: exponent,
+				},
+			},
+		},
+		PubKey: TPMStorePubKey{
+			Key: modulus,
+		},
+	}
+}
+
+func TestTpmPubKeyToRSAPubKey_Success(t *testing.T) {
+	testCases := []struct {
+		name     string
+		opts     tpmPubKeyOptions
+		expected *rsa.PublicKey
+	}{
+		{
+			name: "Valid TPMPubKey with default exponent",
+			opts: tpmPubKeyOptions{
+				modulus: &[]byte{0x01, 0x02, 0x03},
+			},
+			expected: &rsa.PublicKey{
+				N: new(big.Int).SetBytes([]byte{0x01, 0x02, 0x03}),
+				E: 65537,
+			},
+		},
+		{
+			name: "Valid TPMPubKey with specific exponent",
+			opts: tpmPubKeyOptions{
+				exponent: &[]byte{0x03},
+				modulus:  &[]byte{0x0A, 0x0B, 0x0C},
+			},
+			expected: &rsa.PublicKey{
+				N: new(big.Int).SetBytes([]byte{0x0A, 0x0B, 0x0C}),
+				E: 3,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			u := &DefaultTPM12Utils{}
+			tpmPubKey := tc.opts.build()
+			rsaPubKey, err := u.TpmPubKeyToRSAPubKey(tpmPubKey)
+			if err != nil {
+				t.Fatalf("TpmPubKeyToRSAPubKey(%+v) returned unexpected error: %v", tpmPubKey, err)
+			}
+			if diff := cmp.Diff(tc.expected, rsaPubKey); diff != "" {
+				t.Errorf("TpmPubKeyToRSAPubKey(%+v) mismatch (-want +got):\n%s", tpmPubKey, diff)
+			}
+		})
+	}
+}
+
+func TestTpmPubKeyToRSAPubKey_Failure(t *testing.T) {
+	aesAlg := tpm12.AlgAES128
+	testCases := []struct {
+		name          string
+		tpmPubKey     *TPMPubKey
+		expectedError string
+	}{
+		{
+			name:          "Nil TPMPubKey",
+			tpmPubKey:     nil,
+			expectedError: "pubKey is nil",
+		},
+		{
+			name: "Not RSA Algorithm",
+			tpmPubKey: tpmPubKeyOptions{
+				algID: &aesAlg,
+			}.build(),
+			expectedError: "unsupported algorithm",
+		},
+		{
+			name: "Nil RSA Params",
+			tpmPubKey: &TPMPubKey{
+				AlgorithmParms: TPMKeyParms{
+					AlgID: tpm12.AlgRSA,
+					Params: TPMParams{
+						RSAParams: nil, // Missing RSA params
+					},
+				},
+			},
+			expectedError: "RSA params are nil",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			u := &DefaultTPM12Utils{}
+			_, err := u.TpmPubKeyToRSAPubKey(tc.tpmPubKey)
+			if err == nil {
+				t.Fatalf("TpmPubKeyToRSAPubKey(%+v) got nil error, want error containing %q", tc.tpmPubKey, tc.expectedError)
+			}
+			if !strings.Contains(err.Error(), tc.expectedError) {
+				t.Errorf("TpmPubKeyToRSAPubKey(%+v) got error %v, want error containing %q", tc.tpmPubKey, err, tc.expectedError)
+			}
+		})
+	}
+}
+
+func TestVerifySignatureWithRSAKey_Success(t *testing.T) {
+	u := &DefaultTPM12Utils{}
+	ctx := context.Background()
+	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate RSA key: %v", err)
+	}
+	pubKey := &privKey.PublicKey
+
+	tpmPubKey, err := u.ConstructPubKey(pubKey)
+	if err != nil {
+		t.Fatalf("Failed to construct TPMPubKey: %v", err)
+	}
+
+	data := []byte("test data")
+	// SHA1 digest
+	hashedSHA1 := sha1.Sum(data)
+
+	// Signature with PKCS1v15 SHA1
+	signatureSHA1, err := rsa.SignPKCS1v15(rand.Reader, privKey, crypto.SHA1, hashedSHA1[:])
+	if err != nil {
+		t.Fatalf("Failed to sign with SHA1: %v", err)
+	}
+
+	// Signature with PKCS1v15 DER (no hashing before signing)
+	signatureDER, err := rsa.SignPKCS1v15(rand.Reader, privKey, crypto.Hash(0), data)
+	if err != nil {
+		t.Fatalf("Failed to sign with DER: %v", err)
+	}
+
+	testCases := []struct {
+		name      string
+		sigScheme TPMSignatureScheme
+		signature []byte
+		digest    []byte
+	}{
+		{
+			name:      "Valid PKCS1v15 SHA1",
+			sigScheme: SsRSASaPKCS1v15SHA1,
+			signature: signatureSHA1,
+			digest:    hashedSHA1[:],
+		},
+		{
+			name:      "Valid PKCS1v15 DER",
+			sigScheme: SsRSASaPKCS1v15DER,
+			signature: signatureDER,
+			digest:    data, // For DER, the digest is the original data
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			currentPubKey := *tpmPubKey
+			currentPubKey.AlgorithmParms.SigScheme = tc.sigScheme
+
+			valid, err := u.VerifySignatureWithRSAKey(ctx, &currentPubKey, tc.signature, tc.digest)
+			if err != nil {
+				t.Errorf("VerifySignatureWithRSAKey() returned unexpected error: %v", err)
+			}
+			if !valid {
+				t.Errorf("VerifySignatureWithRSAKey() returned false, want true")
+			}
+		})
+	}
+}
+
+func TestVerifySignatureWithRSAKey_Failure(t *testing.T) {
+	u := &DefaultTPM12Utils{}
+	ctx := context.Background()
+	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate RSA key: %v", err)
+	}
+	pubKey := &privKey.PublicKey
+
+	baseTpmPubKey, err := u.ConstructPubKey(pubKey)
+	if err != nil {
+		t.Fatalf("Failed to construct TPMPubKey: %v", err)
+	}
+
+	data := []byte("test data")
+	hashedSHA1 := sha1.Sum(data)
+	badSignature := []byte("bad signature")
+
+	noneScheme := SsNone
+	sha1Scheme := SsRSASaPKCS1v15SHA1
+	derScheme := SsRSASaPKCS1v15DER
+
+	testCases := []struct {
+		name          string
+		pubKey        *TPMPubKey
+		signature     []byte
+		digest        []byte
+		expectedError string
+	}{
+		{
+			name:          "Invalid TPMPubKey",
+			pubKey:        &TPMPubKey{}, // Invalid empty key
+			signature:     []byte{},
+			digest:        []byte{},
+			expectedError: "failed to parse TPM public key: unsupported algorithm: unknown_algorithm",
+		},
+		{
+			name: "Unsupported Signature Scheme",
+			pubKey: tpmPubKeyOptions{
+				modulus:   &baseTpmPubKey.PubKey.Key,
+				exponent:  &baseTpmPubKey.AlgorithmParms.Params.RSAParams.Exponent,
+				sigScheme: &noneScheme,
+			}.build(),
+			signature:     []byte{},
+			digest:        []byte{},
+			expectedError: "unsupported signature scheme: 1",
+		},
+		{
+			name: "Invalid Signature PKCS1v15 SHA1",
+			pubKey: tpmPubKeyOptions{
+				modulus:   &baseTpmPubKey.PubKey.Key,
+				exponent:  &baseTpmPubKey.AlgorithmParms.Params.RSAParams.Exponent,
+				sigScheme: &sha1Scheme,
+			}.build(),
+			signature:     badSignature,
+			digest:        hashedSHA1[:],
+			expectedError: "invalid PKCS1v15 signature for scheme 2: crypto/rsa: verification error",
+		},
+		{
+			name: "Invalid Signature PKCS1v15 DER",
+			pubKey: tpmPubKeyOptions{
+				modulus:   &baseTpmPubKey.PubKey.Key,
+				exponent:  &baseTpmPubKey.AlgorithmParms.Params.RSAParams.Exponent,
+				sigScheme: &derScheme,
+			}.build(),
+			signature:     badSignature,
+			digest:        data, // For DER, the digest is the original data
+			expectedError: "invalid PKCS1v15 signature for scheme 3: crypto/rsa: verification error",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := u.VerifySignatureWithRSAKey(ctx, tc.pubKey, tc.signature, tc.digest)
+			if err == nil {
+				t.Fatalf("VerifySignatureWithRSAKey() got nil error, want error containing %q", tc.expectedError)
+			}
+			if !strings.Contains(err.Error(), tc.expectedError) {
+				t.Errorf("VerifySignatureWithRSAKey() got error %v, want error containing %q", err, tc.expectedError)
 			}
 		})
 	}
