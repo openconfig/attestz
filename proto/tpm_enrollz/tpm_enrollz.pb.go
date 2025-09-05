@@ -22,53 +22,53 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type GetIdevidCsrRequest_Key int32
+type Key int32
 
 const (
-	GetIdevidCsrRequest_KEY_UNSPECIFIED GetIdevidCsrRequest_Key = 0
-	GetIdevidCsrRequest_KEY_EK          GetIdevidCsrRequest_Key = 1
-	GetIdevidCsrRequest_KEY_PPK         GetIdevidCsrRequest_Key = 2
+	Key_KEY_UNSPECIFIED Key = 0
+	Key_KEY_EK          Key = 1
+	Key_KEY_PPK         Key = 2
 )
 
-// Enum value maps for GetIdevidCsrRequest_Key.
+// Enum value maps for Key.
 var (
-	GetIdevidCsrRequest_Key_name = map[int32]string{
+	Key_name = map[int32]string{
 		0: "KEY_UNSPECIFIED",
 		1: "KEY_EK",
 		2: "KEY_PPK",
 	}
-	GetIdevidCsrRequest_Key_value = map[string]int32{
+	Key_value = map[string]int32{
 		"KEY_UNSPECIFIED": 0,
 		"KEY_EK":          1,
 		"KEY_PPK":         2,
 	}
 )
 
-func (x GetIdevidCsrRequest_Key) Enum() *GetIdevidCsrRequest_Key {
-	p := new(GetIdevidCsrRequest_Key)
+func (x Key) Enum() *Key {
+	p := new(Key)
 	*p = x
 	return p
 }
 
-func (x GetIdevidCsrRequest_Key) String() string {
+func (x Key) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (GetIdevidCsrRequest_Key) Descriptor() protoreflect.EnumDescriptor {
+func (Key) Descriptor() protoreflect.EnumDescriptor {
 	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_enumTypes[0].Descriptor()
 }
 
-func (GetIdevidCsrRequest_Key) Type() protoreflect.EnumType {
+func (Key) Type() protoreflect.EnumType {
 	return &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_enumTypes[0]
 }
 
-func (x GetIdevidCsrRequest_Key) Number() protoreflect.EnumNumber {
+func (x Key) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use GetIdevidCsrRequest_Key.Descriptor instead.
-func (GetIdevidCsrRequest_Key) EnumDescriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{6, 0}
+// Deprecated: Use Key.Descriptor instead.
+func (Key) EnumDescriptor() ([]byte, []int) {
+	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{0}
 }
 
 type GetIakCertRequest struct {
@@ -502,7 +502,7 @@ func (*RotateAIKCertResponse_AikCert) isRotateAIKCertResponse_Value() {}
 type GetIdevidCsrRequest struct {
 	state                protoimpl.MessageState                   `protogen:"open.v1"`
 	ControlCardSelection *common_definitions.ControlCardSelection `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
-	Key                  GetIdevidCsrRequest_Key                  `protobuf:"varint,2,opt,name=key,proto3,enum=openconfig.attestz.GetIdevidCsrRequest_Key" json:"key,omitempty"`
+	Key                  Key                                      `protobuf:"varint,2,opt,name=key,proto3,enum=openconfig.attestz.Key" json:"key,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -544,11 +544,11 @@ func (x *GetIdevidCsrRequest) GetControlCardSelection() *common_definitions.Cont
 	return nil
 }
 
-func (x *GetIdevidCsrRequest) GetKey() GetIdevidCsrRequest_Key {
+func (x *GetIdevidCsrRequest) GetKey() Key {
 	if x != nil {
 		return x.Key
 	}
-	return GetIdevidCsrRequest_KEY_UNSPECIFIED
+	return Key_KEY_UNSPECIFIED
 }
 
 type GetIdevidCsrResponse struct {
@@ -615,6 +615,7 @@ type ChallengeRequest struct {
 	state                protoimpl.MessageState                   `protogen:"open.v1"`
 	ControlCardSelection *common_definitions.ControlCardSelection `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
 	EncryptedNonce       []byte                                   `protobuf:"bytes,2,opt,name=encrypted_nonce,json=encryptedNonce,proto3" json:"encrypted_nonce,omitempty"`
+	Key                  Key                                      `protobuf:"varint,3,opt,name=key,proto3,enum=openconfig.attestz.Key" json:"key,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -661,6 +662,13 @@ func (x *ChallengeRequest) GetEncryptedNonce() []byte {
 		return x.EncryptedNonce
 	}
 	return nil
+}
+
+func (x *ChallengeRequest) GetKey() Key {
+	if x != nil {
+		return x.Key
+	}
+	return Key_KEY_UNSPECIFIED
 }
 
 type ChallengeResponse struct {
@@ -797,24 +805,25 @@ const file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDesc = "" +
 	"\x1capplication_identity_request\x18\x01 \x01(\fH\x00R\x1aapplicationIdentityRequest\x12\x1b\n" +
 	"\baik_cert\x18\x02 \x01(\tH\x00R\aaikCert\x12O\n" +
 	"\x0fcontrol_card_id\x18\x03 \x01(\v2'.openconfig.attestz.ControlCardVendorIdR\rcontrolCardIdB\a\n" +
-	"\x05value\"\xe9\x01\n" +
+	"\x05value\"\xa0\x01\n" +
 	"\x13GetIdevidCsrRequest\x12^\n" +
-	"\x16control_card_selection\x18\x01 \x01(\v2(.openconfig.attestz.ControlCardSelectionR\x14controlCardSelection\x12=\n" +
-	"\x03key\x18\x02 \x01(\x0e2+.openconfig.attestz.GetIdevidCsrRequest.KeyR\x03key\"3\n" +
+	"\x16control_card_selection\x18\x01 \x01(\v2(.openconfig.attestz.ControlCardSelectionR\x14controlCardSelection\x12)\n" +
+	"\x03key\x18\x02 \x01(\x0e2\x17.openconfig.attestz.KeyR\x03key\"\xbc\x01\n" +
+	"\x14GetIdevidCsrResponse\x12O\n" +
+	"\x0fcontrol_card_id\x18\x01 \x01(\v2'.openconfig.attestz.ControlCardVendorIdR\rcontrolCardId\x12!\n" +
+	"\fcsr_contents\x18\x02 \x01(\fR\vcsrContents\x120\n" +
+	"\x14idevid_signature_csr\x18\x03 \x01(\fR\x12idevidSignatureCsr\"\xc6\x01\n" +
+	"\x10ChallengeRequest\x12^\n" +
+	"\x16control_card_selection\x18\x01 \x01(\v2(.openconfig.attestz.ControlCardSelectionR\x14controlCardSelection\x12'\n" +
+	"\x0fencrypted_nonce\x18\x02 \x01(\fR\x0eencryptedNonce\x12)\n" +
+	"\x03key\x18\x03 \x01(\x0e2\x17.openconfig.attestz.KeyR\x03key\")\n" +
+	"\x11ChallengeResponse\x12\x14\n" +
+	"\x05nonce\x18\x02 \x01(\fR\x05nonce*3\n" +
 	"\x03Key\x12\x13\n" +
 	"\x0fKEY_UNSPECIFIED\x10\x00\x12\n" +
 	"\n" +
 	"\x06KEY_EK\x10\x01\x12\v\n" +
-	"\aKEY_PPK\x10\x02\"\xbc\x01\n" +
-	"\x14GetIdevidCsrResponse\x12O\n" +
-	"\x0fcontrol_card_id\x18\x01 \x01(\v2'.openconfig.attestz.ControlCardVendorIdR\rcontrolCardId\x12!\n" +
-	"\fcsr_contents\x18\x02 \x01(\fR\vcsrContents\x120\n" +
-	"\x14idevid_signature_csr\x18\x03 \x01(\fR\x12idevidSignatureCsr\"\x9b\x01\n" +
-	"\x10ChallengeRequest\x12^\n" +
-	"\x16control_card_selection\x18\x01 \x01(\v2(.openconfig.attestz.ControlCardSelectionR\x14controlCardSelection\x12'\n" +
-	"\x0fencrypted_nonce\x18\x02 \x01(\fR\x0eencryptedNonce\")\n" +
-	"\x11ChallengeResponse\x12\x14\n" +
-	"\x05nonce\x18\x02 \x01(\fR\x05nonce2\x80\x04\n" +
+	"\aKEY_PPK\x10\x022\x80\x04\n" +
 	"\x11TpmEnrollzService\x12[\n" +
 	"\n" +
 	"GetIakCert\x12%.openconfig.attestz.GetIakCertRequest\x1a&.openconfig.attestz.GetIakCertResponse\x12g\n" +
@@ -838,7 +847,7 @@ func file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP() []
 var file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_goTypes = []any{
-	(GetIdevidCsrRequest_Key)(0),                    // 0: openconfig.attestz.GetIdevidCsrRequest.Key
+	(Key)(0),                                        // 0: openconfig.attestz.Key
 	(*GetIakCertRequest)(nil),                       // 1: openconfig.attestz.GetIakCertRequest
 	(*GetIakCertResponse)(nil),                      // 2: openconfig.attestz.GetIakCertResponse
 	(*RotateOIakCertRequest)(nil),                   // 3: openconfig.attestz.RotateOIakCertRequest
@@ -863,24 +872,25 @@ var file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_depIdxs = []int32
 	12, // 5: openconfig.attestz.RotateAIKCertRequest.control_card_selection:type_name -> openconfig.attestz.ControlCardSelection
 	14, // 6: openconfig.attestz.RotateAIKCertResponse.control_card_id:type_name -> openconfig.attestz.ControlCardVendorId
 	12, // 7: openconfig.attestz.GetIdevidCsrRequest.control_card_selection:type_name -> openconfig.attestz.ControlCardSelection
-	0,  // 8: openconfig.attestz.GetIdevidCsrRequest.key:type_name -> openconfig.attestz.GetIdevidCsrRequest.Key
+	0,  // 8: openconfig.attestz.GetIdevidCsrRequest.key:type_name -> openconfig.attestz.Key
 	14, // 9: openconfig.attestz.GetIdevidCsrResponse.control_card_id:type_name -> openconfig.attestz.ControlCardVendorId
 	12, // 10: openconfig.attestz.ChallengeRequest.control_card_selection:type_name -> openconfig.attestz.ControlCardSelection
-	1,  // 11: openconfig.attestz.TpmEnrollzService.GetIakCert:input_type -> openconfig.attestz.GetIakCertRequest
-	3,  // 12: openconfig.attestz.TpmEnrollzService.RotateOIakCert:input_type -> openconfig.attestz.RotateOIakCertRequest
-	5,  // 13: openconfig.attestz.TpmEnrollzService.RotateAIKCert:input_type -> openconfig.attestz.RotateAIKCertRequest
-	7,  // 14: openconfig.attestz.TpmEnrollzService.GetIdevidCsr:input_type -> openconfig.attestz.GetIdevidCsrRequest
-	9,  // 15: openconfig.attestz.TpmEnrollzService.Challenge:input_type -> openconfig.attestz.ChallengeRequest
-	2,  // 16: openconfig.attestz.TpmEnrollzService.GetIakCert:output_type -> openconfig.attestz.GetIakCertResponse
-	4,  // 17: openconfig.attestz.TpmEnrollzService.RotateOIakCert:output_type -> openconfig.attestz.RotateOIakCertResponse
-	6,  // 18: openconfig.attestz.TpmEnrollzService.RotateAIKCert:output_type -> openconfig.attestz.RotateAIKCertResponse
-	8,  // 19: openconfig.attestz.TpmEnrollzService.GetIdevidCsr:output_type -> openconfig.attestz.GetIdevidCsrResponse
-	10, // 20: openconfig.attestz.TpmEnrollzService.Challenge:output_type -> openconfig.attestz.ChallengeResponse
-	16, // [16:21] is the sub-list for method output_type
-	11, // [11:16] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	0,  // 11: openconfig.attestz.ChallengeRequest.key:type_name -> openconfig.attestz.Key
+	1,  // 12: openconfig.attestz.TpmEnrollzService.GetIakCert:input_type -> openconfig.attestz.GetIakCertRequest
+	3,  // 13: openconfig.attestz.TpmEnrollzService.RotateOIakCert:input_type -> openconfig.attestz.RotateOIakCertRequest
+	5,  // 14: openconfig.attestz.TpmEnrollzService.RotateAIKCert:input_type -> openconfig.attestz.RotateAIKCertRequest
+	7,  // 15: openconfig.attestz.TpmEnrollzService.GetIdevidCsr:input_type -> openconfig.attestz.GetIdevidCsrRequest
+	9,  // 16: openconfig.attestz.TpmEnrollzService.Challenge:input_type -> openconfig.attestz.ChallengeRequest
+	2,  // 17: openconfig.attestz.TpmEnrollzService.GetIakCert:output_type -> openconfig.attestz.GetIakCertResponse
+	4,  // 18: openconfig.attestz.TpmEnrollzService.RotateOIakCert:output_type -> openconfig.attestz.RotateOIakCertResponse
+	6,  // 19: openconfig.attestz.TpmEnrollzService.RotateAIKCert:output_type -> openconfig.attestz.RotateAIKCertResponse
+	8,  // 20: openconfig.attestz.TpmEnrollzService.GetIdevidCsr:output_type -> openconfig.attestz.GetIdevidCsrResponse
+	10, // 21: openconfig.attestz.TpmEnrollzService.Challenge:output_type -> openconfig.attestz.ChallengeResponse
+	17, // [17:22] is the sub-list for method output_type
+	12, // [12:17] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_init() }
