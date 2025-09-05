@@ -752,10 +752,45 @@ func (u *DefaultTPM12Utils) EncryptWithAES(symKey *TPMSymmetricKey, data []byte)
 }
 
 // DecryptWithSymmetricKey decrypts data using a private key.
-func (u *DefaultTPM12Utils) DecryptWithSymmetricKey(ctx context.Context, symKey []byte, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error) {
-	// TODO: Implement the decryption using a symmetric key.
-	// For now, we just return the data as is.
-	return data, nil
+func (u *DefaultTPM12Utils) DecryptWithSymmetricKey(ctx context.Context, symKey *TPMSymmetricKey, keyParams *TPMKeyParms, ciphertext []byte) ([]byte, error) {
+	if keyParams.EncScheme != EsSymCBCPKCS5 {
+		return nil, fmt.Errorf("unsupported symmetric encryption scheme: %v", keyParams.EncScheme)
+	}
+
+	// Create a new AES cipher block from the symmetric key.
+	cipherBlock, err := aes.NewCipher(symKey.Key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create AES cipher: %w", err)
+	}
+
+	iv := keyParams.Params.SymParams.IV
+
+	// The ciphertext must be a multiple of the block size.
+	if len(ciphertext)%cipherBlock.BlockSize() != 0 {
+		return nil, fmt.Errorf("ciphertext is not a multiple of the block size")
+	}
+
+	// Create a new CBC decrypter.
+	encrypter := cipher.NewCBCDecrypter(cipherBlock, iv)
+
+	// Decrypt the data. The decrypted plaintext will be stored in the same
+	// underlying array as the ciphertext.
+	encrypter.CryptBlocks(ciphertext, ciphertext)
+
+	// Unpad the decrypted plaintext using PKCS#5/PKCS#7.
+	plaintext := ciphertext
+	padding := int(plaintext[len(plaintext)-1])
+	if padding > len(plaintext) || padding == 0 {
+		return nil, fmt.Errorf("invalid PKCS#5 padding value: %d", padding)
+	}
+	// Verify that all padding bytes are correct.
+	for i := len(plaintext) - padding; i < len(plaintext); i++ {
+		if int(plaintext[i]) != padding {
+			return nil, fmt.Errorf("invalid PKCS#5 padding found")
+		}
+	}
+
+	return plaintext[:len(plaintext)-padding], nil
 }
 
 // ConstructAsymCAContents constructs TPMAsymCAContents.
