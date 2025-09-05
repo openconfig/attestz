@@ -2089,10 +2089,40 @@ func encryptWithAESCBC(t *testing.T, key, plaintext []byte) ([]byte, []byte) {
 	return ciphertext, iv
 }
 
-func TestDecryptWithSymmetricKey(t *testing.T) {
+func TestDecryptWithSymmetricKey_Success(t *testing.T) {
 	u := &DefaultTPM12Utils{}
 	ctx := context.Background()
-	keyBytes := []byte("0123456789abcdef0123456789abcdef") // 32 bytes for AES-256
+	keyBytes := bytes.Repeat([]byte{0x11}, 32) // 32 bytes for AES-256
+	plaintext := []byte("This is a secret message.")
+
+	validCiphertext, iv := encryptWithAESCBC(t, keyBytes, plaintext)
+	keyParams := &TPMKeyParms{
+		EncScheme: EsSymCBCPKCS5,
+		Params: TPMParams{
+			SymParams: &TPMSymmetricKeyParms{IV: iv},
+		},
+	}
+	symKey := &TPMSymmetricKey{
+		Key: keyBytes,
+	}
+
+	decrypted, err := u.DecryptWithSymmetricKey(ctx, symKey, keyParams, validCiphertext)
+
+	// Explicitly assert that no error occurred.
+	if err != nil {
+		t.Fatalf("DecryptWithSymmetricKey() returned an unexpected error: %v", err)
+	}
+
+	// Explicitly assert that the decrypted text matches the original plaintext.
+	if !bytes.Equal(decrypted, plaintext) {
+		t.Errorf("DecryptWithSymmetricKey() got = %s, want = %s", decrypted, plaintext)
+	}
+}
+
+func TestDecryptWithSymmetricKey_Failure(t *testing.T) {
+	u := &DefaultTPM12Utils{}
+	ctx := context.Background()
+	keyBytes := bytes.Repeat([]byte{0x11}, 32) // 32 bytes for AES-256
 	plaintext := []byte("This is a secret message.")
 
 	validCiphertext, iv := encryptWithAESCBC(t, keyBytes, plaintext)
@@ -2103,6 +2133,7 @@ func TestDecryptWithSymmetricKey(t *testing.T) {
 		},
 	}
 
+	// Create a tampered ciphertext to trigger an invalid padding error.
 	tamperedInvalidPaddingValue := make([]byte, len(validCiphertext))
 	copy(tamperedInvalidPaddingValue, validCiphertext)
 	tamperedInvalidPaddingValue[len(tamperedInvalidPaddingValue)-1] = byte(aes.BlockSize + 1)
@@ -2112,29 +2143,20 @@ func TestDecryptWithSymmetricKey(t *testing.T) {
 		key           []byte
 		keyParams     *TPMKeyParms
 		data          []byte
-		encScheme     TPMEncodingScheme
 		expectedError string
 	}{
-		{
-			name:      "Success",
-			key:       keyBytes,
-			keyParams: keyParams, data: validCiphertext,
-			encScheme:     EsSymCBCPKCS5,
-			expectedError: "",
-		},
 		{
 			name:          "Failure Unsupported Scheme",
 			key:           keyBytes,
 			keyParams:     &TPMKeyParms{EncScheme: EsNone},
-			encScheme:     EsNone,
+			data:          validCiphertext,
 			expectedError: "unsupported symmetric encryption scheme",
 		},
-
 		{
-			name:      "Failure Invalid Padding Value",
-			key:       keyBytes,
-			keyParams: keyParams, data: tamperedInvalidPaddingValue,
-			encScheme:     EsSymCBCPKCS5,
+			name:          "Failure Invalid Padding Value",
+			key:           keyBytes,
+			keyParams:     keyParams,
+			data:          tamperedInvalidPaddingValue,
 			expectedError: "invalid PKCS#5 padding",
 		},
 		{
@@ -2142,7 +2164,6 @@ func TestDecryptWithSymmetricKey(t *testing.T) {
 			key:           []byte("a-different-32-byte-secret-key!!"),
 			keyParams:     keyParams,
 			data:          validCiphertext,
-			encScheme:     EsSymCBCPKCS5,
 			expectedError: "invalid PKCS#5 padding",
 		},
 	}
@@ -2153,12 +2174,13 @@ func TestDecryptWithSymmetricKey(t *testing.T) {
 				Key: tc.key,
 			}
 			_, err := u.DecryptWithSymmetricKey(ctx, symKey, tc.keyParams, tc.data)
-			if tc.expectedError == "padding error" {
-				if err == nil || !strings.Contains(err.Error(), "invalid PKCS#5 padding") {
-					t.Errorf("DecryptWithSymmetricKey Failure: got error %v, expected an error containing 'invalid PKCS#5 padding'", err)
-				}
-			} else {
-				assertError(t, err, tc.expectedError, "DecryptWithSymmetricKey Failure")
+
+			if err == nil {
+				t.Fatalf("DecryptWithSymmetricKey() expected an error for test '%s', but got nil", tc.name)
+			}
+
+			if !strings.Contains(err.Error(), tc.expectedError) {
+				t.Errorf("DecryptWithSymmetricKey() error = '%v', want error containing '%s'", err, tc.expectedError)
 			}
 		})
 	}

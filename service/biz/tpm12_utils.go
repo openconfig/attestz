@@ -732,7 +732,7 @@ func (u *DefaultTPM12Utils) EncryptWithAES(symKey *TPMSymmetricKey, data []byte)
 }
 
 // DecryptWithSymmetricKey decrypts data using a private key.
-func (u *DefaultTPM12Utils) DecryptWithSymmetricKey(ctx context.Context, symKey *TPMSymmetricKey, keyParams *TPMKeyParms, data []byte) ([]byte, error) {
+func (u *DefaultTPM12Utils) DecryptWithSymmetricKey(ctx context.Context, symKey *TPMSymmetricKey, keyParams *TPMKeyParms, ciphertext []byte) ([]byte, error) {
 	if keyParams.EncScheme != EsSymCBCPKCS5 {
 		return nil, fmt.Errorf("unsupported symmetric encryption scheme: %v", keyParams.EncScheme)
 	}
@@ -744,7 +744,6 @@ func (u *DefaultTPM12Utils) DecryptWithSymmetricKey(ctx context.Context, symKey 
 	}
 
 	iv := keyParams.Params.SymParams.IV
-	ciphertext := data
 
 	// The ciphertext must be a multiple of the block size.
 	if len(ciphertext)%cipherBlock.BlockSize() != 0 {
