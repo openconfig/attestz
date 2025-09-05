@@ -16,7 +16,6 @@ package biz
 
 import (
 	"context"
-	"crypto"
 	"crypto/rsa"
 	"crypto/x509"
 	"errors"
@@ -841,10 +840,12 @@ type stubRotateAIKCertInfraDeps struct {
 	parseIdentityReqErr          error
 	parseSymmetricKeyErr         error
 	parseIdentityProofErr        error
-	verifySignatureErr           error
+	verifySignatureWithRSAKeyErr error
 	issueAikCertErr              error
 	newAESCBCKeyErr              error
 	encryptWithAesErr            error
+	constructAsymCAContentsErr   error
+	serializeAsymCAContentsErr   error
 	encryptWithPublicKeyErr      error
 	decryptWithPrivateKeyErr     error
 	decryptWithSymmetricKeyErr   error
@@ -890,9 +891,9 @@ func (s *stubRotateAIKCertInfraDeps) ParseIdentityProof(data []byte) (*TPMIdenti
 	return &TPMIdentityProof{}, nil // Default success
 }
 
-func (s *stubRotateAIKCertInfraDeps) VerifySignature(ctx context.Context, pubKey []byte, signature []byte, data []byte, hash crypto.Hash) (bool, error) {
-	if s.verifySignatureErr != nil {
-		return false, s.verifySignatureErr
+func (s *stubRotateAIKCertInfraDeps) VerifySignatureWithRSAKey(ctx context.Context, pubKey *TPMPubKey, signature []byte, digest []byte) (bool, error) {
+	if s.verifySignatureWithRSAKeyErr != nil {
+		return false, s.verifySignatureWithRSAKeyErr
 	}
 	if s.customVerifySignatureResp != false {
 		return s.customVerifySignatureResp, nil
@@ -912,6 +913,20 @@ func (s *stubRotateAIKCertInfraDeps) EncryptWithAES(symKey *TPMSymmetricKey, dat
 		return nil, nil, s.encryptWithAesErr
 	}
 	return []byte("encrypted"), &TPMKeyParms{}, nil // Default success
+}
+
+func (s *stubRotateAIKCertInfraDeps) ConstructAsymCAContents(symKey *TPMSymmetricKey, identityKey *TPMPubKey) (*TPMAsymCAContents, error) {
+	if s.constructAsymCAContentsErr != nil {
+		return nil, s.constructAsymCAContentsErr
+	}
+	return &TPMAsymCAContents{}, nil
+}
+
+func (s *stubRotateAIKCertInfraDeps) SerializeAsymCAContents(asymCAContents *TPMAsymCAContents) ([]byte, error) {
+	if s.serializeAsymCAContentsErr != nil {
+		return nil, s.serializeAsymCAContentsErr
+	}
+	return []byte("serialized"), nil
 }
 
 func (s *stubRotateAIKCertInfraDeps) EncryptWithPublicKey(ctx context.Context, publicKey *rsa.PublicKey, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error) {
@@ -1041,10 +1056,12 @@ func TestRotateAIKCert(t *testing.T) {
 		parseIdentityReqErr          error
 		parseSymmetricKeyErr         error
 		parseIdentityProofErr        error
-		verifySignatureErr           error
+		verifySignatureWithRSAKeyErr error
 		issueAikCertErr              error
 		newAESCBCKeyErr              error
 		encryptWithAesErr            error
+		constructAsymCAContentsErr   error
+		serializeAsymCAContentsErr   error
 		encryptWithPublicKeyErr      error
 		decryptWithPrivateKeyErr     error
 		decryptWithSymmetricKeyErr   error
@@ -1140,10 +1157,10 @@ func TestRotateAIKCert(t *testing.T) {
 			recvResponses:                defaultRecvResponses,
 		},
 		{
-			desc:               "Error verifying signature",
-			wantErrResp:        errorResp,
-			verifySignatureErr: errorResp,
-			recvResponses:      defaultRecvResponses,
+			desc:                         "Error verifying signature",
+			wantErrResp:                  errorResp,
+			verifySignatureWithRSAKeyErr: errorResp,
+			recvResponses:                defaultRecvResponses,
 		},
 		{
 			desc:                      "Signature verification failed",
@@ -1168,6 +1185,18 @@ func TestRotateAIKCert(t *testing.T) {
 			wantErrResp:     errorResp,
 			newAESCBCKeyErr: errorResp,
 			recvResponses:   defaultRecvResponses,
+		},
+		{
+			desc:                       "Construction of TPMAsymCaContents failed",
+			wantErrResp:                errorResp,
+			constructAsymCAContentsErr: errorResp,
+			recvResponses:              defaultRecvResponses,
+		},
+		{
+			desc:                       "Serialization of TPMAsymCaContents failed",
+			wantErrResp:                errorResp,
+			serializeAsymCAContentsErr: errorResp,
+			recvResponses:              defaultRecvResponses,
 		},
 		{
 			desc:              "Error encrypting AIK cert",
@@ -1291,9 +1320,11 @@ func TestRotateAIKCert(t *testing.T) {
 				parseIdentityReqErr:          tc.parseIdentityReqErr,
 				parseSymmetricKeyErr:         tc.parseSymmetricKeyErr,
 				parseIdentityProofErr:        tc.parseIdentityProofErr,
-				verifySignatureErr:           tc.verifySignatureErr,
+				verifySignatureWithRSAKeyErr: tc.verifySignatureWithRSAKeyErr,
 				issueAikCertErr:              tc.issueAikCertErr,
 				encryptWithAesErr:            tc.encryptWithAesErr,
+				constructAsymCAContentsErr:   tc.constructAsymCAContentsErr,
+				serializeAsymCAContentsErr:   tc.constructIdentityContentsErr,
 				encryptWithPublicKeyErr:      tc.encryptWithPublicKeyErr,
 				decryptWithPrivateKeyErr:     tc.decryptWithPrivateKeyErr,
 				decryptWithSymmetricKeyErr:   tc.decryptWithSymmetricKeyErr,

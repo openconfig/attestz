@@ -17,7 +17,6 @@ package biz
 
 import (
 	"context"
-	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 
@@ -564,7 +563,6 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	}
 
 	// Decrypt AsymBlob to get a symmetric key using issuer private key
-	var hash crypto.Hash
 	symKeyBytes, err := req.Deps.DecryptWithPrivateKey(ctx, issuerPrivateKey, applicationIdentityRequest.AsymBlob, applicationIdentityRequest.AsymAlgorithm.AlgID, applicationIdentityRequest.AsymAlgorithm.EncScheme)
 	if err != nil {
 		err = fmt.Errorf("failed to decrypt AsymBlob: %w", err)
@@ -615,7 +613,7 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	identityContentsHash := hasher.Sum(nil)
 
 	// Verify signature of TPM_IDENTITY_CONTENTS in Identity proof using AIK pub key
-	isValid, err := req.Deps.VerifySignature(ctx, identityProof.AttestationIdentityKey.PubKey.Key, identityProof.IdentityBinding, identityContentsHash, hash)
+	isValid, err := req.Deps.VerifySignatureWithRSAKey(ctx, &identityProof.AttestationIdentityKey, identityProof.IdentityBinding, identityContentsHash)
 	if err != nil {
 		err = fmt.Errorf("failed to verify identity contents signature: %w", err)
 		log.ErrorContext(ctx, err)
@@ -662,6 +660,20 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 		return err
 	}
 
+	// Construct and serialize TPMAsymCAContents using AES CBC key and AIK pub key.
+	asymCAContents, err := req.Deps.ConstructAsymCAContents(aesCBCKey, &identityProof.AttestationIdentityKey)
+	if err != nil {
+		err = fmt.Errorf("failed to construct AsymCAContents: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+	asymCAContentsBytes, err := req.Deps.SerializeAsymCAContents(asymCAContents)
+	if err != nil {
+		err = fmt.Errorf("failed to serialize AsymCAContents: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+
 	// Get EK Public Key from RoT database.
 	fetchEKResp, err := req.Deps.FetchEK(ctx, &FetchEKReq{
 		Serial:   resp.GetControlCardId().GetChassisSerialNumber(),
@@ -681,17 +693,17 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	ekAlgo := tpm12.AlgRSA
 	ekEncScheme := EsRSAEsOAEPSHA1MGF1
 
-	// Encrypt AES key with EK public key.
-	encryptedAesKey, err := req.Deps.EncryptWithPublicKey(ctx, ekPublicKey, aesCBCKey.Key, ekAlgo, ekEncScheme)
+	// Encrypt TPMAsymCAContents, containing the AES key, with the EK public key.
+	symKeyBlob, err := req.Deps.EncryptWithPublicKey(ctx, ekPublicKey, asymCAContentsBytes, ekAlgo, ekEncScheme)
 	if err != nil {
-		err = fmt.Errorf("failed to encrypt AES key: %w", err)
+		err = fmt.Errorf("failed to encrypt TPMAsymCAContents: %w", err)
 		log.ErrorContext(ctx, err)
 		return err
 	}
 
 	// Send encrypted data
 	issuerCertPayload := &epb.RotateAIKCertRequest_IssuerCertPayload{
-		SymmetricKeyBlob: encryptedAesKey,
+		SymmetricKeyBlob: symKeyBlob,
 		AikCertBlob:      encryptedAikCert,
 	}
 	rotateAIKCertReq = &epb.RotateAIKCertRequest{
