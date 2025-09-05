@@ -2689,6 +2689,7 @@ func TestEncryptWithPublicKey_Failure(t *testing.T) {
 		publicKey     *rsa.PublicKey
 		algo          tpm12.Algorithm
 		encScheme     TPMEncodingScheme
+		sampleData    []byte
 		expectedError string
 	}{
 		{
@@ -2697,6 +2698,14 @@ func TestEncryptWithPublicKey_Failure(t *testing.T) {
 			algo:          tpm12.AlgRSA,
 			encScheme:     EsRSAEsOAEPSHA1MGF1,
 			expectedError: "publicKey or its modulus cannot be nil",
+		},
+		{
+			name:          "Empty data",
+			publicKey:     publicKey,
+			sampleData:    []byte{},
+			algo:          tpm12.AlgRSA,
+			encScheme:     EsRSAEsOAEPSHA1MGF1,
+			expectedError: "data is nil or empty",
 		},
 		{
 			name:          "Nil publicKey modulus",
@@ -2734,7 +2743,11 @@ func TestEncryptWithPublicKey_Failure(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			u := &DefaultTPM12Utils{}
-			_, err := u.EncryptWithPublicKey(context.Background(), tc.publicKey, sampleData, tc.algo, tc.encScheme)
+			data := sampleData
+			if tc.sampleData != nil {
+				data = tc.sampleData
+			}
+			_, err := u.EncryptWithPublicKey(context.Background(), tc.publicKey, data, tc.algo, tc.encScheme)
 			assertError(t, err, tc.expectedError, "EncryptWithPublicKey")
 		})
 	}

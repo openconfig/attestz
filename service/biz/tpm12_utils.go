@@ -605,6 +605,9 @@ func (u *DefaultTPM12Utils) ParseStorePubKeyFromReader(reader *bytes.Reader) (*T
 
 // EncryptWithPublicKey encrypts data using a public key.
 func (u *DefaultTPM12Utils) EncryptWithPublicKey(ctx context.Context, publicKey *rsa.PublicKey, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("data is nil or empty")
+	}
 	if publicKey == nil || publicKey.N == nil {
 		return nil, fmt.Errorf("publicKey or its modulus cannot be nil")
 	}
