@@ -22,6 +22,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/rsa"
+	"errors"
 	"math"
 	"math/big"
 	"slices"
@@ -51,6 +52,13 @@ const (
 
 	// tpmLabel is the label used in OAEP encryption and is "TCPA" encoded in UTF-16BE.
 	tpmLabel = "TCPA"
+)
+
+var (
+	// ErrUnexpectedParams is returned when parameters are provided for an algorithm that does not expect them.
+	ErrUnexpectedParams = errors.New("unexpected params for algorithm")
+	// ErrNilInput is returned when a required input is nil.
+	ErrNilInput = errors.New("input cannot be nil")
 )
 
 // Note: All the uint values in TPM_* structures in this file use big endian (network byte order).
@@ -934,7 +942,12 @@ func (u *DefaultTPM12Utils) SerializeSymmetricKeyParms(symParms *TPMSymmetricKey
 }
 
 // SerializeKeyParms serializes a TPMKeyParms to bytes.
+// SerializeKeyParms serializes a TPMKeyParms to bytes.
 func (u *DefaultTPM12Utils) SerializeKeyParms(keyParms *TPMKeyParms) ([]byte, error) {
+	if keyParms == nil {
+		return nil, fmt.Errorf("keyParms cannot be nil: %w", ErrNilInput)
+	}
+
 	var buf bytes.Buffer
 	if err := binary.Write(&buf, binary.BigEndian, uint32(keyParms.AlgID)); err != nil {
 		return nil, fmt.Errorf("failed to write the algorithm ID to the buffer: %w", err)
@@ -950,6 +963,9 @@ func (u *DefaultTPM12Utils) SerializeKeyParms(keyParms *TPMKeyParms) ([]byte, er
 	var err error
 	switch keyParms.AlgID {
 	case tpm12.AlgRSA:
+		if keyParms.Params.SymParams != nil {
+			return nil, fmt.Errorf("%w: unexpected symmetric params for %v", ErrUnexpectedParams, keyParms.AlgID.String())
+		}
 		if keyParms.Params.RSAParams != nil {
 			paramBytes, err = u.SerializeRSAKeyParms(keyParms.Params.RSAParams)
 			if err != nil {
@@ -957,6 +973,9 @@ func (u *DefaultTPM12Utils) SerializeKeyParms(keyParms *TPMKeyParms) ([]byte, er
 			}
 		}
 	case tpm12.AlgAES128, tpm12.AlgAES192, tpm12.AlgAES256:
+		if keyParms.Params.RSAParams != nil {
+			return nil, fmt.Errorf("%w: unexpected RSA params for %v", ErrUnexpectedParams, keyParms.AlgID.String())
+		}
 		if keyParms.Params.SymParams != nil {
 			paramBytes, err = u.SerializeSymmetricKeyParms(keyParms.Params.SymParams)
 			if err != nil {
@@ -966,7 +985,7 @@ func (u *DefaultTPM12Utils) SerializeKeyParms(keyParms *TPMKeyParms) ([]byte, er
 	default:
 		// Other algorithms like SHA, HMAC, MGF1 have no params.
 		if keyParms.Params.RSAParams != nil || keyParms.Params.SymParams != nil {
-			return nil, fmt.Errorf("unexpected params for algorithm %v: %+v", keyParms.AlgID, keyParms.Params)
+			return nil, fmt.Errorf("%w: %v with params %+v", ErrUnexpectedParams, keyParms.AlgID.String(), keyParms.Params)
 		}
 	}
 
