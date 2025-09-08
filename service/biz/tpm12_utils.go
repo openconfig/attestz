@@ -176,6 +176,13 @@ type TPMAsymCAContents struct {
 	IDDigest   [20]byte        // The digest of the identity key (TPM_PUBKEY)
 }
 
+// TPMSymCAAttestation is the structure that contains the encrypted identity credential.
+// TPM_SYM_CA_ATTESTATION from TPM 1.2 specification.
+type TPMSymCAAttestation struct {
+	Algorithm  TPMKeyParms // The parameters for the symmetric algorithm.
+	Credential []byte      // The encrypted credential.
+}
+
 // TPMIdentityReq is a response from the TPM containing the identity proof and binding.
 // TPM_IDENTITY_REQ from TPM 1.2 specification.
 type TPMIdentityReq struct {
@@ -213,6 +220,7 @@ type TPM12Utils interface {
 	ConstructAsymCAContents(symKey *TPMSymmetricKey, identityKey *TPMPubKey) (*TPMAsymCAContents, error)
 	SerializeAsymCAContents(asymCAContents *TPMAsymCAContents) ([]byte, error)
 	SerializeSymmetricKey(symKey *TPMSymmetricKey) ([]byte, error)
+	SerializeSymCAAttestation(symCAAttestation *TPMSymCAAttestation) ([]byte, error)
 }
 
 // DefaultTPM12Utils is a concrete implementation of the TPM12Utils interface.
@@ -830,6 +838,32 @@ func (u *DefaultTPM12Utils) SerializeAsymCAContents(asymCAContents *TPMAsymCACon
 	if err != nil {
 		return nil, fmt.Errorf("failed to write asymCAContents.IDDigest to buffer: %w", err)
 	}
+
+	return buf.Bytes(), nil
+}
+
+// SerializeSymCAAttestation serializes a TPMSymCAAttestation to bytes.
+func (u *DefaultTPM12Utils) SerializeSymCAAttestation(symCAAttestation *TPMSymCAAttestation) ([]byte, error) {
+	if symCAAttestation == nil {
+		return nil, fmt.Errorf("symCAAttestation cannot be nil: %w", ErrNilInput)
+	}
+
+	var buf bytes.Buffer
+	credSize := len(symCAAttestation.Credential)
+	if credSize > math.MaxUint32 {
+		return nil, fmt.Errorf("credential size (%d) exceeds maximum uint32 size", credSize)
+	}
+	if err := binary.Write(&buf, binary.BigEndian, uint32(credSize)); err != nil {
+		return nil, fmt.Errorf("failed to write the credential size to the buffer: %w", err)
+	}
+
+	algoBytes, err := u.SerializeKeyParms(&symCAAttestation.Algorithm)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize algorithm key parms: %w", err)
+	}
+	buf.Write(algoBytes)
+
+	buf.Write(symCAAttestation.Credential)
 
 	return buf.Bytes(), nil
 }
