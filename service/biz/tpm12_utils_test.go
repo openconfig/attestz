@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/binary"
+	"errors"
 	"math"
 	"math/big"
 
@@ -1052,16 +1053,8 @@ func TestSerializeSymmetricKeyParms(t *testing.T) {
 	}
 }
 
-func TestSerializeKeyParms(t *testing.T) {
+func TestSerializeKeyParms_Success(t *testing.T) {
 	u := &DefaultTPM12Utils{}
-	rsaParamsBytes, err := u.SerializeRSAKeyParms(&TPMRSAKeyParms{KeyLength: 2048, NumPrimes: 2, Exponent: []byte{0x01, 0x00, 0x01}})
-	if err != nil {
-		t.Fatalf("SerializeRSAKeyParms returned unexpected error: %v", err)
-	}
-	symParamsBytes, err := u.SerializeSymmetricKeyParms(&TPMSymmetricKeyParms{KeyLength: 16, BlockSize: 16, IV: make([]byte, 16)})
-	if err != nil {
-		t.Fatalf("SerializeSymmetricKeyParms returned unexpected error: %v", err)
-	}
 
 	testCases := []struct {
 		name          string
@@ -1078,15 +1071,14 @@ func TestSerializeKeyParms(t *testing.T) {
 					RSAParams: &TPMRSAKeyParms{KeyLength: 2048, NumPrimes: 2, Exponent: []byte{0x01, 0x00, 0x01}},
 				},
 			},
-			expectedBytes: append(
-				[]byte{
-					0x00, 0x00, 0x00, 0x01, // AlgID (tpm12.AlgRSA)
-					0x00, 0x02, // EncScheme (EsRSAEsPKCSv15)
-					0x00, 0x02, // SigScheme (SsRSASaPKCS1v15SHA1)
-					0x00, 0x00, 0x00, 0x0f, // ParamSize (len of rsaParamsBytes)
-				},
-				rsaParamsBytes...,
-			),
+			expectedBytes: keyParms{
+				algID:     tpm12.AlgRSA,
+				encScheme: EsRSAEsPKCSv15,
+				sigScheme: SsRSASaPKCS1v15SHA1,
+				parms: rsaKeyParms{
+					exponent: &[]byte{0x01, 0x00, 0x01},
+				}.toBytes(),
+			}.toBytes(),
 		},
 		{
 			name: "Symmetric KeyParms",
@@ -1098,15 +1090,12 @@ func TestSerializeKeyParms(t *testing.T) {
 					SymParams: &TPMSymmetricKeyParms{KeyLength: 16, BlockSize: 16, IV: make([]byte, 16)},
 				},
 			},
-			expectedBytes: append(
-				[]byte{
-					0x00, 0x00, 0x00, 0x06, // AlgID (tpm12.AlgAES128)
-					0x00, 0xff, // EncScheme (EsSymCBCPKCS5)
-					0x00, 0x01, // SigScheme (SsNone)
-					0x00, 0x00, 0x00, 0x1c, // ParamSize (len of symParamsBytes)
-				},
-				symParamsBytes...,
-			),
+			expectedBytes: keyParms{
+				algID:     tpm12.AlgAES128,
+				encScheme: EsSymCBCPKCS5,
+				sigScheme: SsNone,
+				parms:     symmetricKeyParms{}.toBytes(),
+			}.toBytes(),
 		},
 		{
 			name: "KeyParms with No Params",
@@ -1116,12 +1105,12 @@ func TestSerializeKeyParms(t *testing.T) {
 				SigScheme: SsNone,
 				Params:    TPMParams{},
 			},
-			expectedBytes: []byte{
-				0x00, 0x00, 0x00, 0x04, // AlgID (tpm12.AlgSHA)
-				0x00, 0x01, // EncScheme (EsNone)
-				0x00, 0x01, // SigScheme (SsNone)
-				0x00, 0x00, 0x00, 0x00, // ParamSize (0)
-			},
+			expectedBytes: keyParms{
+				algID:     tpm12.AlgSHA,
+				encScheme: EsNone,
+				sigScheme: SsNone,
+				parms:     []byte{},
+			}.toBytes(),
 		},
 	}
 
@@ -1134,6 +1123,79 @@ func TestSerializeKeyParms(t *testing.T) {
 
 			if diff := cmp.Diff(tc.expectedBytes, gotBytes); diff != "" {
 				t.Errorf("SerializeKeyParms(%+v) mismatch (-want +got):\n%s", tc.keyParms, diff)
+			}
+		})
+	}
+}
+
+func TestSerializeKeyParms_Failure(t *testing.T) {
+	u := &DefaultTPM12Utils{}
+
+	testCases := []struct {
+		name          string
+		keyParms      *TPMKeyParms
+		expectedError error
+	}{
+		{
+			name: "RSA algorithm with Symmetric key params",
+			keyParms: &TPMKeyParms{
+				AlgID:     tpm12.AlgRSA,
+				EncScheme: EsRSAEsPKCSv15,
+				SigScheme: SsRSASaPKCS1v15SHA1,
+				Params: TPMParams{
+					SymParams: &TPMSymmetricKeyParms{},
+				},
+			},
+			expectedError: ErrUnexpectedParams,
+		},
+		{
+			name: "Symmetric algorithm with RSA key params",
+			keyParms: &TPMKeyParms{
+				AlgID:     tpm12.AlgAES128,
+				EncScheme: EsSymCBCPKCS5,
+				SigScheme: SsNone,
+				Params: TPMParams{
+					RSAParams: &TPMRSAKeyParms{},
+				},
+			},
+			expectedError: ErrUnexpectedParams,
+		},
+		{
+			name: "SHA algorithm with RSA key params",
+			keyParms: &TPMKeyParms{
+				AlgID:     tpm12.AlgSHA,
+				EncScheme: EsNone,
+				SigScheme: SsNone,
+				Params: TPMParams{
+					RSAParams: &TPMRSAKeyParms{},
+				},
+			},
+			expectedError: ErrUnexpectedParams,
+		},
+		{
+			name: "SHA algorithm with Symmetric key params",
+			keyParms: &TPMKeyParms{
+				AlgID:     tpm12.AlgSHA,
+				EncScheme: EsNone,
+				SigScheme: SsNone,
+				Params: TPMParams{
+					SymParams: &TPMSymmetricKeyParms{},
+				},
+			},
+			expectedError: ErrUnexpectedParams,
+		},
+		{
+			name:          "Nil KeyParms",
+			keyParms:      nil,
+			expectedError: ErrNilInput,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := u.SerializeKeyParms(tc.keyParms)
+			if !errors.Is(err, tc.expectedError) {
+				t.Errorf("SerializeKeyParms(%+v) got error %v, want error %v", tc.keyParms, err, tc.expectedError)
 			}
 		})
 	}
