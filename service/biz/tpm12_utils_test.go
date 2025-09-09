@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/binary"
+	"errors"
 	"math"
 	"math/big"
 
@@ -2145,28 +2146,28 @@ func TestDecryptWithSymmetricKey_Failure(t *testing.T) {
 		key           []byte
 		keyParams     *TPMKeyParms
 		data          []byte
-		expectedError string
+		expectedError error
 	}{
 		{
 			name:          "Failure Unsupported Scheme",
 			key:           keyBytes,
 			keyParams:     &TPMKeyParms{EncScheme: EsNone},
 			data:          validCiphertext,
-			expectedError: "unsupported symmetric encryption scheme",
+			expectedError: ErrUnsupportedScheme,
 		},
 		{
 			name:          "Failure Invalid Padding Value",
 			key:           keyBytes,
 			keyParams:     keyParams,
 			data:          tamperedInvalidPaddingValue,
-			expectedError: "invalid PKCS#5 padding",
+			expectedError: ErrInvalidPadding,
 		},
 		{
 			name:          "Failure Different Key Same Size",
 			key:           []byte("a-different-32-byte-secret-key!!"),
 			keyParams:     keyParams,
 			data:          validCiphertext,
-			expectedError: "invalid PKCS#5 padding",
+			expectedError: ErrInvalidPadding,
 		},
 	}
 
@@ -2180,9 +2181,8 @@ func TestDecryptWithSymmetricKey_Failure(t *testing.T) {
 			if err == nil {
 				t.Fatalf("DecryptWithSymmetricKey() expected an error for test '%s', but got nil", tc.name)
 			}
-
-			if !strings.Contains(err.Error(), tc.expectedError) {
-				t.Errorf("DecryptWithSymmetricKey() error = '%v', want error containing '%s'", err, tc.expectedError)
+			if !errors.Is(err, tc.expectedError) {
+				t.Errorf("DecryptWithSymmetricKey() error = %v, want error to wrap %v", err, tc.expectedError)
 			}
 		})
 	}
