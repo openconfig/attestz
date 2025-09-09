@@ -578,7 +578,7 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	}
 
 	// Decrypt SymBlob to get Identity proof using symmetric key
-	identityProofBytes, err := req.Deps.DecryptWithSymmetricKey(ctx, symKey.Key, applicationIdentityRequest.SymBlob, symKey.AlgID, symKey.EncScheme)
+	identityProofBytes, err := req.Deps.DecryptWithSymmetricKey(ctx, symKey, &applicationIdentityRequest.SymAlgorithm, applicationIdentityRequest.SymBlob)
 	if err != nil {
 		err = fmt.Errorf("failed to decrypt SymBlob: %w", err)
 		log.ErrorContext(ctx, err)
