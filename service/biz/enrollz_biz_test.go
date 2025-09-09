@@ -844,6 +844,7 @@ type stubRotateAIKCertInfraDeps struct {
 	issueAikCertErr              error
 	newAESCBCKeyErr              error
 	encryptWithAesErr            error
+	serializeSymCAAttestationErr error
 	constructAsymCAContentsErr   error
 	serializeAsymCAContentsErr   error
 	encryptWithPublicKeyErr      error
@@ -913,6 +914,13 @@ func (s *stubRotateAIKCertInfraDeps) EncryptWithAES(symKey *TPMSymmetricKey, dat
 		return nil, nil, s.encryptWithAesErr
 	}
 	return []byte("encrypted"), &TPMKeyParms{}, nil // Default success
+}
+
+func (s *stubRotateAIKCertInfraDeps) SerializeSymCAAttestation(symCAAttestation *TPMSymCAAttestation) ([]byte, error) {
+	if s.serializeAsymCAContentsErr != nil {
+		return nil, s.serializeAsymCAContentsErr
+	}
+	return []byte("serialized"), nil
 }
 
 func (s *stubRotateAIKCertInfraDeps) ConstructAsymCAContents(symKey *TPMSymmetricKey, identityKey *TPMPubKey) (*TPMAsymCAContents, error) {
@@ -1060,6 +1068,7 @@ func TestRotateAIKCert(t *testing.T) {
 		issueAikCertErr              error
 		newAESCBCKeyErr              error
 		encryptWithAesErr            error
+		serializeSymCAAttestationErr error
 		constructAsymCAContentsErr   error
 		serializeAsymCAContentsErr   error
 		encryptWithPublicKeyErr      error
@@ -1185,6 +1194,12 @@ func TestRotateAIKCert(t *testing.T) {
 			wantErrResp:     errorResp,
 			newAESCBCKeyErr: errorResp,
 			recvResponses:   defaultRecvResponses,
+		},
+		{
+			desc:                         "Serialization of TPMSymCAAttestation failed",
+			wantErrResp:                  errorResp,
+			serializeSymCAAttestationErr: errorResp,
+			recvResponses:                defaultRecvResponses,
 		},
 		{
 			desc:                       "Construction of TPMAsymCaContents failed",
@@ -1323,6 +1338,7 @@ func TestRotateAIKCert(t *testing.T) {
 				verifySignatureWithRSAKeyErr: tc.verifySignatureWithRSAKeyErr,
 				issueAikCertErr:              tc.issueAikCertErr,
 				encryptWithAesErr:            tc.encryptWithAesErr,
+				serializeSymCAAttestationErr: tc.serializeSymCAAttestationErr,
 				constructAsymCAContentsErr:   tc.constructAsymCAContentsErr,
 				serializeAsymCAContentsErr:   tc.constructIdentityContentsErr,
 				encryptWithPublicKeyErr:      tc.encryptWithPublicKeyErr,

@@ -2814,3 +2814,92 @@ func TestEncryptWithPublicKey_Failure(t *testing.T) {
 		})
 	}
 }
+
+func TestSerializeSymCAAttestation(t *testing.T) {
+	u := &DefaultTPM12Utils{}
+
+	// Success case
+	t.Run("Success", func(t *testing.T) {
+		symParms := &TPMSymmetricKeyParms{
+			KeyLength: 16,
+			BlockSize: 16,
+			IV:        bytes.Repeat([]byte{0x01}, 16),
+		}
+		keyParms := &TPMKeyParms{
+			AlgID:     tpm12.AlgAES128,
+			EncScheme: EsSymCBCPKCS5,
+			SigScheme: SsNone,
+			Params: TPMParams{
+				SymParams: symParms,
+			},
+		}
+
+		credSize := int32(4)
+		symCAAttestation := &TPMSymCAAttestation{
+			Algorithm:  *keyParms,
+			Credential: bytes.Repeat([]byte{0x01}, int(credSize)),
+		}
+
+		// Manually construct expected bytes
+		var expectedBuf bytes.Buffer
+		err := binary.Write(&expectedBuf, binary.BigEndian, credSize)
+		if err != nil {
+			t.Fatalf("error writing credSize while creating expected bytes: %v", err)
+		}
+		algoBytes, err := u.SerializeKeyParms(keyParms)
+		if err != nil {
+			t.Fatalf("Failed to serialize key parms for test setup: %v", err)
+		}
+		expectedBuf.Write(algoBytes)
+		expectedBuf.Write(symCAAttestation.Credential)
+		expectedBytes := expectedBuf.Bytes()
+
+		gotBytes, err := u.SerializeSymCAAttestation(symCAAttestation)
+		if err != nil {
+			t.Errorf("SerializeSymCAAttestation(%+v) returned unexpected error: %v", symCAAttestation, err)
+		}
+
+		if diff := cmp.Diff(expectedBytes, gotBytes); diff != "" {
+			t.Errorf("SerializeSymCAAttestation(%+v) mismatch (-want +got):\n%s", symCAAttestation, diff)
+		}
+	})
+
+	// Failure cases
+	t.Run("Failure", func(t *testing.T) {
+		invalidKeyParms := &TPMKeyParms{
+			AlgID: tpm12.AlgAES128,
+			Params: TPMParams{
+				RSAParams: &TPMRSAKeyParms{}, // Mismatched params
+			},
+		}
+
+		testCases := []struct {
+			name             string
+			symCAAttestation *TPMSymCAAttestation
+			expectedError    error
+		}{
+			{
+				name:             "Nil Attestation",
+				symCAAttestation: nil,
+				expectedError:    ErrNilInput,
+			},
+			{
+				name: "Algorithm Serialization Fails",
+				symCAAttestation: &TPMSymCAAttestation{
+					Algorithm:  *invalidKeyParms,
+					Credential: []byte{1, 2, 3},
+				},
+				expectedError: ErrUnexpectedParams,
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				_, err := u.SerializeSymCAAttestation(tc.symCAAttestation)
+				if !errors.Is(err, tc.expectedError) {
+					t.Errorf("SerializeSymCAAttestation(%+v) got error %v, want error %v", tc.symCAAttestation, err, tc.expectedError)
+				}
+			})
+		}
+	})
+}
