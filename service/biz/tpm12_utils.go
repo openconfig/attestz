@@ -119,8 +119,8 @@ type TPMStructVer struct {
 }
 
 var (
-	ErrUnsupportedScheme = errors.New("unsupported symmetric encryption scheme")
-	ErrInvalidPadding    = errors.New("invalid PKCS#5 padding")
+	ErrUnsupportedScheme = errors.New("unsupported scheme")
+	ErrInvalidPadding    = errors.New("invalid padding")
 )
 
 // GetDefaultTPMStructVer returns the default value for TPMStructVer as per TCG Spec.
@@ -761,7 +761,7 @@ func (u *DefaultTPM12Utils) EncryptWithAES(symKey *TPMSymmetricKey, data []byte)
 // DecryptWithSymmetricKey decrypts data using a private key.
 func (u *DefaultTPM12Utils) DecryptWithSymmetricKey(ctx context.Context, symKey *TPMSymmetricKey, keyParams *TPMKeyParms, ciphertext []byte) ([]byte, error) {
 	if keyParams.EncScheme != EsSymCBCPKCS5 {
-		return nil, fmt.Errorf("%w: %v", ErrUnsupportedScheme, keyParams.EncScheme)
+		return nil, fmt.Errorf("symmetric encryption: %w: %v", ErrUnsupportedScheme, keyParams.EncScheme)
 	}
 
 	// Create a new AES cipher block from the symmetric key.
@@ -788,12 +788,12 @@ func (u *DefaultTPM12Utils) DecryptWithSymmetricKey(ctx context.Context, symKey 
 	plaintext := ciphertext
 	padding := int(plaintext[len(plaintext)-1])
 	if padding > len(plaintext) || padding == 0 {
-		return nil, fmt.Errorf("%w: invalid value %d", ErrInvalidPadding, padding)
+		return nil, fmt.Errorf("PKCS#5: %w: invalid value %d", ErrInvalidPadding, padding)
 	}
 	// Verify that all padding bytes are correct.
 	for i := len(plaintext) - padding; i < len(plaintext); i++ {
 		if int(plaintext[i]) != padding {
-			return nil, fmt.Errorf("%w: invalid padding byte found at position %d", ErrInvalidPadding, i)
+			return nil, fmt.Errorf("PKCS#5: %w: invalid byte found at position %d", ErrInvalidPadding, i)
 		}
 	}
 
