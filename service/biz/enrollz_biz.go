@@ -653,9 +653,21 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	}
 
 	// Encrypt AIK cert with AES key.
-	encryptedAikCert, _, err := req.Deps.EncryptWithAES(aesCBCKey, []byte(issueAikCertResp.AikCertPem))
+	encryptedAikCert, symKeyParms, err := req.Deps.EncryptWithAES(aesCBCKey, []byte(issueAikCertResp.AikCertPem))
 	if err != nil {
 		err = fmt.Errorf("failed to encrypt AIK certificate: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+
+	// Construct TPM_SYM_CA_ATTESTATION and serialize it.
+	symCAAttestation := &TPMSymCAAttestation{
+		Algorithm:  *symKeyParms,
+		Credential: encryptedAikCert,
+	}
+	aikCertBlob, err := req.Deps.SerializeSymCAAttestation(symCAAttestation)
+	if err != nil {
+		err = fmt.Errorf("failed to serialize TPM_SYM_CA_ATTESTATION: %w", err)
 		log.ErrorContext(ctx, err)
 		return err
 	}
@@ -704,7 +716,7 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	// Send encrypted data
 	issuerCertPayload := &epb.RotateAIKCertRequest_IssuerCertPayload{
 		SymmetricKeyBlob: symKeyBlob,
-		AikCertBlob:      encryptedAikCert,
+		AikCertBlob:      aikCertBlob,
 	}
 	rotateAIKCertReq = &epb.RotateAIKCertRequest{
 		Value:                &epb.RotateAIKCertRequest_IssuerCertPayload_{IssuerCertPayload: issuerCertPayload},
