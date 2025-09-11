@@ -59,6 +59,10 @@ var (
 	ErrUnexpectedParams = errors.New("unexpected params for algorithm")
 	// ErrNilInput is returned when a required input is nil.
 	ErrNilInput = errors.New("input cannot be nil")
+	// ErrUnsupportedScheme is returned when either the encryption or the signing scheme is not supported.
+	ErrUnsupportedScheme = errors.New("unsupported scheme")
+	// ErrInvalidPadding is returned when there padding used is invalid.
+	ErrInvalidPadding = errors.New("invalid padding")
 )
 
 // Note: All the uint values in TPM_* structures in this file use big endian (network byte order).
@@ -124,11 +128,6 @@ type TPMStructVer struct {
 	RevMajor uint8 // MUST be 0x00
 	RevMinor uint8 // MUST be 0x00
 }
-
-var (
-	ErrUnsupportedScheme = errors.New("unsupported scheme")
-	ErrInvalidPadding    = errors.New("invalid padding")
-)
 
 // GetDefaultTPMStructVer returns the default value for TPMStructVer as per TCG Spec.
 func GetDefaultTPMStructVer() TPMStructVer {
@@ -773,7 +772,7 @@ func (u *DefaultTPM12Utils) EncryptWithAES(symKey *TPMSymmetricKey, data []byte)
 	return ciphertext, keyParms, nil
 }
 
-// DecryptWithSymmetricKey decrypts data using a private key.
+// DecryptWithSymmetricKey decrypts data using a symmetric AES CBC key.
 func (u *DefaultTPM12Utils) DecryptWithSymmetricKey(ctx context.Context, symKey *TPMSymmetricKey, keyParams *TPMKeyParms, ciphertext []byte) ([]byte, error) {
 	if keyParams.EncScheme != EsSymCBCPKCS5 {
 		return nil, fmt.Errorf("symmetric encryption: %w: %v", ErrUnsupportedScheme, keyParams.EncScheme)
