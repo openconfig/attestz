@@ -2208,6 +2208,132 @@ func TestEncryptWithAESFailure(t *testing.T) {
 	}
 }
 
+// Helper function to encrypt with AES-CBC for testing purposes.
+// This function prepends the IV to the ciphertext.
+func encryptWithAESCBC(t *testing.T, key, plaintext []byte) ([]byte, []byte) {
+	t.Helper()
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		t.Fatalf("Failed to create AES cipher: %v", err)
+	}
+
+	// PKCS#7 Padding
+	padding := aes.BlockSize - len(plaintext)%aes.BlockSize
+	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
+	plaintext = append(plaintext, padtext...)
+
+	if len(plaintext)%aes.BlockSize != 0 {
+		t.Fatalf("Plaintext is not a multiple of the block size after padding")
+	}
+
+	iv := make([]byte, aes.BlockSize)
+	// Use crypto/rand.Read directly to fill the IV
+	if _, err := rand.Read(iv); err != nil {
+		t.Fatalf("Failed to generate IV: %v", err)
+	}
+
+	ciphertext := make([]byte, len(plaintext))
+	encrypter := cipher.NewCBCEncrypter(block, iv)
+	encrypter.CryptBlocks(ciphertext, plaintext)
+	return ciphertext, iv
+}
+
+func TestDecryptWithSymmetricKey_Success(t *testing.T) {
+	u := &DefaultTPM12Utils{}
+	ctx := context.Background()
+	keyBytes := bytes.Repeat([]byte{0x11}, 32) // 32 bytes for AES-256
+	plaintext := []byte("This is a secret message.")
+
+	validCiphertext, iv := encryptWithAESCBC(t, keyBytes, plaintext)
+	keyParams := &TPMKeyParms{
+		EncScheme: EsSymCBCPKCS5,
+		Params: TPMParams{
+			SymParams: &TPMSymmetricKeyParms{IV: iv},
+		},
+	}
+	symKey := &TPMSymmetricKey{
+		Key: keyBytes,
+	}
+
+	decrypted, err := u.DecryptWithSymmetricKey(ctx, symKey, keyParams, validCiphertext)
+
+	// Explicitly assert that no error occurred.
+	if err != nil {
+		t.Fatalf("DecryptWithSymmetricKey() returned an unexpected error: %v", err)
+	}
+
+	// Explicitly assert that the decrypted text matches the original plaintext.
+	if !bytes.Equal(decrypted, plaintext) {
+		t.Errorf("DecryptWithSymmetricKey() got = %s, want = %s", decrypted, plaintext)
+	}
+}
+
+func TestDecryptWithSymmetricKey_Failure(t *testing.T) {
+	u := &DefaultTPM12Utils{}
+	ctx := context.Background()
+	keyBytes := bytes.Repeat([]byte{0x11}, 32) // 32 bytes for AES-256
+	plaintext := []byte("This is a secret message.")
+
+	validCiphertext, iv := encryptWithAESCBC(t, keyBytes, plaintext)
+	keyParams := &TPMKeyParms{
+		EncScheme: EsSymCBCPKCS5,
+		Params: TPMParams{
+			SymParams: &TPMSymmetricKeyParms{IV: iv},
+		},
+	}
+
+	// Create a tampered ciphertext to trigger an invalid padding error.
+	tamperedInvalidPaddingValue := make([]byte, len(validCiphertext))
+	copy(tamperedInvalidPaddingValue, validCiphertext)
+	tamperedInvalidPaddingValue[len(tamperedInvalidPaddingValue)-1] = byte(aes.BlockSize + 1)
+
+	failureTestCases := []struct {
+		name          string
+		key           []byte
+		keyParams     *TPMKeyParms
+		data          []byte
+		expectedError error
+	}{
+		{
+			name:          "Failure Unsupported Scheme",
+			key:           keyBytes,
+			keyParams:     &TPMKeyParms{EncScheme: EsNone},
+			data:          validCiphertext,
+			expectedError: ErrUnsupportedScheme,
+		},
+		{
+			name:          "Failure Invalid Padding Value",
+			key:           keyBytes,
+			keyParams:     keyParams,
+			data:          tamperedInvalidPaddingValue,
+			expectedError: ErrInvalidPadding,
+		},
+		{
+			name:          "Failure Different Key Same Size",
+			key:           []byte("a-different-32-byte-secret-key!!"),
+			keyParams:     keyParams,
+			data:          validCiphertext,
+			expectedError: ErrInvalidPadding,
+		},
+	}
+
+	for _, tc := range failureTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			symKey := &TPMSymmetricKey{
+				Key: tc.key,
+			}
+			_, err := u.DecryptWithSymmetricKey(ctx, symKey, tc.keyParams, tc.data)
+
+			if err == nil {
+				t.Fatalf("DecryptWithSymmetricKey() expected an error for test '%s', but got nil", tc.name)
+			}
+			if !errors.Is(err, tc.expectedError) {
+				t.Errorf("DecryptWithSymmetricKey() error = %v, want error to wrap %v", err, tc.expectedError)
+			}
+		})
+	}
+}
+
 func TestConstructAsymCAContentsSuccess(t *testing.T) {
 	u := &DefaultTPM12Utils{}
 

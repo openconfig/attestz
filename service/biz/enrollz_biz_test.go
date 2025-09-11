@@ -951,7 +951,7 @@ func (s *stubRotateAIKCertInfraDeps) DecryptWithPrivateKey(ctx context.Context, 
 	return []byte("decrypted sym key"), nil // Default success
 }
 
-func (s *stubRotateAIKCertInfraDeps) DecryptWithSymmetricKey(ctx context.Context, symKey []byte, data []byte, algo tpm12.Algorithm, encScheme TPMEncodingScheme) ([]byte, error) {
+func (s *stubRotateAIKCertInfraDeps) DecryptWithSymmetricKey(ctx context.Context, symKey *TPMSymmetricKey, keyParams *TPMKeyParms, ciphertext []byte) ([]byte, error) {
 	if s.decryptWithSymmetricKeyErr != nil {
 		return nil, s.decryptWithSymmetricKeyErr
 	}
