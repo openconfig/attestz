@@ -1989,7 +1989,92 @@ func TestNewAESCBCKeyFailure(t *testing.T) {
 	}
 }
 
-// TODO: Add vector based test to test encryption and padding for EncryptWithAES
+type predictableIVReader struct {
+	iv []byte
+}
+
+func (r *predictableIVReader) Read(b []byte) (n int, err error) {
+	n = copy(b, r.iv)
+	return n, nil
+}
+
+func TestEncryptWithAESVector(t *testing.T) {
+	testIV := []byte{
+		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+		0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+	}
+	// TODO: Inject randomness as a dependency (io.Reader) to DefaultTPM12Utils
+	// instead of monkey-patching rand.Reader. This allows tests to be parallelizable.
+	oldRandReader := rand.Reader
+	rand.Reader = &predictableIVReader{iv: testIV}
+	defer func() {
+		rand.Reader = oldRandReader
+	}()
+
+	u := &DefaultTPM12Utils{}
+	symKey := &TPMSymmetricKey{
+		AlgID:     tpm12.AlgAES128,
+		EncScheme: EsSymCBCPKCS5,
+		Key: []byte{
+			0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+			0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+		},
+	}
+
+	expectedKeyParms := &TPMKeyParms{
+		AlgID:     tpm12.AlgAES128,
+		EncScheme: EsSymCBCPKCS5,
+		SigScheme: SsNone,
+		Params: TPMParams{
+			SymParams: &TPMSymmetricKeyParms{
+				KeyLength: 16,
+				BlockSize: 16,
+				IV:        testIV,
+			},
+		},
+	}
+
+	testCases := []struct {
+		name           string
+		data           []byte
+		expectedCipher []byte
+	}{
+		{
+			name: "15 bytes data",
+			data: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+			expectedCipher: []byte{
+				0xc1, 0x52, 0xf0, 0xa1, 0x66, 0x2a, 0x28, 0x09,
+				0xae, 0x9d, 0x1f, 0x97, 0x4a, 0xaa, 0x07, 0xd9,
+			},
+		},
+		{
+			name: "16 bytes data",
+			data: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+			expectedCipher: []byte{
+				0x5c, 0xfa, 0x70, 0x13, 0x5e, 0xa7, 0x2d, 0x7f,
+				0x31, 0x1d, 0x3d, 0x57, 0xda, 0x15, 0x53, 0xa4,
+				0x3f, 0x3e, 0x5e, 0x9f, 0x12, 0x22, 0x62, 0xb9,
+				0xef, 0x6d, 0xd2, 0xb5, 0x2c, 0xc3, 0xc8, 0x8b,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ciphertext, keyParms, err := u.EncryptWithAES(symKey, tc.data)
+			if err != nil {
+				t.Fatalf("EncryptWithAES() returned unexpected error: %v", err)
+			}
+			if diff := cmp.Diff(tc.expectedCipher, ciphertext); diff != "" {
+				t.Errorf("EncryptWithAES() returned unexpected ciphertext (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(expectedKeyParms, keyParms); diff != "" {
+				t.Errorf("EncryptWithAES() returned unexpected keyParms (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestEncryptWithAESSuccess(t *testing.T) {
 	u := &DefaultTPM12Utils{}
 	symKey, err := u.NewAESCBCKey(tpm12.AlgAES128)
