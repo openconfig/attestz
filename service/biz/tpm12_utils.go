@@ -1017,7 +1017,6 @@ func (u *DefaultTPM12Utils) SerializeSymmetricKeyParms(symParms *TPMSymmetricKey
 }
 
 // SerializeKeyParms serializes a TPMKeyParms to bytes.
-// SerializeKeyParms serializes a TPMKeyParms to bytes.
 func (u *DefaultTPM12Utils) SerializeKeyParms(keyParms *TPMKeyParms) ([]byte, error) {
 	if keyParms == nil {
 		return nil, fmt.Errorf("keyParms cannot be nil: %w", ErrNilInput)
