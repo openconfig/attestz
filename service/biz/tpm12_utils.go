@@ -793,11 +793,11 @@ func (u *DefaultTPM12Utils) DecryptWithSymmetricKey(ctx context.Context, symKey 
 	}
 
 	// Create a new CBC decrypter.
-	encrypter := cipher.NewCBCDecrypter(cipherBlock, iv)
+	decrypter := cipher.NewCBCDecrypter(cipherBlock, iv)
 
 	// Decrypt the data. The decrypted plaintext will be stored in the same
 	// underlying array as the ciphertext.
-	encrypter.CryptBlocks(ciphertext, ciphertext)
+	decrypter.CryptBlocks(ciphertext, ciphertext)
 
 	// Unpad the decrypted plaintext using PKCS#5/PKCS#7.
 	plaintext := ciphertext
