@@ -794,12 +794,11 @@ func (u *DefaultTPM12Utils) DecryptWithSymmetricKey(ctx context.Context, symKey 
 	// Create a new CBC decrypter.
 	decrypter := cipher.NewCBCDecrypter(cipherBlock, iv)
 
-	// Decrypt the data. The decrypted plaintext will be stored in the same
-	// underlying array as the ciphertext.
-	decrypter.CryptBlocks(ciphertext, ciphertext)
+	// Decrypt the data.
+	plaintext := make([]byte, len(ciphertext))
+	decrypter.CryptBlocks(plaintext, ciphertext)
 
 	// Unpad the decrypted plaintext using PKCS#5/PKCS#7.
-	plaintext := ciphertext
 	padding := int(plaintext[len(plaintext)-1])
 	if padding > len(plaintext) || padding == 0 {
 		return nil, fmt.Errorf("PKCS#5: %w: invalid value %d", ErrInvalidPadding, padding)
