@@ -221,7 +221,7 @@ type TPM12Utils interface {
 	SerializePubKey(pubKey *TPMPubKey) ([]byte, error)
 	SerializeIdentityContents(identityContents *TPMIdentityContents) ([]byte, error)
 	ConstructPubKey(publicKey *rsa.PublicKey) (*TPMPubKey, error)
-	ConstructIdentityContents(publicKey *rsa.PublicKey) (*TPMIdentityContents, error)
+	ConstructIdentityContents(publicKey *rsa.PublicKey, aikPubKey *TPMPubKey) (*TPMIdentityContents, error)
 	ConstructAsymCAContents(symKey *TPMSymmetricKey, identityKey *TPMPubKey) (*TPMAsymCAContents, error)
 	SerializeAsymCAContents(asymCAContents *TPMAsymCAContents) ([]byte, error)
 	SerializeSymmetricKey(symKey *TPMSymmetricKey) ([]byte, error)
@@ -1165,7 +1165,7 @@ func (u *DefaultTPM12Utils) ConstructPubKey(publicKey *rsa.PublicKey) (*TPMPubKe
 }
 
 // ConstructIdentityContents constructs the TPM_IDENTITY_CONTENTS structure.
-func (u *DefaultTPM12Utils) ConstructIdentityContents(publicKey *rsa.PublicKey) (*TPMIdentityContents, error) {
+func (u *DefaultTPM12Utils) ConstructIdentityContents(publicKey *rsa.PublicKey, aikPubKey *TPMPubKey) (*TPMIdentityContents, error) {
 	tpmPubKey, err := u.ConstructPubKey(publicKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to construct TPMPubKey: %w", err)
@@ -1191,6 +1191,6 @@ func (u *DefaultTPM12Utils) ConstructIdentityContents(publicKey *rsa.PublicKey) 
 		TPMStructVer:      GetDefaultTPMStructVer(),
 		Ordinal:           0x00000079,
 		LabelPrivCADigest: labelPrivCADigest,
-		IdentityPubKey:    *tpmPubKey,
+		IdentityPubKey:    *aikPubKey,
 	}, nil
 }

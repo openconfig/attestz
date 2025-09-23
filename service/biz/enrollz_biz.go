@@ -594,7 +594,7 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	}
 
 	// Construct TPM_IDENTITY_CONTENTS
-	identityContents, err := req.Deps.ConstructIdentityContents(issuerPublicKey)
+	identityContents, err := req.Deps.ConstructIdentityContents(issuerPublicKey, &identityProof.AttestationIdentityKey)
 	if err != nil {
 		return fmt.Errorf("failed to construct identity contents: %w", err)
 	}
