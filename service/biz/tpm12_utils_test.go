@@ -1378,14 +1378,14 @@ func TestConstructIdentityContents(t *testing.T) {
 		}
 		publicKey := &privateKey.PublicKey
 
-		// Construct the expected IdentityPubKey
-		expectedTPMPubKey, err := u.ConstructPubKey(publicKey)
+		// Construct the issuer TPMPubKey
+		issuerPubKey, err := u.ConstructPubKey(publicKey)
 		if err != nil {
-			t.Fatalf("Failed to construct expected TPMPubKey: %v", err)
+			t.Fatalf("Failed to construct issuer TPMPubKey: %v", err)
 		}
 
 		// Manually construct the expected LabelPrivCADigest
-		privacyCABytes, err := u.SerializePubKey(expectedTPMPubKey)
+		privacyCABytes, err := u.SerializePubKey(issuerPubKey)
 		if err != nil {
 			t.Fatalf("Failed to serialize TPMPubKey for test: %v", err)
 		}
@@ -1395,26 +1395,29 @@ func TestConstructIdentityContents(t *testing.T) {
 		hasher.Write(hashInput)
 		expectedDigest := hasher.Sum(nil)
 
+		aikPubKey := defaultTestAik()
+
 		want := &TPMIdentityContents{
 			TPMStructVer:      GetDefaultTPMStructVer(),
 			Ordinal:           0x00000079,
 			LabelPrivCADigest: expectedDigest,
-			IdentityPubKey:    *expectedTPMPubKey,
+			IdentityPubKey:    aikPubKey,
 		}
 
-		got, err := u.ConstructIdentityContents(publicKey)
+		got, err := u.ConstructIdentityContents(publicKey, &aikPubKey)
 		if err != nil {
-			t.Errorf("ConstructIdentityContents(%+v) returned unexpected error: %v", publicKey, err)
+			t.Errorf("ConstructIdentityContents(%+v, %+v) returned unexpected error: %v", publicKey, aikPubKey, err)
 		}
 
 		if diff := cmp.Diff(want, got); diff != "" {
-			t.Errorf("ConstructIdentityContents(%+v) returned unexpected diff (-want +got):\n%s", publicKey, diff)
+			t.Errorf("ConstructIdentityContents(%+v, %+v) returned unexpected diff (-want +got):\n%s", publicKey, aikPubKey, diff)
 		}
 	})
 
 	// Failure Case
 	t.Run("Failure - Nil PublicKey", func(t *testing.T) {
-		_, err := u.ConstructIdentityContents(nil)
+		aikPubKey := defaultTestAik()
+		_, err := u.ConstructIdentityContents(nil, &aikPubKey)
 		expectedError := "failed to construct TPMPubKey: publicKey or its modulus cannot be nil"
 		assertError(t, err, expectedError, "ConstructIdentityContents")
 	})

@@ -958,7 +958,7 @@ func (s *stubRotateAIKCertInfraDeps) DecryptWithSymmetricKey(ctx context.Context
 	return []byte("decrypted identity proof"), nil // Default success
 }
 
-func (s *stubRotateAIKCertInfraDeps) ConstructIdentityContents(*rsa.PublicKey) (*TPMIdentityContents, error) {
+func (s *stubRotateAIKCertInfraDeps) ConstructIdentityContents(*rsa.PublicKey, *TPMPubKey) (*TPMIdentityContents, error) {
 	if s.constructIdentityContentsErr != nil {
 		return nil, s.constructIdentityContentsErr
 	}
