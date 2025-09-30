@@ -36,10 +36,10 @@ enum KeyTemplate {
 
 // Status of the operation.
 enum Status {
-	STATUS_UNSPECIFIED = 1;
-	STATUS_SUCCESS = 2;
-	STATUS_FAILURE = 3;
-	STATUS_UNSUPPORTED = 4;
+	STATUS_UNSPECIFIED = 0;
+	STATUS_SUCCESS = 1;
+	STATUS_FAILURE = 2;
+	STATUS_UNSUPPORTED = 3;
 }
 
 // Request for a given control card to return its Initial Attestation Key (IAK)
