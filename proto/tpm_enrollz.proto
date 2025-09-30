@@ -30,16 +30,16 @@ enum Key {
 
 // TCG Template to be used for IDevID and IAK creation.
 enum KeyTemplate {
-	KEY_TEMPLATE_UNSPECIFIED = 0;
-	KEY_TEMPLATE_ECC_NIST_P384 = 1;
+  KEY_TEMPLATE_UNSPECIFIED = 0;
+  KEY_TEMPLATE_ECC_NIST_P384 = 1;
 }
 
 // Status of the operation.
 enum Status {
-	STATUS_UNSPECIFIED = 0;
-	STATUS_SUCCESS = 1;
-	STATUS_FAILURE = 2;
-	STATUS_UNSUPPORTED = 3;
+  STATUS_UNSPECIFIED = 0;
+  STATUS_SUCCESS = 1;
+  STATUS_FAILURE = 2;
+  STATUS_UNSUPPORTED = 3;
 }
 
 // Request for a given control card to return its Initial Attestation Key (IAK)
@@ -101,7 +101,6 @@ message RotateOIakCertRequest {
   // SSL profile for which the certs will be assigned.
   // (Optional: Only required if rotating oidevid_cert.)
   string ssl_profile_id = 4;
-  
 }
 
 // Response from the specified control card to rotate/install an owner Initial
@@ -147,7 +146,7 @@ message RotateAIKCertResponse {
     // that the device did in fact have the proper EK.
     string aik_cert = 2;
   }
-  
+
   // Vendor identity fields of the selected control card.
   ControlCardVendorId control_card_id = 3;
 }
@@ -160,16 +159,16 @@ message GetIdevidCsrRequest {
   // Type of key to be used for enrollment. The verifier checks that the public
   // portion of this key exists in a Root of Trust.
   Key key = 2;
-	// TCG Template to be used for IDevID and IAK creation.
-	KeyTemplate key_template = 3;
+  // TCG Template to be used for IDevID and IAK creation.
+  KeyTemplate key_template = 3;
 }
 
 // CSR-IDEVID structure containing the CSR contents and the IDEVID signature.
 message CsrResponse {
   // CSR contents.
-	bytes csr_contents = 1;
+  bytes csr_contents = 1;
   // IDEVID signature over the CSR contents.
-  bytes idevid_signature_csr = 2; 
+  bytes idevid_signature_csr = 2;
 }
 
 // Response containing the TCG-CSR-IDEVID structure.
@@ -177,23 +176,24 @@ message GetIdevidCsrResponse {
   // Vendor identity fields of the selected control card.
   ControlCardVendorId control_card_id = 1;
   // DEPRECATED. Do NOT use.
-	bytes csr_contents = 2 [deprecated = true];
+  bytes csr_contents = 2 [deprecated = true];
   // DEPRECATED. Do NOT use.
   bytes idevid_signature_csr = 3 [deprecated = true];
   // CSR-IDEVID structure containing the CSR contents and the IDEVID signature.
   CsrResponse csr_response = 4;
   // Status of the operation.
-	Status status = 5; 
+  Status status = 5;
 }
 
 // HMAC challenge containing the HMAC key for TPM 2.0 to import.
 message HMACChallenge {
-// The restricted HMAC key public area (TPM2B_PUBLIC contents).
-bytes hmac_pub_key = 1; 
-// The wrapped restricted HMAC key sensitive area (TPM2B_PRIVATE contents).
-bytes duplicate = 2;
-// The seed for the import of the restricted HMAC key under the EK (TPM2B_ENCRYPTED_SECRET contents).
-bytes in_sym_seed = 3;
+  // The restricted HMAC key public area (TPM2B_PUBLIC contents).
+  bytes hmac_pub_key = 1;
+  // The wrapped restricted HMAC key sensitive area (TPM2B_PRIVATE contents).
+  bytes duplicate = 2;
+  // The seed for the import of the restricted HMAC key under the EK
+  // (TPM2B_ENCRYPTED_SECRET contents).
+  bytes in_sym_seed = 3;
 }
 
 // Request to challenge the TPM with an importable restricted HMAC key.
@@ -211,14 +211,15 @@ message ChallengeRequest {
 // HMAC challenge response structure containing the created and certified IAK.
 message HMACChallengeResponse {
   // The attested IAK public area (TPM2B_PUBLIC contents).
-	bytes iak_pub = 1;
-	// The attestation structure for certify (TPM2B_ATTEST contents).
+  bytes iak_pub = 1;
+  // The attestation structure for certify (TPM2B_ATTEST contents).
   bytes iak_certify_info = 2;
   // The signature over the certify_info using HMAC (TPM2B_SIGNATURE contents).
   bytes iak_certify_info_signature = 3;
 }
 
-// Response containing the created and certified IAK from the TPM using the HMAC key.
+// Response containing the created and certified IAK from the TPM using the HMAC
+// key.
 message ChallengeResponse {
   // DEPRECATED. Do NOT use.
   bytes nonce = 2 [deprecated = true];
@@ -263,14 +264,18 @@ service TpmEnrollzService {
   // cert generation then returned to the device for storage and finalization.
   // Workflow overview:
   // Client -> Sends request with issuer_public_key
-  // Device -> Takes issuer_public_key and builds an application_identity_request
-  // Client -> Takes application_identity_request and gets AIK cert from CA and encrypts it and
+  // Device -> Takes issuer_public_key and builds an
+  // application_identity_request Client -> Takes application_identity_request
+  // and gets AIK cert from CA and encrypts it and
   //           returns it in issuer_cert_payload
-  // Device -> Unencrypts and installs the new AIK cert and returns the PEM format back to
+  // Device -> Unencrypts and installs the new AIK cert and returns the PEM
+  // format back to
   //           caller for verification in aik_cert
-  // Client -> Validate the AIK Cert is as expected and returns a finalize message and closes
+  // Client -> Validate the AIK Cert is as expected and returns a finalize
+  // message and closes
   //           the RPC.
-  rpc RotateAIKCert(stream RotateAIKCertRequest) returns (stream RotateAIKCertResponse);
+  rpc RotateAIKCert(stream RotateAIKCertRequest)
+      returns (stream RotateAIKCertResponse);
 
   // Get the TCG-CSR-IDEVID structure from the TPM.
   rpc GetIdevidCsr(GetIdevidCsrRequest) returns (GetIdevidCsrResponse);
