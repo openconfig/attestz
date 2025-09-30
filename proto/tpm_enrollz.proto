@@ -138,6 +138,24 @@ message RotateAIKCertResponse {
   ControlCardVendorId control_card_id = 3;
 }
 
+// Request to get vendor identity fields of the selected control card.
+message GetControlCardVendorIDRequest {
+  // Switch control card selected identifier.
+  ControlCardSelection control_card_selection = 1;
+}
+
+// Response to GetControlCardVendorIDRequest.
+message GetControlCardVendorIDResponse {
+  // Vendor identity fields of the selected control card.
+  ControlCardVendorId control_card_id = 1;
+}
+
+// TCG Template to be used for IDevID and IAK creation.
+enum KeyTemplate {
+  KEY_TEMPLATE_UNSPECIFIED = 0;
+  KEY_TEMPLATE_ECC_NIST_P384 = 1;
+}
+
 // Request to get the TCG-CSR-IDEVID structure from the TPM. This is a part of
 // the TPM 2.0 flow for devices without idevid provisioned.
 message GetIdevidCsrRequest {
@@ -146,29 +164,81 @@ message GetIdevidCsrRequest {
   // Type of key to be used for enrollment. The verifier checks that the public
   // portion of this key exists in a Root of Trust.
   Key key = 2;
+  // TCG Template to be used for IDevID and IAK creation.
+  KeyTemplate key_template = 3;
+}
+
+// Response paramateres for GetIdevidCsrRequest.
+// protolint:disable MAX_LINE_LENGTH
+// https://trustedcomputinggroup.org/wp-content/uploads/TPM-2.0-Keys-for-Device-Identity-and-Attestation-v1.10r9_pub.pdf#page=70
+message CsrResponse {
+  // TCG-IDEVID-CSR contents.
+  bytes csr_contents = 1;
+  // signature over csr_contents using IDevID.
+  bytes idevid_signature_csr = 2; 
+}
+
+// Response status for an RPC.
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_SUCCESS = 1;
+  STATUS_FAILURE = 2;
+  STATUS_UNSUPPORTED = 3;
 }
 
 // Response containing the TCG-CSR-IDEVID structure.
 message GetIdevidCsrResponse {
   // Vendor identity fields of the selected control card.
   ControlCardVendorId control_card_id = 1;
-  bytes csr_contents = 2;
-  bytes idevid_signature_csr = 3;
+  // DEPRECATED: Use csr_response instead.
+  bytes csr_contents = 2 [deprecated = true];
+  // DEPRECATED: Use csr_response instead.
+  bytes idevid_signature_csr = 3 [deprecated = true];
+  // CSR response contents.
+  CsrResponse csr_response = 4;
+  // Response status.
+  Status status = 5;
 }
 
-// Request to challenge the TPM with a nonce encrypted with the EK public key.
+// HMAC challenge parameters.
+message HMACChallenge {
+  // The restricted HMAC key public area (TPM2B_PUBLIC contents).
+  bytes hmac_pub_key = 1;
+  // The wrapped restricted HMAC key sensitive area (TPM2B_PRIVATE contents).
+  bytes duplicate = 2;
+  // The seed for the import of the restricted HMAC key under the EK 
+  // (TPM2B_ENCRYPTED_SECRET contents).
+  bytes in_sym_seed = 3;
+}
+
+// Request to challenge the TPM with an HMAC wrapped to the EK public key.
 message ChallengeRequest {
   // Switch control card selected identifier.
   ControlCardSelection control_card_selection = 1;
-  // Random 16-byte nonce.
-  bytes encrypted_nonce = 2;
+  // DEPRECATED: Use challenge instead.
+  bytes encrypted_nonce = 2 [deprecated = true];
   // Type of key device must decrypt encrypted_nonce with.
   Key key = 3;
+  // HMAC challenge parameters
+  HMACChallenge challenge = 4;
 }
 
-// Response containing the decrypted nonce from the TPM.
+message HMACChallengeResponse {
+  // The attested IAK public area (TPM2B_PUBLIC contents)
+  bytes iak_pub = 1;
+  // The attestation structure for Certify (TPM2B_ATTEST contents)
+  bytes iak_certify_info = 2;
+  // The signature over the iak_certify_info using HMAC 
+  // (TPM2B_SIGNATURE contents)
+  bytes iak_certify_info_signature = 3;
+}
+
+// Response containing the IAK pub key and HMAC-signed Certification of IAK.
 message ChallengeResponse {
-  bytes nonce = 2;
+  // HMAC challenge response.
+  HMACChallengeResponse challenge_resp = 1;
+  // DEPRECATED: Use challenge_resp instead.
+  bytes nonce = 2 [deprecated = true];
 }
 
 // The service is responsible for TPM enrollment workflow on the network device
@@ -220,6 +290,6 @@ service TpmEnrollzService {
   // Get the TCG-CSR-IDEVID structure from the TPM.
   rpc GetIdevidCsr(GetIdevidCsrRequest) returns (GetIdevidCsrResponse);
 
-  // Challenge the TPM with an encrypted nonce.
+  // Challenge the TPM with an HMAC wrapped under the EK.
   rpc Challenge(ChallengeRequest) returns (ChallengeResponse);
 }
