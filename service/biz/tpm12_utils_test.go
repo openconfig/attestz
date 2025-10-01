@@ -1308,9 +1308,10 @@ func TestConstructPubKey(t *testing.T) {
 		}
 		publicKey := &privateKey.PublicKey
 
+		var exponentBytes []byte
 		exponent := uint32(publicKey.E)
-		if exponent == 0 {
-			exponent = 65537
+		if exponent != 0 && exponent != 65537 {
+			exponentBytes = binary.BigEndian.AppendUint32([]byte{}, exponent)
 		}
 
 		want := &TPMPubKey{
@@ -1322,7 +1323,7 @@ func TestConstructPubKey(t *testing.T) {
 					RSAParams: &TPMRSAKeyParms{
 						KeyLength: uint32(publicKey.N.BitLen()),
 						NumPrimes: 2,
-						Exponent:  binary.BigEndian.AppendUint32([]byte{}, exponent),
+						Exponent:  exponentBytes,
 					},
 				},
 			},
