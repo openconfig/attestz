@@ -1127,10 +1127,12 @@ func (u *DefaultTPM12Utils) ConstructPubKey(publicKey *rsa.PublicKey) (*TPMPubKe
 		return nil, fmt.Errorf("exponent (%d) exceeds maximum uint32 size", e)
 	}
 	exponent := uint32(e) // #nosec G115 -- e is checked against math.MaxUint32
+	if exponent == 0 {
+		return nil, fmt.Errorf("exponent should not be 0")
+	}
 	var exponentBytes []byte
 	// Per TPM 1.2 spec, if the exponent is the default value of 65537, it can be omitted.
-	// An exponent of 0 is also treated as the default.
-	if exponent != 0 && exponent != 65537 {
+	if exponent != 65537 {
 		exponentBytes = binary.BigEndian.AppendUint32([]byte{}, exponent)
 	}
 	b := publicKey.N.BitLen()
