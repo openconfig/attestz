@@ -946,8 +946,8 @@ func (u *DefaultTPM12Utils) VerifySignatureWithRSAKey(ctx context.Context, pubKe
 	case SsRSASaPKCS1v15SHA1:
 		hash = crypto.SHA1
 	case SsRSASaPKCS1v15DER:
-		// DER scheme doesn't mandate a specific hash, so we use the provided hash.
-		// However, VerifyPKCS1v15 still needs the hash type.
+		// DER scheme doesn't mandate that `digest` be hashed data.
+		// Use the zero value to indicate to indicate that the hash function is unknown.
 		hash = crypto.Hash(0)
 	default:
 		return false, fmt.Errorf("unsupported signature scheme: %v", pubKey.AlgorithmParms.SigScheme)
