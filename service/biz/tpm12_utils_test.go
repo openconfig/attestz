@@ -106,14 +106,6 @@ func TestParseSymmetricKeyParms_Failure(t *testing.T) {
 		expectedError string
 	}{
 		{
-			name: "invalid zero IV",
-			params: symmetricKeyParms{
-				ivSize: ptrUint32(0),
-				iv:     &[]byte{},
-			},
-			expectedError: "failed to read ivSize: read uint32 is zero, expected non-zero",
-		},
-		{
 			name: "Invalid zero keyLength",
 			params: symmetricKeyParms{
 				keyLength: ptrUint32(0),
@@ -462,17 +454,16 @@ func TestParseKeyParmsFromReader_Failure(t *testing.T) {
 			expectedError: "failed to parse RSA key parms: failed to read keyLength: read uint32 is zero, expected non-zero",
 		},
 		{
-			name: "Invalid Symmetric Parms (zero ivSize)",
+			name: "Invalid Symmetric Parms (zero keyLength)",
 			input: keyParms{
 				algID:     tpm12.AlgAES128,
 				encScheme: EsSymCBCPKCS5,
 				sigScheme: SsNone,
 				parms: symmetricKeyParms{
-					ivSize: ptrUint32(0),
-					iv:     &[]byte{},
+					keyLength: ptrUint32(0),
 				}.toBytes(),
 			}.toBytes(),
-			expectedError: "failed to parse Symmetric key parms: failed to read ivSize: read uint32 is zero, expected non-zero",
+			expectedError: "failed to parse Symmetric key parms: failed to read keyLength: read uint32 is zero, expected non-zero",
 		},
 		{
 			name: "Unexpected paramSize for SHA1 (no params expected)",
@@ -693,15 +684,14 @@ func TestParseIdentityRequestFailure(t *testing.T) {
 			expectedError: "failed to parse asymAlgorithm (TPM_KEY_PARMS): failed to parse RSA key parms",
 		},
 		{
-			name: "Invalid symKeyParms (zero ivSize)",
+			name: "Invalid symKeyParms (zero keyLength)",
 			input: identityRequest{
 				symKeyParms: keyParms{
 					algID:     tpm12.AlgAES128,
 					encScheme: EsSymCBCPKCS5,
 					sigScheme: SsNone,
 					parms: symmetricKeyParms{
-						ivSize: ptrUint32(0),
-						iv:     &[]byte{},
+						keyLength: ptrUint32(0),
 					}.toBytes(),
 				}.toBytes(),
 			}.toBytes(),
@@ -2248,27 +2238,53 @@ func TestDecryptWithSymmetricKey_Success(t *testing.T) {
 	keyBytes := bytes.Repeat([]byte{0x11}, 32) // 32 bytes for AES-256
 	plaintext := []byte("This is a secret message.")
 
-	validCiphertext, iv := encryptWithAESCBC(t, keyBytes, plaintext)
-	keyParams := &TPMKeyParms{
-		EncScheme: EsSymCBCPKCS5,
-		Params: TPMParams{
-			SymParams: &TPMSymmetricKeyParms{IV: iv},
+	ciphertext, iv := encryptWithAESCBC(t, keyBytes, plaintext)
+
+	testCases := []struct {
+		name       string
+		keyParams  *TPMKeyParms
+		ciphertext []byte
+	}{
+		{
+			name: "Success with Explicit IV",
+			keyParams: &TPMKeyParms{
+				EncScheme: EsSymCBCPKCS5,
+				Params: TPMParams{
+					SymParams: &TPMSymmetricKeyParms{IV: iv},
+				},
+			},
+			ciphertext: ciphertext,
+		},
+		{
+			name: "Success with Inlined IV",
+			keyParams: &TPMKeyParms{
+				EncScheme: EsSymCBCPKCS5,
+				Params: TPMParams{
+					SymParams: &TPMSymmetricKeyParms{IV: nil},
+				},
+			},
+			ciphertext: append(iv, ciphertext...),
 		},
 	}
-	symKey := &TPMSymmetricKey{
-		Key: keyBytes,
-	}
 
-	decrypted, err := u.DecryptWithSymmetricKey(ctx, symKey, keyParams, validCiphertext)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			symKey := &TPMSymmetricKey{
+				Key: keyBytes,
+			}
 
-	// Explicitly assert that no error occurred.
-	if err != nil {
-		t.Fatalf("DecryptWithSymmetricKey() returned an unexpected error: %v", err)
-	}
+			decrypted, err := u.DecryptWithSymmetricKey(ctx, symKey, tc.keyParams, tc.ciphertext)
 
-	// Explicitly assert that the decrypted text matches the original plaintext.
-	if !bytes.Equal(decrypted, plaintext) {
-		t.Errorf("DecryptWithSymmetricKey() got = %s, want = %s", decrypted, plaintext)
+			// Explicitly assert that no error occurred.
+			if err != nil {
+				t.Fatalf("DecryptWithSymmetricKey() returned an unexpected error: %v", err)
+			}
+
+			// Explicitly assert that the decrypted text matches the original plaintext.
+			if !bytes.Equal(decrypted, plaintext) {
+				t.Errorf("DecryptWithSymmetricKey() got = %s, want = %s", decrypted, plaintext)
+			}
+		})
 	}
 }
 

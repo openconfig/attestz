@@ -251,7 +251,7 @@ func (u *DefaultTPM12Utils) ParseSymmetricKeyParms(keyParms []byte) (*TPMSymmetr
 	result.BlockSize = blockSize
 
 	// Read ivSize (4 bytes).
-	ivSize, err := readNonZeroUint32(reader)
+	ivSize, err := readUint32(reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read ivSize: %w", err)
 	}
@@ -784,7 +784,18 @@ func (u *DefaultTPM12Utils) DecryptWithSymmetricKey(ctx context.Context, symKey 
 		return nil, fmt.Errorf("failed to create AES cipher: %w", err)
 	}
 
-	iv := keyParams.Params.SymParams.IV
+	var iv []byte
+	if keyParams.Params.SymParams != nil {
+		iv = keyParams.Params.SymParams.IV
+	}
+	// TODO: Remove this once the IV is always provided in the Symmetric key parameters.
+	if len(iv) == 0 {
+		if len(ciphertext) < cipherBlock.BlockSize() {
+			return nil, fmt.Errorf("ciphertext too short to contain IV")
+		}
+		iv = ciphertext[:cipherBlock.BlockSize()]
+		ciphertext = ciphertext[cipherBlock.BlockSize():]
+	}
 
 	// The ciphertext must be a multiple of the block size.
 	if len(ciphertext)%cipherBlock.BlockSize() != 0 {
