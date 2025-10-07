@@ -1258,14 +1258,15 @@ const file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDesc = "" +
 	"\x12STATUS_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eSTATUS_SUCCESS\x10\x01\x12\x12\n" +
 	"\x0eSTATUS_FAILURE\x10\x02\x12\x16\n" +
-	"\x12STATUS_UNSUPPORTED\x10\x032\x80\x04\n" +
+	"\x12STATUS_UNSUPPORTED\x10\x032\x81\x05\n" +
 	"\x11TpmEnrollzService\x12[\n" +
 	"\n" +
 	"GetIakCert\x12%.openconfig.attestz.GetIakCertRequest\x1a&.openconfig.attestz.GetIakCertResponse\x12g\n" +
 	"\x0eRotateOIakCert\x12).openconfig.attestz.RotateOIakCertRequest\x1a*.openconfig.attestz.RotateOIakCertResponse\x12h\n" +
 	"\rRotateAIKCert\x12(.openconfig.attestz.RotateAIKCertRequest\x1a).openconfig.attestz.RotateAIKCertResponse(\x010\x01\x12a\n" +
 	"\fGetIdevidCsr\x12'.openconfig.attestz.GetIdevidCsrRequest\x1a(.openconfig.attestz.GetIdevidCsrResponse\x12X\n" +
-	"\tChallenge\x12$.openconfig.attestz.ChallengeRequest\x1a%.openconfig.attestz.ChallengeResponseB\x1fZ\x1dgithub.com/openconfig/attestzb\x06proto3"
+	"\tChallenge\x12$.openconfig.attestz.ChallengeRequest\x1a%.openconfig.attestz.ChallengeResponse\x12\x7f\n" +
+	"\x16GetControlCardVendorID\x121.openconfig.attestz.GetControlCardVendorIDRequest\x1a2.openconfig.attestz.GetControlCardVendorIDResponseB\x1fZ\x1dgithub.com/openconfig/attestzb\x06proto3"
 
 var (
 	file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescOnce sync.Once
@@ -1330,13 +1331,15 @@ var file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_depIdxs = []int32
 	7,  // 21: openconfig.attestz.TpmEnrollzService.RotateAIKCert:input_type -> openconfig.attestz.RotateAIKCertRequest
 	11, // 22: openconfig.attestz.TpmEnrollzService.GetIdevidCsr:input_type -> openconfig.attestz.GetIdevidCsrRequest
 	15, // 23: openconfig.attestz.TpmEnrollzService.Challenge:input_type -> openconfig.attestz.ChallengeRequest
-	4,  // 24: openconfig.attestz.TpmEnrollzService.GetIakCert:output_type -> openconfig.attestz.GetIakCertResponse
-	6,  // 25: openconfig.attestz.TpmEnrollzService.RotateOIakCert:output_type -> openconfig.attestz.RotateOIakCertResponse
-	8,  // 26: openconfig.attestz.TpmEnrollzService.RotateAIKCert:output_type -> openconfig.attestz.RotateAIKCertResponse
-	13, // 27: openconfig.attestz.TpmEnrollzService.GetIdevidCsr:output_type -> openconfig.attestz.GetIdevidCsrResponse
-	17, // 28: openconfig.attestz.TpmEnrollzService.Challenge:output_type -> openconfig.attestz.ChallengeResponse
-	24, // [24:29] is the sub-list for method output_type
-	19, // [19:24] is the sub-list for method input_type
+	9,  // 24: openconfig.attestz.TpmEnrollzService.GetControlCardVendorID:input_type -> openconfig.attestz.GetControlCardVendorIDRequest
+	4,  // 25: openconfig.attestz.TpmEnrollzService.GetIakCert:output_type -> openconfig.attestz.GetIakCertResponse
+	6,  // 26: openconfig.attestz.TpmEnrollzService.RotateOIakCert:output_type -> openconfig.attestz.RotateOIakCertResponse
+	8,  // 27: openconfig.attestz.TpmEnrollzService.RotateAIKCert:output_type -> openconfig.attestz.RotateAIKCertResponse
+	13, // 28: openconfig.attestz.TpmEnrollzService.GetIdevidCsr:output_type -> openconfig.attestz.GetIdevidCsrResponse
+	17, // 29: openconfig.attestz.TpmEnrollzService.Challenge:output_type -> openconfig.attestz.ChallengeResponse
+	10, // 30: openconfig.attestz.TpmEnrollzService.GetControlCardVendorID:output_type -> openconfig.attestz.GetControlCardVendorIDResponse
+	25, // [25:31] is the sub-list for method output_type
+	19, // [19:25] is the sub-list for method input_type
 	19, // [19:19] is the sub-list for extension type_name
 	19, // [19:19] is the sub-list for extension extendee
 	0,  // [0:19] is the sub-list for field type_name

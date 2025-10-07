@@ -292,4 +292,7 @@ service TpmEnrollzService {
 
   // Challenge the TPM with an HMAC wrapped under the EK.
   rpc Challenge(ChallengeRequest) returns (ChallengeResponse);
+
+  // Get the vendor identity fields of the selected control card.
+  rpc GetControlCardVendorID(GetControlCardVendorIDRequest) returns (GetControlCardVendorIDResponse);
 }
