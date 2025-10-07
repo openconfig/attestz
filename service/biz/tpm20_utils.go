@@ -100,13 +100,13 @@ func (u *DefaultTPM20Utils) GenerateRestrictedHMACKey() (*tpm20.TPMTPublic, *tpm
 // The verifier needs to remember the HMAC key for VerifyHMACChallenge later.
 func (u *DefaultTPM20Utils) CreateHMACChallenge(hmacPub *tpm20.TPMTPublic, hmacSensitive *tpm20.TPMTSensitive, ekPub *rsa.PublicKey) (*HMACChallenge, error) {
 	if hmacPub == nil {
-		return nil, fmt.Errorf("CreateHMACChallenge: HMAC pub cannot be emtpy, %w", ErrNilInput)
+		return nil, fmt.Errorf("CreateHMACChallenge: HMAC pub cannot be empty, %w", ErrNilInput)
 	}
 	if hmacSensitive == nil {
-		return nil, fmt.Errorf("CreateHMACChallenge: HMAC sensitive cannot be emtpy, %w", ErrNilInput)
+		return nil, fmt.Errorf("CreateHMACChallenge: HMAC sensitive cannot be empty, %w", ErrNilInput)
 	}
 	if ekPub == nil {
-		return nil, fmt.Errorf("CreateHMACChallenge: EK pub key cannot be emtpy, %w", ErrNilInput)
+		return nil, fmt.Errorf("CreateHMACChallenge: EK pub key cannot be empty, %w", ErrNilInput)
 	}
 
 	rsa := tpm20.RSAEKTemplate
