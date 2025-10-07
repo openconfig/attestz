@@ -182,7 +182,7 @@ message CsrResponse {
   // TCG-IDEVID-CSR contents.
   bytes csr_contents = 1;
   // signature over csr_contents using IDevID.
-  bytes idevid_signature_csr = 2; 
+  bytes idevid_signature_csr = 2;
 }
 
 // Response containing the TCG-CSR-IDEVID structure.
@@ -205,7 +205,7 @@ message HMACChallenge {
   bytes hmac_pub_key = 1;
   // The wrapped restricted HMAC key sensitive area (TPM2B_PRIVATE contents).
   bytes duplicate = 2;
-  // The seed for the import of the restricted HMAC key under the EK 
+  // The seed for the import of the restricted HMAC key under the EK
   // (TPM2B_ENCRYPTED_SECRET contents).
   bytes in_sym_seed = 3;
 }
@@ -227,7 +227,7 @@ message HMACChallengeResponse {
   bytes iak_pub = 1;
   // The attestation structure for Certify (TPM2B_ATTEST contents)
   bytes iak_certify_info = 2;
-  // The signature over the iak_certify_info using HMAC 
+  // The signature over the iak_certify_info using HMAC
   // (TPM2B_SIGNATURE contents)
   bytes iak_certify_info_signature = 3;
 }
@@ -279,14 +279,11 @@ service TpmEnrollzService {
   // Client -> Sends request with issuer_public_key
   // Device -> Takes issuer_public_key and builds an
   // application_identity_request Client -> Takes application_identity_request
-  // and gets AIK cert from CA and encrypts it and
-  //           returns it in issuer_cert_payload
-  // Device -> Unencrypts and installs the new AIK cert and returns the PEM
-  // format back to
-  //           caller for verification in aik_cert
-  // Client -> Validate the AIK Cert is as expected and returns a finalize
-  // message and closes
-  //           the RPC.
+  // and gets AIK cert from CA and encrypts it and returns it in
+  // issuer_cert_payload Device -> Unencrypts and installs the new AIK cert and
+  // returns the PEM format back to caller for verification in aik_cert Client
+  // -> Validate the AIK Cert is as expected and returns a finalize message and
+  // closes the RPC.
   rpc RotateAIKCert(stream RotateAIKCertRequest)
       returns (stream RotateAIKCertResponse);
 
