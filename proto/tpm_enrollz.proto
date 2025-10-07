@@ -163,12 +163,6 @@ message GetControlCardVendorIDResponse {
   ControlCardVendorId control_card_id = 1;
 }
 
-// TCG Template to be used for IDevID and IAK creation.
-enum KeyTemplate {
-  KEY_TEMPLATE_UNSPECIFIED = 0;
-  KEY_TEMPLATE_ECC_NIST_P384 = 1;
-}
-
 // Request to get the TCG-CSR-IDEVID structure from the TPM. This is a part of
 // the TPM 2.0 flow for devices without IDevID provisioned.
 message GetIdevidCsrRequest {
@@ -189,14 +183,6 @@ message CsrResponse {
   bytes csr_contents = 1;
   // signature over csr_contents using IDevID.
   bytes idevid_signature_csr = 2; 
-}
-
-// Response status for an RPC.
-enum Status {
-  STATUS_UNSPECIFIED = 0;
-  STATUS_SUCCESS = 1;
-  STATUS_FAILURE = 2;
-  STATUS_UNSUPPORTED = 3;
 }
 
 // Response containing the TCG-CSR-IDEVID structure.
