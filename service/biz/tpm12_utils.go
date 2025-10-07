@@ -251,7 +251,7 @@ func (u *DefaultTPM12Utils) ParseSymmetricKeyParms(keyParms []byte) (*TPMSymmetr
 	result.BlockSize = blockSize
 
 	// Read ivSize (4 bytes).
-	ivSize, err := readNonZeroUint32(reader)
+	ivSize, err := readUint32(reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read ivSize: %w", err)
 	}
@@ -784,7 +784,18 @@ func (u *DefaultTPM12Utils) DecryptWithSymmetricKey(ctx context.Context, symKey 
 		return nil, fmt.Errorf("failed to create AES cipher: %w", err)
 	}
 
-	iv := keyParams.Params.SymParams.IV
+	var iv []byte
+	if keyParams.Params.SymParams != nil {
+		iv = keyParams.Params.SymParams.IV
+	}
+	// TODO: Remove this once the IV is always provided in the Symmetric key parameters.
+	if len(iv) == 0 {
+		if len(ciphertext) < cipherBlock.BlockSize() {
+			return nil, fmt.Errorf("ciphertext too short to contain IV")
+		}
+		iv = ciphertext[:cipherBlock.BlockSize()]
+		ciphertext = ciphertext[cipherBlock.BlockSize():]
+	}
 
 	// The ciphertext must be a multiple of the block size.
 	if len(ciphertext)%cipherBlock.BlockSize() != 0 {
@@ -946,8 +957,8 @@ func (u *DefaultTPM12Utils) VerifySignatureWithRSAKey(ctx context.Context, pubKe
 	case SsRSASaPKCS1v15SHA1:
 		hash = crypto.SHA1
 	case SsRSASaPKCS1v15DER:
-		// DER scheme doesn't mandate a specific hash, so we use the provided hash.
-		// However, VerifyPKCS1v15 still needs the hash type.
+		// DER scheme doesn't mandate that `digest` be hashed data.
+		// Use the zero value to indicate to indicate that the hash function is unknown.
 		hash = crypto.Hash(0)
 	default:
 		return false, fmt.Errorf("unsupported signature scheme: %v", pubKey.AlgorithmParms.SigScheme)
@@ -1128,9 +1139,13 @@ func (u *DefaultTPM12Utils) ConstructPubKey(publicKey *rsa.PublicKey) (*TPMPubKe
 	}
 	exponent := uint32(e) // #nosec G115 -- e is checked against math.MaxUint32
 	if exponent == 0 {
-		exponent = 65537 // Default RSA exponent
+		return nil, fmt.Errorf("exponent should not be 0")
 	}
-
+	var exponentBytes []byte
+	// Per TPM 1.2 spec, if the exponent is the default value of 65537, it can be omitted.
+	if exponent != 65537 {
+		exponentBytes = binary.BigEndian.AppendUint32([]byte{}, exponent)
+	}
 	b := publicKey.N.BitLen()
 	if b > math.MaxUint32 {
 		return nil, fmt.Errorf("publicKey bit length (%d) exceeds maximum uint32 size", b)
@@ -1153,7 +1168,7 @@ func (u *DefaultTPM12Utils) ConstructPubKey(publicKey *rsa.PublicKey) (*TPMPubKe
 				RSAParams: &TPMRSAKeyParms{
 					KeyLength: bitLen,
 					NumPrimes: 2,
-					Exponent:  binary.BigEndian.AppendUint32([]byte{}, exponent),
+					Exponent:  exponentBytes,
 				},
 			},
 		},
