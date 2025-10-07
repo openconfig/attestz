@@ -28,11 +28,11 @@ go_library(
         "//proto:tpm_attestz_go_proto",
         "//proto:tpm_enrollz_go",
         "@com_github_golang_glog//:glog",
+        "@com_github_google_go_tpm//tpm",
         "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//:grpc",
         "@org_golang_google_protobuf//encoding/prototext",
         "@org_golang_google_protobuf//proto",
-        "@org_golang_google_grpc//:grpc",
-        "@com_github_google_go_tpm//tpm",
     ],
 )
 
@@ -46,10 +46,10 @@ go_test(
         "//proto:tpm_enrollz_go",
         "@com_github_google_go_cmp//cmp",
         "@com_github_google_go_cmp//cmp/cmpopts",
+        "@com_github_google_go_tpm//tpm",
+        "@org_golang_google_grpc//:grpc",
         "@org_golang_google_protobuf//encoding/prototext",
         "@org_golang_google_protobuf//testing/protocmp",
-        "@org_golang_google_grpc//:grpc",
-        "@com_github_google_go_tpm//tpm",
     ],
 )
 
@@ -86,22 +86,24 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "@com_github_golang_glog//:glog",
-        "@org_golang_google_grpc//:go_default_library",
         "@com_github_google_go_tpm//tpm2",
+        "@org_golang_google_grpc//:go_default_library",
     ],
 )
 
 go_test(
     name = "idevid_csr_parser_biz_test",
     srcs = ["idevid_csr_parser_biz_test.go"],
-    embed = [":idevid_csr_parser_biz", ":test_utils"],
+    embed = [
+        ":idevid_csr_parser_biz",
+        ":test_utils",
+    ],
     deps = [
         "@com_github_google_go_cmp//cmp",
         "@com_github_google_go_cmp//cmp/cmpopts",
         "@com_github_google_go_tpm//tpm2",
     ],
 )
-
 
 go_library(
     name = "tpm12_utils",
@@ -119,11 +121,21 @@ go_test(
     srcs = ["tpm12_utils_test.go"],
     embed = [
         ":tpm12_utils",
-        ":test_utils"
+        ":test_utils",
     ],
     deps = [
         "@com_github_google_go_cmp//cmp",
         "@com_github_google_go_tpm//tpm",
+    ],
+)
+
+go_library(
+    name = "tpm20_utils",
+    srcs = ["tpm20_utils.go"],
+    importpath = "github.com/openconfig/attestz/service/biz",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_google_go_tpm//tpm2",
     ],
 )
 
