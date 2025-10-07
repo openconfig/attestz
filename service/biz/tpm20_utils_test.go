@@ -17,21 +17,30 @@ import (
 func TestGenerateRestrictedHMACKey(t *testing.T) {
 	u := &DefaultTPM20Utils{}
 	pub, priv := u.GenerateRestrictedHMACKey()
-	hash, _ := pub.Unique.KeyedHash()
+	hash, err := pub.Unique.KeyedHash()
+	if err != nil {
+		t.Fatalf("TestGenerateRestrictedHMACKey() failed to get KeyedHash: %v", err)
+	}
 	got := hash.Buffer
-	bits, _ := priv.Sensitive.Bits()
+	bits, err := priv.Sensitive.Bits()
+	if err != nil {
+		t.Fatalf("TestGenerateRestrictedHMACKey() failed to get Sensitive Bits: %v", err)
+	}
 	sha := sha256.New()
 	sha.Write(append(priv.SeedValue.Buffer, bits.Buffer...))
 	want := sha.Sum(nil)
 	if !bytes.Equal(got, want) {
-		t.Fatalf("TestGenerateRestrictedHMACKey() failed: got %v, want %v", got, want)
+		t.Errorf("TestGenerateRestrictedHMACKey() failed: got %v, want %v", got, want)
 	}
 }
 
 func TestCreateHMACChallenge(t *testing.T) {
 	u := &DefaultTPM20Utils{}
 	goodPub, goodPriv := u.GenerateRestrictedHMACKey()
-	rsaKey, _ := rsa.GenerateKey(rand.Reader, 2048)
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("TestCreateHMACChallenge() failed to generate RSA key: %v", err)
+	}
 	goodEK := &rsaKey.PublicKey
 	badEK := &rsa.PublicKey{
 		N: big.NewInt(0),

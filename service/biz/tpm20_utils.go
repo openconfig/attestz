@@ -52,8 +52,12 @@ func (u *DefaultTPM20Utils) GenerateRestrictedHMACKey() (*tpm20.TPMTPublic, *tpm
 	// Generate the random obfuscation value and key
 	obfuscate := make([]byte, 32)
 	hmacKey := make([]byte, 32)
-	rand.Read(obfuscate)
-	rand.Read(hmacKey)
+	if _, err := rand.Read(obfuscate); err != nil {
+		panic(fmt.Sprintf("GenerateRestrictedHMACKey: rand.Read() failed: %v", err))
+	}
+	if _, err := rand.Read(hmacKey); err != nil {
+		panic(fmt.Sprintf("GenerateRestrictedHMACKey: rand.Read() failed: %v", err))
+	}
 
 	// Unique for a KEYEDHASH object is H_nameAlg(obfuscate | key)
 	// See Part 1, "Public Area Creation"
@@ -119,8 +123,8 @@ func (u *DefaultTPM20Utils) CreateHMACChallenge(hmacPub *tpm20.TPMTPublic, hmacS
 		return nil, fmt.Errorf("CreateHMACChallenge: %w", err)
 	}
 	rsaPub.Buffer = ekPub.N.Bytes()
-	rsaParms.KeyBits = tpm20.TPMKeyBits(ekPub.N.BitLen())
-	rsaParms.Exponent = uint32(ekPub.E)
+	rsaParms.KeyBits = tpm20.TPMKeyBits(ekPub.N.BitLen()) // #nosec G115
+	rsaParms.Exponent = uint32(ekPub.E) // #nosec G115
 
 	name, err := tpm20.ObjectName(hmacPub)
 	if err != nil {
