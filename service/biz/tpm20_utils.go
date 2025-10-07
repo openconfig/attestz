@@ -27,8 +27,8 @@ import (
 )
 
 var (
-	// ErrNilInput is returned when a required input is nil.
-	TPM20ErrNilInput = errors.New("input cannot be nil")
+	// ErrNilInputTPM20 is returned when a required input is nil.
+	ErrNilInputTPM20 = errors.New("input cannot be nil")
 )
 
 // HMACChallenge contains the HMAC key for TPM 2.0 to import.
@@ -110,13 +110,13 @@ func (u *DefaultTPM20Utils) GenerateRestrictedHMACKey() (*tpm20.TPMTPublic, *tpm
 // The verifier needs to remember the HMAC key for VerifyHMACChallenge later.
 func (u *DefaultTPM20Utils) CreateHMACChallenge(hmacPub *tpm20.TPMTPublic, hmacSensitive *tpm20.TPMTSensitive, ekPub *rsa.PublicKey) (*HMACChallenge, error) {
 	if hmacPub == nil {
-		return nil, fmt.Errorf("CreateHMACChallenge: HMAC pub cannot be empty, %w", TPM20ErrNilInput)
+		return nil, fmt.Errorf("CreateHMACChallenge: HMAC pub cannot be empty, %w", ErrNilInputTPM20)
 	}
 	if hmacSensitive == nil {
-		return nil, fmt.Errorf("CreateHMACChallenge: HMAC sensitive cannot be empty, %w", TPM20ErrNilInput)
+		return nil, fmt.Errorf("CreateHMACChallenge: HMAC sensitive cannot be empty, %w", ErrNilInputTPM20)
 	}
 	if ekPub == nil {
-		return nil, fmt.Errorf("CreateHMACChallenge: EK pub key cannot be empty, %w", TPM20ErrNilInput)
+		return nil, fmt.Errorf("CreateHMACChallenge: EK pub key cannot be empty, %w", ErrNilInputTPM20)
 	}
 
 	rsa := tpm20.RSAEKTemplate
