@@ -124,7 +124,7 @@ func (u *DefaultTPM20Utils) CreateHMACChallenge(hmacPub *tpm20.TPMTPublic, hmacS
 	}
 	rsaPub.Buffer = ekPub.N.Bytes()
 	rsaParms.KeyBits = tpm20.TPMKeyBits(ekPub.N.BitLen()) // #nosec G115
-	rsaParms.Exponent = uint32(ekPub.E) // #nosec G115
+	rsaParms.Exponent = uint32(ekPub.E)                   // #nosec G115
 
 	name, err := tpm20.ObjectName(hmacPub)
 	if err != nil {
