@@ -277,13 +277,14 @@ service TpmEnrollzService {
   // cert generation then returned to the device for storage and finalization.
   // Workflow overview:
   // Client -> Sends request with issuer_public_key
-  // Device -> Takes issuer_public_key and builds an
-  // application_identity_request Client -> Takes application_identity_request
-  // and gets AIK cert from CA and encrypts it and returns it in
-  // issuer_cert_payload Device -> Unencrypts and installs the new AIK cert and
-  // returns the PEM format back to caller for verification in aik_cert Client
-  // -> Validate the AIK Cert is as expected and returns a finalize message and
-  // closes the RPC.
+  // Device -> Takes issuer_public_key and builds an application_identity
+  //           request
+  // Client -> Takes application_identity_request and gets AIK cert from CA
+  //           and encrypts it and returns it in issuer_cert_payload
+  // Device -> Unencrypts and installs the new AIK cert and returns the PEM
+  //           format back to caller for verification in aik_cert
+  // Client -> Validate the AIK Cert is as expected and returns a finalized
+  //           message and closes the RPC.
   rpc RotateAIKCert(stream RotateAIKCertRequest)
       returns (stream RotateAIKCertResponse);
 
