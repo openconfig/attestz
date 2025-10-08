@@ -59,12 +59,33 @@ message GetIakCertResponse {
 
   // [Optional] Signature of the nonce to be created by the IAK private key.
   optional bytes nonce_signature = 4;
+
+  // Optional: If atomic oIAK/oIDevID rotation is supported, return true.
+  bool atomic_cert_rotation_supported = 5;
 }
 
 // Request for a given control card to rotate/install an owner Initial
 // Attestation Key (oIAK) certificate signed by the network device
 // owner/administrator CA.
 message RotateOIakCertRequest {
+  // DEPRECATED: Use updates instead.
+  ControlCardSelection control_card_selection = 1 [deprecated = true];
+  string oiak_cert = 2 [deprecated = true];
+  string oidevid_cert = 3 [deprecated = true];
+
+  // SSL profile for which the certs will be assigned.
+  // (Optional: Only required if rotating oidevid_cert.)
+  string ssl_profile_id = 4;
+
+  // List of control cards that need to update their owner Initial Attestation
+  // Key (oIAK) and Initial DevID (oIDevID) certificates.
+  repeated ControlCardCertUpdate updates = 5;
+}
+
+// Information needed for a given control card to update its owner Initial
+// Attestation Key (oIAK) and Initial DevID (oIDevID) certificates signed by the
+// network device owner/administrator CA.
+message ControlCardCertUpdate {
   // Switch control card selected identifier.
   ControlCardSelection control_card_selection = 1;
 
@@ -83,11 +104,6 @@ message RotateOIakCertRequest {
   // provided in GetIakCertResponse.
   // 2. During oIak Rotation.
   string oidevid_cert = 3;
-
-  // SSL profile for which the certs will be assigned.
-  // (Optional: Only required if rotating oidevid_cert.)
-  string ssl_profile_id = 4;
-  
 }
 
 // Response from the specified control card to rotate/install an owner Initial
