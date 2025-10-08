@@ -17,6 +17,7 @@ package biz
 
 import (
 	"bytes"
+	"crypto/rsa"
 	"crypto/x509"
 	"encoding/binary"
 	"encoding/pem"
@@ -25,6 +26,7 @@ import (
 	log "github.com/golang/glog"
 
 	"github.com/google/go-tpm/tpm2"
+	epb "github.com/openconfig/attestz/proto/tpm_enrollz"
 )
 
 // TCGCSRIDevIDContents is the contents of the TCG_CSR_IDEVID_CONTENT structure.
@@ -40,6 +42,24 @@ type TCGCSRIDevIDContents struct {
 	SignCertifyInfo          tpm2.TPMSAttest    // IDevID certification data(TPMS_ATTEST structure)
 	SignCertifyInfoSignature tpm2.TPMTSignature // Signature of the SignCertifyInfo field (TPMTSignature structure)
 }
+
+// TPM20Utils is an interface for TPM 2.0 utility functions.
+// This interface was created to allow for mocking of the TPM 2.0 utility functions in unit tests
+// since it is not possible to test the TPM 2.0  no-IDevID flow with stubbed data.
+type TPM20Utils interface {
+	ParseTCGCSRIDevIDContent(csrBytes []byte) (*TCGCSRIDevIDContents, error)
+	GenerateRestrictedHMACKey() (*tpm2.TPMTPublic, *tpm2.TPMTSensitive)
+	WrapHMACKeytoRSAPublicKey(rsaPub *rsa.PublicKey, hmacPub *tpm2.TPMTPublic,
+		hmacSensitive *tpm2.TPMTSensitive) ([]byte, []byte, error)
+	VerifyHMAC(message []byte, signature []byte, hmacSensitive *tpm2.TPMTSensitive) error
+	VerifyCertifyInfo(certifyInfo *tpm2.TPMSAttest, certifiedKey *tpm2.TPMTPublic) error
+	VerifyIAKAttributes(iakPub *tpm2.TPMTPublic) error
+	VerifyTPMTSignature(pubKey *tpm2.TPMTPublic, signature *tpm2.TPMTSignature, data []byte) error
+	VerifyIDevIDAttributes(idevidPub *tpm2.TPMTPublic, keyTemplate epb.KeyTemplate) error
+}
+
+// DefaultTPM20Utils is a concrete implementation of the TPM20Utils interface.
+type DefaultTPM20Utils struct{}
 
 // readNonZeroUint23 is a helper function to read a non-zero 4-byte Big Endian unsigned integer.
 func readNonZeroUint32(r *bytes.Reader) (uint32, error) {
@@ -95,6 +115,61 @@ func certificateDerToPem(derBytes []byte) (string, error) {
 		Bytes: derBytes,
 	}
 	return string(pem.EncodeToMemory(block)), nil
+}
+
+// GenerateRestrictedHMACKey generates a restricted HMAC key.
+func GenerateRestrictedHMACKey() (*tpm2.TPMTPublic, *tpm2.TPMTSensitive) {
+	// TODO: Implement this function.
+	return &tpm2.TPMTPublic{}, &tpm2.TPMTSensitive{}
+}
+
+// RSAPublicKeyToTPMTPublic converts an RSA public key to a TPMT_PUBLIC struct.
+func (u *DefaultTPM20Utils) RSAPublicKeyToTPMTPublic(rsaPublicKey *rsa.PublicKey) (tpm2.TPMTPublic, error) {
+	// TODO: Implement this function.
+	tpmPublicKey := tpm2.TPMTPublic{}
+	return tpmPublicKey, nil
+}
+
+// WrapHMACKeytoRSAPublicKey wraps the HMAC key to the RSA public key.
+func (u *DefaultTPM20Utils) WrapHMACKeytoRSAPublicKey(rsaPub *rsa.PublicKey, hmacPub *tpm2.TPMTPublic,
+	hmacSensitive *tpm2.TPMTSensitive) ([]byte, []byte, error) {
+	// Convert RSA public key to TPMTPublic.
+	_, err := u.RSAPublicKeyToTPMTPublic(rsaPub)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to convert RSA public key to TPMTPublic: %w", err)
+	}
+	// TODO: Implement this function.
+	return []byte{}, []byte{}, nil
+}
+
+// VerifyHMAC verifies the HMAC signature of the message.
+func (u *DefaultTPM20Utils) VerifyHMAC(message []byte, signature []byte, hmacSensitive *tpm2.TPMTSensitive) error {
+	// TODO: Implement this function.
+	return nil
+}
+
+// VerifyCertifyInfo verifies the certify info (TPM2B_ATTEST) and the nested TPMS_CERTIFY_INFO structure.
+func (u *DefaultTPM20Utils) VerifyCertifyInfo(certifyInfo *tpm2.TPMSAttest, certifiedKey *tpm2.TPMTPublic) error {
+	// TODO: Implement this function.
+	return nil
+}
+
+// VerifyIAKAttributes verifies the IAK attributes.
+func (u *DefaultTPM20Utils) VerifyIAKAttributes(iakPub *tpm2.TPMTPublic) error {
+	// TODO: Implement this function.
+	return nil
+}
+
+// VerifyTPMTSignature verifies the TPMT_SIGNATURE structure using the given public key.
+func (u *DefaultTPM20Utils) VerifyTPMTSignature(pubKey *tpm2.TPMTPublic, signature *tpm2.TPMTSignature, data []byte) error {
+	// TODO: Implement this function.
+	return nil
+}
+
+// VerifyIDevIDAttributes verifies the IDevID attributes and make sure they match the template provided.
+func (u *DefaultTPM20Utils) VerifyIDevIDAttributes(idevidPub *tpm2.TPMTPublic, keyTemplate epb.KeyTemplate) error {
+	// TODO: Implement this function.
+	return nil
 }
 
 // ParseTCGCSRIDevIDContent parses the TCG_CSR_IDEVID_CONTENT structure from a byte slice
