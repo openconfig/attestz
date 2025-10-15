@@ -27,6 +27,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	tpm12 "github.com/google/go-tpm/tpm"
+	tpm20 "github.com/google/go-tpm/tpm2"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -1363,6 +1364,173 @@ func TestRotateAIKCert(t *testing.T) {
 				}
 			} else if err != nil {
 				t.Errorf("RotateAIKCert() returned unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+type stubVerifyIdentityWithHMACChallengeInfraDeps struct {
+	EnrollzInfraDeps
+	ROTDBClient
+	TPM20Utils
+
+	// Specific errors for each stubbed method. If nil, a default success value is returned.
+	getControlCardVendorIDErr    error
+	fetchEKErr                   error
+	wrapHMACKeytoRSAPublicKeyErr error
+	challengeErr                 error
+	verifyHMACErr                error
+}
+
+func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) GetControlCardVendorID(ctx context.Context, req *epb.GetControlCardVendorIDRequest) (*epb.GetControlCardVendorIDResponse, error) {
+	if s.getControlCardVendorIDErr != nil {
+		return nil, s.getControlCardVendorIDErr
+	}
+	return &epb.GetControlCardVendorIDResponse{
+		ControlCardId: &cpb.ControlCardVendorId{
+			ChassisSerialNumber: "test-serial",
+			ChassisManufacturer: "test-manufacturer",
+		},
+	}, nil
+}
+
+func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) FetchEK(ctx context.Context, req *FetchEKReq) (*FetchEKResp, error) {
+	if s.fetchEKErr != nil {
+		return nil, s.fetchEKErr
+	}
+	return &FetchEKResp{EkPublicKey: &rsa.PublicKey{}, KeyType: epb.Key_KEY_EK}, nil
+}
+
+func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) GenerateRestrictedHMACKey() (*tpm20.TPMTPublic, *tpm20.TPMTSensitive) {
+	return &tpm20.TPMTPublic{
+		Type:    tpm20.TPMAlgKeyedHash,
+		NameAlg: tpm20.TPMAlgSHA256,
+		ObjectAttributes: tpm20.TPMAObject{
+			FixedTPM:     true,
+			FixedParent:  true,
+			UserWithAuth: true,
+			NoDA:         true,
+		},
+	}, &tpm20.TPMTSensitive{}
+}
+
+func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) WrapHMACKeytoRSAPublicKey(rsaPub *rsa.PublicKey, hmacPub *tpm20.TPMTPublic, hmacSensitive *tpm20.TPMTSensitive) ([]byte, []byte, error) {
+	if s.wrapHMACKeytoRSAPublicKeyErr != nil {
+		return nil, nil, s.wrapHMACKeytoRSAPublicKeyErr
+	}
+	return []byte("duplicate"), []byte("inSymSeed"), nil
+}
+
+func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) Challenge(ctx context.Context, req *epb.ChallengeRequest) (*epb.ChallengeResponse, error) {
+	if s.challengeErr != nil {
+		return nil, s.challengeErr
+	}
+	iakPub := tpm20.TPMTPublic{
+		Type:    tpm20.TPMAlgECC,
+		NameAlg: tpm20.TPMAlgSHA256,
+		ObjectAttributes: tpm20.TPMAObject{
+			SignEncrypt: true,
+		},
+		Parameters: tpm20.NewTPMUPublicParms(
+			tpm20.TPMAlgECC,
+			&tpm20.TPMSECCParms{
+				CurveID: tpm20.TPMECCNistP256,
+			},
+		),
+		Unique: tpm20.NewTPMUPublicID(
+			// This happens to be a P256 EKpub from the simulator
+			tpm20.TPMAlgECC,
+			&tpm20.TPMSECCPoint{
+				X: tpm20.TPM2BECCParameter{},
+				Y: tpm20.TPM2BECCParameter{},
+			},
+		),
+	}
+	iakCertifyInfo := tpm20.TPMSAttest{
+		Magic:    tpm20.TPMGeneratedValue,
+		Type:     tpm20.TPMSTAttestCreation,
+		Attested: tpm20.NewTPMUAttest(tpm20.TPMSTAttestCreation, &tpm20.TPMSCreationInfo{}),
+	}
+	return &epb.ChallengeResponse{
+		ChallengeResp: &epb.HMACChallengeResponse{
+			IakPub:                  tpm20.Marshal(&iakPub),
+			IakCertifyInfo:          tpm20.Marshal(&iakCertifyInfo),
+			IakCertifyInfoSignature: []byte{},
+		},
+	}, nil
+}
+
+func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) VerifyHMAC(message []byte, signature []byte, hmacSensitive *tpm20.TPMTSensitive) error {
+	return s.verifyHMACErr
+}
+
+func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
+	controlCardSelection := &cpb.ControlCardSelection{
+		ControlCardId: &cpb.ControlCardSelection_Role{
+			Role: cpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE,
+		},
+	}
+	errorResp := errors.New("some error")
+
+	tests := []struct {
+		desc                         string
+		wantErr                      error
+		getControlCardVendorIDErr    error
+		fetchEKErr                   error
+		wrapHMACKeytoRSAPublicKeyErr error
+		challengeErr                 error
+		verifyHMACErr                error
+	}{
+		{
+			desc: "Successful verification",
+		},
+		{
+			desc:                      "GetControlCardVendorID error",
+			getControlCardVendorIDErr: errorResp,
+			wantErr:                   errorResp,
+		},
+		{
+			desc:       "FetchEK error",
+			fetchEKErr: errorResp,
+			wantErr:    errorResp,
+		},
+		{
+			desc:                         "WrapHMACKeytoRSAPublicKey error",
+			wrapHMACKeytoRSAPublicKeyErr: errorResp,
+			wantErr:                      errorResp,
+		},
+		{
+			desc:         "Challenge error",
+			challengeErr: errorResp,
+			wantErr:      errorResp,
+		},
+		{
+			desc:          "VerifyHMAC error",
+			verifyHMACErr: errorResp,
+			wantErr:       errorResp,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			deps := &stubVerifyIdentityWithHMACChallengeInfraDeps{
+				getControlCardVendorIDErr:    tc.getControlCardVendorIDErr,
+				fetchEKErr:                   tc.fetchEKErr,
+				wrapHMACKeytoRSAPublicKeyErr: tc.wrapHMACKeytoRSAPublicKeyErr,
+				challengeErr:                 tc.challengeErr,
+				verifyHMACErr:                tc.verifyHMACErr,
+			}
+			req := &VerifyIdentityWithHMACChallengeReq{
+				ControlCardSelection: controlCardSelection,
+				Deps:                 deps,
+			}
+			err := VerifyIdentityWithHMACChallenge(context.Background(), req)
+			if tc.wantErr != nil {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr.Error()) {
+					t.Errorf("VerifyIdentityWithHmacChallenge() returned unexpected error: got %v, want %v", err, tc.wantErr)
+				}
+			} else if err != nil {
+				t.Errorf("VerifyIdentityWithHmacChallenge() returned unexpected error: %v", err)
 			}
 		})
 	}
