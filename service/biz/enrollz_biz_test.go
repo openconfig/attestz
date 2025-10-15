@@ -1393,6 +1393,7 @@ type stubVerifyIdentityWithHMACChallengeInfraDeps struct {
 	challengeErr                 error
 	verifyHMACErr                error
 	verifyCertifyInfoErr         error
+	verifyIAKAttributesErr       error
 	getIdevidCsrErr              error
 	parseTCGCSRIDevIDContentErr  error
 	verifyTPMTSignatureErr       error
@@ -1453,6 +1454,10 @@ func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) VerifyCertifyInfo(certify
 	return s.verifyCertifyInfoErr
 }
 
+func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) VerifyIAKAttributes(iakPub []byte) (*tpm20.TPMTPublic, error) {
+	return &tpm20.TPMTPublic{}, s.verifyIAKAttributesErr
+}
+
 func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) GetIdevidCsr(ctx context.Context, req *epb.GetIdevidCsrRequest) (*epb.GetIdevidCsrResponse, error) {
 	if s.getIdevidCsrErr != nil {
 		return nil, s.getIdevidCsrErr
@@ -1502,6 +1507,7 @@ func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
 		challengeErr                 error
 		verifyHMACErr                error
 		verifyCertifyInfoErr         error
+		verifyIAKAttributesErr       error
 		getIdevidCsrErr              error
 		parseTCGCSRIDevIDContentErr  error
 		verifyTPMTSignatureErr       error
@@ -1541,6 +1547,11 @@ func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
 			wantErr:              errorResp,
 		},
 		{
+			desc:                   "VerifyIAKAttributes error",
+			verifyIAKAttributesErr: errorResp,
+			wantErr:                errorResp,
+		},
+		{
 			desc:            "GetIdevidCsr error",
 			getIdevidCsrErr: errorResp,
 			wantErr:         errorResp,
@@ -1571,6 +1582,7 @@ func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
 				challengeErr:                 tc.challengeErr,
 				verifyHMACErr:                tc.verifyHMACErr,
 				verifyCertifyInfoErr:         tc.verifyCertifyInfoErr,
+				verifyIAKAttributesErr:       tc.verifyIAKAttributesErr,
 				getIdevidCsrErr:              tc.getIdevidCsrErr,
 				parseTCGCSRIDevIDContentErr:  tc.parseTCGCSRIDevIDContentErr,
 				verifyTPMTSignatureErr:       tc.verifyTPMTSignatureErr,
@@ -1587,3 +1599,5 @@ func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
 		})
 	}
 }
+
+// TODO: Add tests for  VerifyIdentityWithHMACChallenge, VerifyIAKKey and VerifyIdevidKey with test vectors
