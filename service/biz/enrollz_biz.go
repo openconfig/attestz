@@ -824,9 +824,9 @@ func VerifyIdentityWithHMACChallenge(ctx context.Context, req *VerifyIdentityWit
 		ControlCardSelection: req.ControlCardSelection,
 	})
 	if err != nil {
-		err = fmt.Errorf("failed to get control card vendor ID: %w", err)
-		log.ErrorContext(ctx, err)
-		return err
+		errMsg := fmt.Errorf("failed to get control card vendor ID: %w", err)
+		log.ErrorContext(ctx, errMsg)
+		return errMsg
 	}
 
 	// Get EK Public Key from RoT database.
@@ -835,14 +835,14 @@ func VerifyIdentityWithHMACChallenge(ctx context.Context, req *VerifyIdentityWit
 		Supplier: controlCardVendorID.GetControlCardId().GetChassisManufacturer(),
 	})
 	if err != nil {
-		err = fmt.Errorf("failed to fetch EK public key : %w", err)
-		log.ErrorContext(ctx, err)
-		return err
+		errMsg := fmt.Errorf("failed to fetch EK public key : %w", err)
+		log.ErrorContext(ctx, errMsg)
+		return errMsg
 	}
 	if fetchEKResp == nil {
-		err = fmt.Errorf("failed to fetch EK public key: RoT database returned an empty response")
-		log.ErrorContext(ctx, err)
-		return err
+		errMsg := fmt.Errorf("failed to fetch EK public key: RoT database returned an empty response")
+		log.ErrorContext(ctx, errMsg)
+		return errMsg
 	}
 
 	challengeResp, err := verifyHMAC(ctx, req, fetchEKResp)
@@ -871,9 +871,9 @@ func verifyHMAC(ctx context.Context, req *VerifyIdentityWithHMACChallengeReq, fe
 	// Wrap HMAC key to EK public key.
 	duplicate, inSymSeed, err := req.Deps.WrapHMACKeytoRSAPublicKey(fetchEKResp.EkPublicKey, hmacPub, hmacSensitive)
 	if err != nil {
-		err = fmt.Errorf("failed to wrap HMAC key to EK public key: %w", err)
-		log.ErrorContext(ctx, err)
-		return nil, err
+		errMsg := fmt.Errorf("failed to wrap HMAC key to EK public key: %w", err)
+		log.ErrorContext(ctx, errMsg)
+		return nil, errMsg
 	}
 
 	// Send HMAC Challenge to the TPM.
@@ -888,17 +888,17 @@ func verifyHMAC(ctx context.Context, req *VerifyIdentityWithHMACChallengeReq, fe
 	}
 	challengeResp, err := req.Deps.Challenge(ctx, challengeReq)
 	if err != nil {
-		err = fmt.Errorf("failed to challenge the TPM: %w", err)
-		log.ErrorContext(ctx, err)
-		return nil, err
+		errMsg := fmt.Errorf("failed to challenge the TPM: %w", err)
+		log.ErrorContext(ctx, errMsg)
+		return nil, errMsg
 	}
 
 	// Verify HMAC Challenge response from the TPM.
 	err = req.Deps.VerifyHMAC(challengeResp.ChallengeResp.IakCertifyInfo, challengeResp.ChallengeResp.IakCertifyInfoSignature, hmacSensitive)
 	if err != nil {
-		err = fmt.Errorf("failed to verify HMAC Challenge response: %w", err)
-		log.ErrorContext(ctx, err)
-		return nil, err
+		errMsg := fmt.Errorf("failed to verify HMAC Challenge response: %w", err)
+		log.ErrorContext(ctx, errMsg)
+		return nil, errMsg
 	}
 	return challengeResp, nil
 }
