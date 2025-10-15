@@ -29,6 +29,7 @@ import (
 
 	log "github.com/golang/glog"
 	tpm12 "github.com/google/go-tpm/tpm"
+	tpm20 "github.com/google/go-tpm/tpm2"
 
 	cpb "github.com/openconfig/attestz/proto/common_definitions"
 	epb "github.com/openconfig/attestz/proto/tpm_enrollz"
@@ -124,6 +125,15 @@ type EnrollzDeviceClient interface {
 
 	// Returns `TpmEnrollzServiceClient.RotateAIKCert()` response.
 	RotateAIKCert(ctx context.Context, opts ...grpc.CallOption) (epb.TpmEnrollzService_RotateAIKCertClient, error)
+
+	// Returns `TpmEnrollzServiceClient.GetControlCardVendorID()` response.
+	GetControlCardVendorID(ctx context.Context, req *epb.GetControlCardVendorIDRequest) (*epb.GetControlCardVendorIDResponse, error)
+
+	// Returns `TpmEnrollzServiceClient.Challenge()` response.
+	Challenge(ctx context.Context, req *epb.ChallengeRequest) (*epb.ChallengeResponse, error)
+
+	// Returns `TpmEnrollzServiceClient.GetIdevidCsr()` response.
+	GetIdevidCsr(ctx context.Context, req *epb.GetIdevidCsrRequest) (*epb.GetIdevidCsrResponse, error)
 }
 
 // FetchEKReq is the request to fetch the EK Public Key from the RoT.
@@ -134,10 +144,12 @@ type FetchEKReq struct {
 	Supplier string
 }
 
-// FetchEKResp is the response to fetch the EK Public Key from the RoT.
+// FetchEKResp is the response to fetch the EK Public Key (or PPK) from the RoT.
 type FetchEKResp struct {
-	// EK Public Key.
+	// EK (or PPK) Public Key.
 	EkPublicKey *rsa.PublicKey
+	// Key type: EK or PPK
+	KeyType epb.Key
 }
 
 // ROTDBClient is a client to fetch the EK Public Key from the RoT.
@@ -169,6 +181,18 @@ type RotateAIKCertInfraDeps interface {
 
 	// TPM 1.2 utility functions.
 	TPM12Utils
+}
+
+// VerifyIdentityWithHmacChallengeInfraDeps is the infra-specific dependencies of the VerifyIdentityWithHMACChallenge business logic.
+type VerifyIdentityWithHMACChallengeInfraDeps interface {
+	// Common enrollz dependencies.
+	EnrollzInfraDeps
+
+	// Client to fetch the EK Public Key from the RoT database.
+	ROTDBClient
+
+	// TPM 2.0 utility functions.
+	TPM20Utils
 }
 
 // EnrollControlCardReq is the request to EnrollControlCard().
@@ -771,5 +795,98 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 		}
 	}
 	log.InfoContext(ctx, "Successfully finalized TPM 1.2 enrollment")
+	return nil
+}
+
+// VerifyIdentityWithHMACChallengeReq is the request to VerifyIdentityWithHmacChallenge().
+type VerifyIdentityWithHMACChallengeReq struct {
+	// Selection of a specific switch control card.
+	ControlCardSelection *cpb.ControlCardSelection
+	// Infra-specific wired dependencies.
+	Deps VerifyIdentityWithHMACChallengeInfraDeps
+}
+
+// VerifyIdentityWithHMACChallenge verifies the identity of the switch using an HMAC challenge for
+// TPM 2.0 devices that do not have an IDevID cert provisioned.
+func VerifyIdentityWithHMACChallenge(ctx context.Context, req *VerifyIdentityWithHMACChallengeReq) error {
+	// validate the request
+	if req == nil {
+		return fmt.Errorf("request VerifyIdentityWithHMACChallengeReq is nil")
+	}
+	if req.ControlCardSelection == nil {
+		return fmt.Errorf("field ControlCardSelection in VerifyIdentityWithHMACChallengeReq request cannot be nil")
+	}
+	if req.Deps == nil {
+		return fmt.Errorf("field Deps in VerifyIdentityWithHMACChallengeReq request cannot be nil")
+	}
+
+	controlCardVendorID, err := req.Deps.GetControlCardVendorID(ctx, &epb.GetControlCardVendorIDRequest{
+		ControlCardSelection: req.ControlCardSelection,
+	})
+	if err != nil {
+		err = fmt.Errorf("failed to get control card vendor ID: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+
+	// Get EK Public Key from RoT database.
+	fetchEKResp, err := req.Deps.FetchEK(ctx, &FetchEKReq{
+		Serial:   controlCardVendorID.GetControlCardId().GetChassisSerialNumber(),
+		Supplier: controlCardVendorID.GetControlCardId().GetChassisManufacturer(),
+	})
+	if err != nil {
+		err = fmt.Errorf("failed to fetch EK public key : %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+	if fetchEKResp == nil {
+		err = fmt.Errorf("failed to fetch EK public key: RoT database returned an empty response")
+		log.ErrorContext(ctx, err)
+		return err
+	}
+
+	challengeResp, err := VerifyHMAC(ctx, req, fetchEKResp)
+	if err != nil {
+		return err
+	}
+
+	iakPubKey, err := VerifyIAKKey(ctx, req, challengeResp)
+	if err != nil {
+		return err
+	}
+
+	err = VerifyIDevIDKey(ctx, req, fetchEKResp, iakPubKey)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func VerifyHMAC(ctx context.Context, req *VerifyIdentityWithHMACChallengeReq, fetchEKResp *FetchEKResp) (*epb.ChallengeResponse, error) {
+	// TODO: impleament this function
+	// 1. Generate HMAC Key
+	// 2. Wrap HMAC to EK.
+	// 3. Send HMAC Challenge to Device.
+	// 4. Verify HMAC Challenge Response from device.
+	return &epb.ChallengeResponse{}, nil
+}
+
+func VerifyIAKKey(ctx context.Context, req *VerifyIdentityWithHMACChallengeReq, hmacChallengeResp *epb.ChallengeResponse) (*tpm20.TPMTPublic, error) {
+	// TODO: impleament this function.
+	// 1. Verify IAK Certify Info.
+	// 2. Verify IAK attributes.
+	return &tpm20.TPMTPublic{}, nil
+}
+
+func VerifyIDevIDKey(ctx context.Context, req *VerifyIdentityWithHMACChallengeReq, fetchEKResp *FetchEKResp, iakPubKey *tpm20.TPMTPublic) error {
+	// TODO: implement this function.
+	// 1. Get IDevID CSR from device.
+	// 2. Verify IDevID Certify Info Signature using IAK pub key.
+	// 3. Verify IDevID Certify Info.
+	// 4. Verify IDevID Key Attributes.
+	// 5. Verify CSR signature using IDevID
+	// 6. Verify EK returned in CSR matches one obtained from RoT
+
 	return nil
 }
