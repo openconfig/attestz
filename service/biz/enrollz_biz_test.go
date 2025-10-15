@@ -1381,6 +1381,8 @@ type stubVerifyIdentityWithHMACChallengeInfraDeps struct {
 	challengeErr                 error
 	verifyHMACErr                error
 	getIdevidCsrErr              error
+	verifyCertifyInfoErr         error
+	verifyIAKAttributesErr       error
 }
 
 func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) GetControlCardVendorID(ctx context.Context, req *epb.GetControlCardVendorIDRequest) (*epb.GetControlCardVendorIDResponse, error) {
@@ -1488,6 +1490,14 @@ func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) GetIdevidCsr(ctx context.
 	}, nil
 }
 
+func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) VerifyCertifyInfo(certifyInfo *tpm20.TPMSAttest, certifiedKey *tpm20.TPMTPublic) error {
+	return s.verifyCertifyInfoErr
+}
+
+func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) VerifyIAKAttributes(iakPub []byte) (*tpm20.TPMTPublic, error) {
+	return &tpm20.TPMTPublic{}, s.verifyIAKAttributesErr
+}
+
 func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
 	controlCardSelection := &cpb.ControlCardSelection{
 		ControlCardId: &cpb.ControlCardSelection_Role{
@@ -1505,6 +1515,8 @@ func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
 		challengeErr                 error
 		verifyHMACErr                error
 		getIdevidCsrErr              error
+		verifyCertifyInfoErr         error
+		verifyIAKAttributesErr       error
 	}{
 		{
 			desc: "Successful verification",
@@ -1539,6 +1551,16 @@ func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
 			getIdevidCsrErr: errorResp,
 			wantErr:         errorResp,
 		},
+		{
+			desc:                 "VerifyCertifyInfo error",
+			verifyCertifyInfoErr: errorResp,
+			wantErr:              errorResp,
+		},
+		{
+			desc:                   "VerifyIAKAttributes error",
+			verifyIAKAttributesErr: errorResp,
+			wantErr:                errorResp,
+		},
 	}
 
 	for _, tc := range tests {
@@ -1549,6 +1571,8 @@ func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
 				wrapHMACKeytoRSAPublicKeyErr: tc.wrapHMACKeytoRSAPublicKeyErr,
 				challengeErr:                 tc.challengeErr,
 				verifyHMACErr:                tc.verifyHMACErr,
+				verifyCertifyInfoErr:         tc.verifyCertifyInfoErr,
+				verifyIAKAttributesErr:       tc.verifyIAKAttributesErr,
 				getIdevidCsrErr:              tc.getIdevidCsrErr,
 			}
 			err := VerifyIdentityWithHMACChallenge(context.Background(), controlCardSelection, deps)
