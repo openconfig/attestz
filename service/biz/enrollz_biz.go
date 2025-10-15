@@ -850,7 +850,7 @@ func VerifyIdentityWithHMACChallenge(ctx context.Context, req *VerifyIdentityWit
 		return err
 	}
 
-	iakPubKey, err := verifyIAKKey(ctx, req, challengeResp)
+	iakPubKey, err := verifyIAKKey(ctx, req, challengeResp.ChallengeResp)
 	if err != nil {
 		return err
 	}
@@ -903,11 +903,35 @@ func verifyHMAC(ctx context.Context, req *VerifyIdentityWithHMACChallengeReq, fe
 	return challengeResp, nil
 }
 
-func verifyIAKKey(ctx context.Context, req *VerifyIdentityWithHMACChallengeReq, hmacChallengeResp *epb.ChallengeResponse) (*tpm20.TPMTPublic, error) {
-	// TODO: impleament this function.
-	// 1. Verify IAK Certify Info.
-	// 2. Verify IAK attributes.
-	return &tpm20.TPMTPublic{}, nil
+// verifyIAK verifies the IAK public key and certify info from the HMAC challenge response.
+func verifyIAKKey(ctx context.Context, req *VerifyIdentityWithHMACChallengeReq, hmacChallengeResp *epb.HMACChallengeResponse) (*tpm20.TPMTPublic, error) {
+	// Verify IAK Certify Info.
+	iakPubKey, err := tpm20.Unmarshal[tpm20.TPMTPublic](hmacChallengeResp.IakPub)
+	if err != nil {
+		errMsg := fmt.Errorf("failed to unmarshal IAK public key: %w", err)
+		log.ErrorContext(ctx, errMsg)
+		return nil, errMsg
+	}
+	iakCertifyInfo, err := tpm20.Unmarshal[tpm20.TPMSAttest](hmacChallengeResp.IakCertifyInfo)
+	if err != nil {
+		errMsg := fmt.Errorf("failed to unmarshal IAK Certify Info: %w", err)
+		log.ErrorContext(ctx, errMsg)
+		return nil, errMsg
+	}
+	err = req.Deps.VerifyCertifyInfo(iakCertifyInfo, iakPubKey)
+	if err != nil {
+		errMsg := fmt.Errorf("failed to verify IAK Certify Info: %w", err)
+		log.ErrorContext(ctx, errMsg)
+		return nil, errMsg
+	}
+
+	err = req.Deps.VerifyIAKAttributes(iakPubKey)
+	if err != nil {
+		errMsg := fmt.Errorf("failed to verify IAK attributes: %w", err)
+		log.ErrorContext(ctx, errMsg)
+		return nil, errMsg
+	}
+	return iakPubKey, nil
 }
 
 func verifyIDevIDKey(ctx context.Context, req *VerifyIdentityWithHMACChallengeReq, fetchEKResp *FetchEKResp, iakPubKey *tpm20.TPMTPublic) error {
