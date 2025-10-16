@@ -29,6 +29,6 @@ jobs:
     permissions:
       contents: read
       statuses: write
-    uses: openconfig/common-ci/.github/workflows/go.yml@6471e41fc17c67b8fb10f99b91bbb4ba5903effc
+    uses: openconfig/common-ci/.github/workflows/go.yml@f7481cbcc8395277a2393aee3a2a0b3b7f3516a6
     with:
       go-versions: "['1.x']"
