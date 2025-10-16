@@ -168,7 +168,7 @@ func (u *DefaultTPM20Utils) VerifyCertifyInfo(certifyInfoAttest *tpm20.TPMSAttes
 
 	keyName, err := tpm20.ObjectName(certifiedKey)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get key name: %v", err)
 	}
 
 	certifyInfo, err := certifyInfoAttest.Attested.Certify()
@@ -183,7 +183,7 @@ func (u *DefaultTPM20Utils) VerifyCertifyInfo(certifyInfoAttest *tpm20.TPMSAttes
 
 	// Sanity check that the certified QualifiedName is not the same as the Name for some reason.
 	if bytes.Equal(certifyInfo.QualifiedName.Buffer, certifyInfo.Name.Buffer) {
-		return fmt.Errorf("%w: QualifiedName unexpectedly matched Name", ErrCertifiedWrongName)
+		return fmt.Errorf("%w: QualifiedName (%x) unexpectedly matched Name (%x)", ErrCertifiedWrongName, certifyInfo.QualifiedName.Buffer, certifyInfo.Name.Buffer)
 	}
 	return nil
 }
