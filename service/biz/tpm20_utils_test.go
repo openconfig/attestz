@@ -114,6 +114,99 @@ type CsrOptions struct {
 	AddExtraBytesToEnd              bool
 }
 
+func TestVerifyCertifyInfo(t *testing.T) {
+	u := DefaultTPM20Utils{}
+	keyName, err := tpm2.ObjectName(&validTPMTPublic)
+	if err != nil {
+		t.Fatalf("tpm2.ObjectName failed: %v", err)
+	}
+
+	attestBase := tpm2.TPMSAttest{
+		Magic:           tpm2.TPMGeneratedValue,
+		Type:            tpm2.TPMSTAttestCertify,
+		QualifiedSigner: tpm2.TPM2BName{Buffer: []byte{0x01}},
+		ExtraData:       tpm2.TPM2BData{Buffer: []byte{}},
+		ClockInfo:       tpm2.TPMSClockInfo{Clock: 1, ResetCount: 1, RestartCount: 1, Safe: false},
+		FirmwareVersion: 1,
+	}
+
+	attestWithGoodName := attestBase
+	attestWithGoodName.Attested = tpm2.NewTPMUAttest(tpm2.TPMSTAttestCertify, &tpm2.TPMSCertifyInfo{
+		Name:          *keyName,
+		QualifiedName: tpm2.TPM2BName{Buffer: []byte{0x0a, 0x0b}},
+	})
+
+	attestWithBadMagic := attestWithGoodName
+	attestWithBadMagic.Magic = 0x1234
+	attestWithBadMagic.Attested = tpm2.NewTPMUAttest(tpm2.TPMSTAttestCertify, &tpm2.TPMSCertifyInfo{
+		Name:          *keyName,
+		QualifiedName: tpm2.TPM2BName{Buffer: []byte{0x0a, 0x0b}},
+	})
+
+	attestWithBadType := attestWithGoodName
+	attestWithBadType.Type = tpm2.TPMSTAttestCreation
+	attestWithBadType.Attested = tpm2.NewTPMUAttest(tpm2.TPMSTAttestCreation, &tpm2.TPMSCreationInfo{})
+
+	attestWithBadName := attestBase
+	attestWithBadName.Attested = tpm2.NewTPMUAttest(tpm2.TPMSTAttestCertify, &tpm2.TPMSCertifyInfo{
+		Name:          tpm2.TPM2BName{Buffer: []byte{0x01}},
+		QualifiedName: tpm2.TPM2BName{Buffer: []byte{0x02}},
+	})
+
+	attestWithSameNameAndQN := attestBase
+	attestWithSameNameAndQN.Attested = tpm2.NewTPMUAttest(tpm2.TPMSTAttestCertify, &tpm2.TPMSCertifyInfo{
+		Name:          *keyName,
+		QualifiedName: *keyName,
+	})
+
+	tests := []struct {
+		name      string
+		attest    *tpm2.TPMSAttest
+		pub       *tpm2.TPMTPublic
+		wantError error
+	}{
+		{
+			name:      "Success",
+			attest:    &attestWithGoodName,
+			pub:       &validTPMTPublic,
+			wantError: nil,
+		},
+		{
+			name:      "Invalid Magic",
+			attest:    &attestWithBadMagic,
+			pub:       &validTPMTPublic,
+			wantError: ErrInvalidCertifyInfo,
+		},
+		{
+			name:      "Invalid Type",
+			attest:    &attestWithBadType,
+			pub:       &validTPMTPublic,
+			wantError: ErrInvalidCertifyInfo,
+		},
+		{
+			name:      "Wrong Name in CertifyInfo",
+			attest:    &attestWithBadName,
+			pub:       &validTPMTPublic,
+			wantError: ErrCertifiedWrongName,
+		},
+		{
+			name:      "Name same as QualifiedName in CertifyInfo",
+			attest:    &attestWithSameNameAndQN,
+			pub:       &validTPMTPublic,
+			wantError: ErrCertifiedWrongName,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := u.VerifyCertifyInfo(tc.attest, tc.pub)
+			if !errors.Is(err, tc.wantError) {
+				t.Errorf("VerifyCertifyInfo() returned error %v, want %v", err, tc.wantError)
+			}
+		})
+	}
+}
+
 func generateX509Cert() ([]byte, string) {
 	// Create a self-signed certificate for testing
 	key, err := rsa.GenerateKey(rand.Reader, 2048)

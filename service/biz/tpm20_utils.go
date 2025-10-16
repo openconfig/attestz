@@ -21,12 +21,20 @@ import (
 	"crypto/x509"
 	"encoding/binary"
 	"encoding/pem"
+	"errors"
 	"fmt"
 
 	log "github.com/golang/glog"
 
 	tpm20 "github.com/google/go-tpm/tpm2"
 	epb "github.com/openconfig/attestz/proto/tpm_enrollz"
+)
+
+var (
+	// ErrInvalidCertifyInfo is returned when the certify info data is invalid.
+	ErrInvalidCertifyInfo = errors.New("invalid certify info")
+	// ErrCertifiedWrongName is returned when the certified name is invalid.
+	ErrCertifiedWrongName = errors.New("certified wrong name")
 )
 
 // TCGCSRIDevIDContents is the contents of the TCG_CSR_IDEVID_CONTENT structure.
@@ -52,7 +60,7 @@ type TPM20Utils interface {
 	WrapHMACKeytoRSAPublicKey(rsaPub *rsa.PublicKey, hmacPub *tpm20.TPMTPublic,
 		hmacSensitive *tpm20.TPMTSensitive) ([]byte, []byte, error)
 	VerifyHMAC(message []byte, signature []byte, hmacSensitive *tpm20.TPMTSensitive) error
-	VerifyCertifyInfo(certifyInfo *tpm20.TPMSAttest, certifiedKey *tpm20.TPMTPublic) error
+	VerifyCertifyInfo(certifyInfoAttest *tpm20.TPMSAttest, certifiedKey *tpm20.TPMTPublic) error
 	VerifyIAKAttributes(iakPub *tpm20.TPMTPublic) error
 	VerifyTPMTSignature(pubKey *tpm20.TPMTPublic, signature *tpm20.TPMTSignature, data []byte) error
 	VerifyIDevIDAttributes(idevidPub *tpm20.TPMTPublic, keyTemplate epb.KeyTemplate) error
@@ -149,8 +157,34 @@ func (u *DefaultTPM20Utils) VerifyHMAC(message []byte, signature []byte, hmacSen
 }
 
 // VerifyCertifyInfo verifies the certify info (TPM2B_ATTEST) and the nested TPMS_CERTIFY_INFO structure.
-func (u *DefaultTPM20Utils) VerifyCertifyInfo(certifyInfo *tpm20.TPMSAttest, certifiedKey *tpm20.TPMTPublic) error {
-	// TODO: Implement this function.
+func (u *DefaultTPM20Utils) VerifyCertifyInfo(certifyInfoAttest *tpm20.TPMSAttest, certifiedKey *tpm20.TPMTPublic) error {
+	if certifyInfoAttest.Magic != tpm20.TPMGeneratedValue {
+		return fmt.Errorf("%w: unexpected TPM2B_ATTEST magic %0x", ErrInvalidCertifyInfo, certifyInfoAttest.Magic)
+	}
+
+	if certifyInfoAttest.Type != tpm20.TPMSTAttestCertify {
+		return fmt.Errorf("%w: unexpected TPM2B_ATTEST type %0x", ErrInvalidCertifyInfo, certifyInfoAttest.Type)
+	}
+
+	keyName, err := tpm20.ObjectName(certifiedKey)
+	if err != nil {
+		return fmt.Errorf("failed to get key name: %v", err)
+	}
+
+	certifyInfo, err := certifyInfoAttest.Attested.Certify()
+	if err != nil {
+		return fmt.Errorf("failed to get certify info: %w", err)
+	}
+
+	// Check that the certified Name is the same as we expected.
+	if !bytes.Equal(keyName.Buffer, certifyInfo.Name.Buffer) {
+		return fmt.Errorf("%w: expected Name %x, certified Name was %x", ErrCertifiedWrongName, keyName.Buffer, certifyInfo.Name.Buffer)
+	}
+
+	// Sanity check that the certified QualifiedName is not the same as the Name for some reason.
+	if bytes.Equal(certifyInfo.QualifiedName.Buffer, certifyInfo.Name.Buffer) {
+		return fmt.Errorf("%w: QualifiedName (%x) unexpectedly matched Name (%x)", ErrCertifiedWrongName, certifyInfo.QualifiedName.Buffer, certifyInfo.Name.Buffer)
+	}
 	return nil
 }
 
