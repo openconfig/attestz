@@ -17,7 +17,9 @@ package biz
 
 import (
 	"bytes"
+	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/binary"
 	"encoding/pem"
@@ -25,8 +27,8 @@ import (
 	"fmt"
 
 	log "github.com/golang/glog"
-
 	tpm20 "github.com/google/go-tpm/tpm2"
+
 	epb "github.com/openconfig/attestz/proto/tpm_enrollz"
 )
 
@@ -125,10 +127,59 @@ func certificateDerToPem(derBytes []byte) (string, error) {
 	return string(pem.EncodeToMemory(block)), nil
 }
 
-// GenerateRestrictedHMACKey generates a restricted HMAC key.
-func GenerateRestrictedHMACKey() (*tpm20.TPMTPublic, *tpm20.TPMTSensitive) {
-	// TODO: Implement this function.
-	return &tpm20.TPMTPublic{}, &tpm20.TPMTSensitive{}
+// GenerateRestrictedHMACKey generates a new HMAC key and emits the TPM public/private blobs.
+func (u *DefaultTPM20Utils) GenerateRestrictedHMACKey() (*tpm20.TPMTPublic, *tpm20.TPMTSensitive) {
+	// Generate the random obfuscation value and key
+	obfuscate := make([]byte, 32)
+	hmacKey := make([]byte, 32)
+	if _, err := rand.Read(obfuscate); err != nil {
+		// This should never happen.
+		panic(fmt.Sprintf("GenerateRestrictedHMACKey: rand.Read() failed: %v", err))
+	}
+	if _, err := rand.Read(hmacKey); err != nil {
+		// This should never happen.
+		panic(fmt.Sprintf("GenerateRestrictedHMACKey: rand.Read() failed: %v", err))
+	}
+
+	// Unique for a KEYEDHASH object is H_nameAlg(obfuscate | key)
+	// See Part 1, "Public Area Creation"
+	h := sha256.New()
+	h.Write(obfuscate)
+	h.Write(hmacKey)
+
+	pub := &tpm20.TPMTPublic{
+		Type:    tpm20.TPMAlgKeyedHash,
+		NameAlg: tpm20.TPMAlgSHA256,
+		ObjectAttributes: tpm20.TPMAObject{
+			UserWithAuth: true,
+			NoDA:         true,
+			Restricted:   true,
+			SignEncrypt:  true,
+		},
+		Parameters: tpm20.NewTPMUPublicParms(tpm20.TPMAlgKeyedHash, &tpm20.TPMSKeyedHashParms{
+			Scheme: tpm20.TPMTKeyedHashScheme{
+				Scheme: tpm20.TPMAlgHMAC,
+				Details: tpm20.NewTPMUSchemeKeyedHash(tpm20.TPMAlgHMAC, &tpm20.TPMSSchemeHMAC{
+					HashAlg: tpm20.TPMAlgSHA256,
+				}),
+			},
+		}),
+		Unique: tpm20.NewTPMUPublicID(tpm20.TPMAlgKeyedHash, &tpm20.TPM2BDigest{
+			Buffer: h.Sum(nil),
+		}),
+	}
+
+	priv := &tpm20.TPMTSensitive{
+		SensitiveType: tpm20.TPMAlgKeyedHash,
+		SeedValue: tpm20.TPM2BDigest{
+			Buffer: obfuscate,
+		},
+		Sensitive: tpm20.NewTPMUSensitiveComposite(tpm20.TPMAlgKeyedHash, &tpm20.TPM2BSensitiveData{
+			Buffer: hmacKey,
+		}),
+	}
+
+	return pub, priv
 }
 
 // RSAPublicKeyToTPMTPublic converts an RSA public key to a TPMT_PUBLIC struct.
