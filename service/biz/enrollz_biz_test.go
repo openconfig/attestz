@@ -1382,6 +1382,10 @@ type stubVerifyIdentityWithHMACChallengeInfraDeps struct {
 	verifyHMACErr                error
 	verifyCertifyInfoErr         error
 	verifyIAKAttributesErr       error
+	getIdevidCsrErr              error
+	parseTCGCSRIDevIDContentErr  error
+	verifyTPMTSignatureErr       error
+	verifyIDevIDAttributesErr    error
 }
 
 func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) GetControlCardVendorID(ctx context.Context, req *epb.GetControlCardVendorIDRequest) (*epb.GetControlCardVendorIDResponse, error) {
@@ -1474,6 +1478,83 @@ func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) VerifyIAKAttributes(iakPu
 	return s.verifyIAKAttributesErr
 }
 
+func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) GetIdevidCsr(ctx context.Context, req *epb.GetIdevidCsrRequest) (*epb.GetIdevidCsrResponse, error) {
+	if s.getIdevidCsrErr != nil {
+		return nil, s.getIdevidCsrErr
+	}
+	idevidSignatureCsr := tpm20.TPMTSignature{
+		SigAlg: tpm20.TPMAlgECDSA,
+		Signature: tpm20.NewTPMUSignature(
+			tpm20.TPMAlgECDSA,
+			&tpm20.TPMSSignatureECC{
+				Hash:       tpm20.TPMAlgSHA256,
+				SignatureR: tpm20.TPM2BECCParameter{},
+				SignatureS: tpm20.TPM2BECCParameter{},
+			},
+		),
+	}
+	return &epb.GetIdevidCsrResponse{
+		CsrResponse: &epb.CsrResponse{
+			CsrContents:        []byte("csr-contents"),
+			IdevidSignatureCsr: tpm20.Marshal(&idevidSignatureCsr),
+		},
+	}, nil
+}
+
+func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) ParseTCGCSRIDevIDContent(csrBytes []byte) (*TCGCSRIDevIDContents, error) {
+	if s.parseTCGCSRIDevIDContentErr != nil {
+		return nil, s.parseTCGCSRIDevIDContentErr
+	}
+	csrContents := TCGCSRIDevIDContents{
+		IDevIDPub: tpm20.TPMTPublic{
+			Type:    tpm20.TPMAlgECC,
+			NameAlg: tpm20.TPMAlgSHA256,
+			ObjectAttributes: tpm20.TPMAObject{
+				SignEncrypt: true,
+			},
+			Parameters: tpm20.NewTPMUPublicParms(
+				tpm20.TPMAlgECC,
+				&tpm20.TPMSECCParms{
+					CurveID: tpm20.TPMECCNistP256,
+				},
+			),
+			Unique: tpm20.NewTPMUPublicID(
+				// This happens to be a P256 EKpub from the simulator
+				tpm20.TPMAlgECC,
+				&tpm20.TPMSECCPoint{
+					X: tpm20.TPM2BECCParameter{},
+					Y: tpm20.TPM2BECCParameter{},
+				},
+			),
+		},
+		SignCertifyInfo: tpm20.TPMSAttest{
+			Magic:    tpm20.TPMGeneratedValue,
+			Type:     tpm20.TPMSTAttestCreation,
+			Attested: tpm20.NewTPMUAttest(tpm20.TPMSTAttestCreation, &tpm20.TPMSCreationInfo{}),
+		},
+		SignCertifyInfoSignature: tpm20.TPMTSignature{
+			SigAlg: tpm20.TPMAlgECDSA,
+			Signature: tpm20.NewTPMUSignature(
+				tpm20.TPMAlgECDSA,
+				&tpm20.TPMSSignatureECC{
+					Hash:       tpm20.TPMAlgSHA256,
+					SignatureR: tpm20.TPM2BECCParameter{},
+					SignatureS: tpm20.TPM2BECCParameter{},
+				},
+			),
+		},
+	}
+	return &csrContents, nil
+}
+
+func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) VerifyTPMTSignature(pubKey *tpm20.TPMTPublic, signature *tpm20.TPMTSignature, data []byte) error {
+	return s.verifyTPMTSignatureErr
+}
+
+func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) VerifyIDevIDAttributes(idevidPub *tpm20.TPMTPublic, keyTemplate epb.KeyTemplate) error {
+	return s.verifyIDevIDAttributesErr
+}
+
 func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
 	controlCardSelection := &cpb.ControlCardSelection{
 		ControlCardId: &cpb.ControlCardSelection_Role{
@@ -1492,6 +1573,10 @@ func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
 		verifyHMACErr                error
 		verifyCertifyInfoErr         error
 		verifyIAKAttributesErr       error
+		getIdevidCsrErr              error
+		parseTCGCSRIDevIDContentErr  error
+		verifyTPMTSignatureErr       error
+		verifyIDevIDAttributesErr    error
 	}{
 		{
 			desc: "Successful verification",
@@ -1531,6 +1616,26 @@ func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
 			verifyIAKAttributesErr: errorResp,
 			wantErr:                errorResp,
 		},
+		{
+			desc:            "GetIdevidCsr error",
+			getIdevidCsrErr: errorResp,
+			wantErr:         errorResp,
+		},
+		{
+			desc:                        "ParseTCGCSRIDevIDContent error",
+			parseTCGCSRIDevIDContentErr: errorResp,
+			wantErr:                     errorResp,
+		},
+		{
+			desc:                   "VerifyTPMTSignature error",
+			verifyTPMTSignatureErr: errorResp,
+			wantErr:                errorResp,
+		},
+		{
+			desc:                      "VerifyIDevIDAttributes error",
+			verifyIDevIDAttributesErr: errorResp,
+			wantErr:                   errorResp,
+		},
 	}
 
 	for _, tc := range tests {
@@ -1543,6 +1648,10 @@ func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
 				verifyHMACErr:                tc.verifyHMACErr,
 				verifyCertifyInfoErr:         tc.verifyCertifyInfoErr,
 				verifyIAKAttributesErr:       tc.verifyIAKAttributesErr,
+				getIdevidCsrErr:              tc.getIdevidCsrErr,
+				parseTCGCSRIDevIDContentErr:  tc.parseTCGCSRIDevIDContentErr,
+				verifyTPMTSignatureErr:       tc.verifyTPMTSignatureErr,
+				verifyIDevIDAttributesErr:    tc.verifyIDevIDAttributesErr,
 			}
 			req := &VerifyIdentityWithHMACChallengeReq{
 				ControlCardSelection: controlCardSelection,
