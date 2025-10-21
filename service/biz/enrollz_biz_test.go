@@ -1380,6 +1380,7 @@ type stubVerifyIdentityWithHMACChallengeInfraDeps struct {
 	wrapHMACKeytoRSAPublicKeyErr error
 	challengeErr                 error
 	verifyHMACErr                error
+	getIdevidCsrErr              error
 }
 
 func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) GetControlCardVendorID(ctx context.Context, req *epb.GetControlCardVendorIDRequest) (*epb.GetControlCardVendorIDResponse, error) {
@@ -1464,6 +1465,29 @@ func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) VerifyHMAC(message []byte
 	return s.verifyHMACErr
 }
 
+func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) GetIdevidCsr(ctx context.Context, req *epb.GetIdevidCsrRequest) (*epb.GetIdevidCsrResponse, error) {
+	if s.getIdevidCsrErr != nil {
+		return nil, s.getIdevidCsrErr
+	}
+	idevidSignatureCsr := tpm20.TPMTSignature{
+		SigAlg: tpm20.TPMAlgECDSA,
+		Signature: tpm20.NewTPMUSignature(
+			tpm20.TPMAlgECDSA,
+			&tpm20.TPMSSignatureECC{
+				Hash:       tpm20.TPMAlgSHA256,
+				SignatureR: tpm20.TPM2BECCParameter{},
+				SignatureS: tpm20.TPM2BECCParameter{},
+			},
+		),
+	}
+	return &epb.GetIdevidCsrResponse{
+		CsrResponse: &epb.CsrResponse{
+			CsrContents:        []byte("csr-contents"),
+			IdevidSignatureCsr: tpm20.Marshal(&idevidSignatureCsr),
+		},
+	}, nil
+}
+
 func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
 	controlCardSelection := &cpb.ControlCardSelection{
 		ControlCardId: &cpb.ControlCardSelection_Role{
@@ -1480,6 +1504,7 @@ func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
 		wrapHMACKeytoRSAPublicKeyErr error
 		challengeErr                 error
 		verifyHMACErr                error
+		getIdevidCsrErr              error
 	}{
 		{
 			desc: "Successful verification",
@@ -1509,6 +1534,11 @@ func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
 			verifyHMACErr: errorResp,
 			wantErr:       errorResp,
 		},
+		{
+			desc:            "GetIdevidCsr error",
+			getIdevidCsrErr: errorResp,
+			wantErr:         errorResp,
+		},
 	}
 
 	for _, tc := range tests {
@@ -1519,12 +1549,9 @@ func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
 				wrapHMACKeytoRSAPublicKeyErr: tc.wrapHMACKeytoRSAPublicKeyErr,
 				challengeErr:                 tc.challengeErr,
 				verifyHMACErr:                tc.verifyHMACErr,
+				getIdevidCsrErr:              tc.getIdevidCsrErr,
 			}
-			req := &VerifyIdentityWithHMACChallengeReq{
-				ControlCardSelection: controlCardSelection,
-				Deps:                 deps,
-			}
-			err := VerifyIdentityWithHMACChallenge(context.Background(), req)
+			err := VerifyIdentityWithHMACChallenge(context.Background(), controlCardSelection, deps)
 			if tc.wantErr != nil {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr.Error()) {
 					t.Errorf("VerifyIdentityWithHmacChallenge() returned unexpected error: got %v, want %v", err, tc.wantErr)
