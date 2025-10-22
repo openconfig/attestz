@@ -1401,7 +1401,7 @@ func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) FetchEK(ctx context.Conte
 	return &FetchEKResp{EkPublicKey: &rsa.PublicKey{}, KeyType: epb.Key_KEY_EK}, nil
 }
 
-func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) GenerateRestrictedHMACKey() (*tpm20.TPMTPublic, *tpm20.TPMTSensitive) {
+func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) GenerateRestrictedHMACKey() (*tpm20.TPMTPublic, *tpm20.TPMTSensitive, error) {
 	return &tpm20.TPMTPublic{
 		Type:    tpm20.TPMAlgKeyedHash,
 		NameAlg: tpm20.TPMAlgSHA256,
@@ -1411,7 +1411,7 @@ func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) GenerateRestrictedHMACKey
 			UserWithAuth: true,
 			NoDA:         true,
 		},
-	}, &tpm20.TPMTSensitive{}
+	}, &tpm20.TPMTSensitive{}, nil
 }
 
 func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) WrapHMACKeytoRSAPublicKey(rsaPub *rsa.PublicKey, hmacPub *tpm20.TPMTPublic, hmacSensitive *tpm20.TPMTSensitive) ([]byte, []byte, error) {

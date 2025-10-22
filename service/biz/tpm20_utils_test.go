@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -15,42 +16,42 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/go-tpm/tpm2"
+	tpm20 "github.com/google/go-tpm/tpm2"
 )
 
 var (
 	// Constants to be used in request params and stubbing.
-	validTPMTPublic = tpm2.TPMTPublic{
-		Type:             tpm2.TPMAlgECC,
-		NameAlg:          tpm2.TPMAlgSHA256,
-		ObjectAttributes: tpm2.TPMAObject{},
-		AuthPolicy: tpm2.TPM2BDigest{
+	validTPMTPublic = tpm20.TPMTPublic{
+		Type:             tpm20.TPMAlgECC,
+		NameAlg:          tpm20.TPMAlgSHA256,
+		ObjectAttributes: tpm20.TPMAObject{},
+		AuthPolicy: tpm20.TPM2BDigest{
 			Buffer: []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a},
 		},
-		Parameters: tpm2.NewTPMUPublicParms(tpm2.TPMAlgECC, &tpm2.TPMSECCParms{
-			Symmetric: tpm2.TPMTSymDefObject{Algorithm: tpm2.TPMAlgNull},
-			Scheme: tpm2.TPMTECCScheme{
-				Scheme: tpm2.TPMAlgECDSA,
-				Details: tpm2.NewTPMUAsymScheme(tpm2.TPMAlgECDSA, &tpm2.TPMSSigSchemeECDSA{
-					HashAlg: tpm2.TPMAlgSHA256,
+		Parameters: tpm20.NewTPMUPublicParms(tpm20.TPMAlgECC, &tpm20.TPMSECCParms{
+			Symmetric: tpm20.TPMTSymDefObject{Algorithm: tpm20.TPMAlgNull},
+			Scheme: tpm20.TPMTECCScheme{
+				Scheme: tpm20.TPMAlgECDSA,
+				Details: tpm20.NewTPMUAsymScheme(tpm20.TPMAlgECDSA, &tpm20.TPMSSigSchemeECDSA{
+					HashAlg: tpm20.TPMAlgSHA256,
 				}),
 			},
-			CurveID: tpm2.TPMECCNistP256,
-			KDF:     tpm2.TPMTKDFScheme{Scheme: tpm2.TPMAlgNull},
+			CurveID: tpm20.TPMECCNistP256,
+			KDF:     tpm20.TPMTKDFScheme{Scheme: tpm20.TPMAlgNull},
 		}),
 	}
-	validTPMSAttest = tpm2.TPMSAttest{
+	validTPMSAttest = tpm20.TPMSAttest{
 		Magic:           0xff544347,
-		Type:            tpm2.TPMSTAttestCertify,
-		QualifiedSigner: tpm2.TPM2BName{Buffer: []byte{0x0, 0xc, 0x35, 0xb9, 0x3b, 0xa2, 0xd6, 0x55, 0x96, 0x7, 0x80, 0xa7, 0x4, 0x48, 0x6b, 0xf, 0xd3, 0xce, 0xfb, 0xa9, 0x12, 0x49, 0x35, 0x7, 0xa1, 0xfc, 0x10, 0xae, 0xa9, 0x43, 0x82, 0xda, 0xd4, 0x72, 0x94, 0x97, 0xad, 0x55, 0xdf, 0x14, 0x78, 0x6d, 0xc4, 0x32, 0xc1, 0xb1, 0x9, 0x4d, 0xed, 0x3b}},
-		ExtraData:       tpm2.TPM2BData{Buffer: []byte{}},
-		ClockInfo:       tpm2.TPMSClockInfo{Clock: 0x3566eb68, ResetCount: 0x5d2, RestartCount: 0x0, Safe: true},
+		Type:            tpm20.TPMSTAttestCertify,
+		QualifiedSigner: tpm20.TPM2BName{Buffer: []byte{0x0, 0xc, 0x35, 0xb9, 0x3b, 0xa2, 0xd6, 0x55, 0x96, 0x7, 0x80, 0xa7, 0x4, 0x48, 0x6b, 0xf, 0xd3, 0xce, 0xfb, 0xa9, 0x12, 0x49, 0x35, 0x7, 0xa1, 0xfc, 0x10, 0xae, 0xa9, 0x43, 0x82, 0xda, 0xd4, 0x72, 0x94, 0x97, 0xad, 0x55, 0xdf, 0x14, 0x78, 0x6d, 0xc4, 0x32, 0xc1, 0xb1, 0x9, 0x4d, 0xed, 0x3b}},
+		ExtraData:       tpm20.TPM2BData{Buffer: []byte{}},
+		ClockInfo:       tpm20.TPMSClockInfo{Clock: 0x3566eb68, ResetCount: 0x5d2, RestartCount: 0x0, Safe: true},
 		FirmwareVersion: 0x1020000000000,
-		Attested:        tpm2.NewTPMUAttest(tpm2.TPMSTAttestCertify, &tpm2.TPMSCertifyInfo{}),
+		Attested:        tpm20.NewTPMUAttest(tpm20.TPMSTAttestCertify, &tpm20.TPMSCertifyInfo{}),
 	}
 
-	validTPMTSignature = tpm2.TPMTSignature{
-		SigAlg: tpm2.TPMAlgRSASSA,
+	validTPMTSignature = tpm20.TPMTSignature{
+		SigAlg: tpm20.TPMAlgRSASSA,
 	}
 	defaultEkCertDerBytes, defaultEkCertPEM = generateX509Cert()
 	defaultCsrOptions                       = CsrOptions{
@@ -96,13 +97,13 @@ type CsrOptions struct {
 	PadSize                         *uint32
 	ProdCaDataSize                  *uint32
 	BootEvntLogSize                 *uint32
-	AttestPub                       *tpm2.TPMTPublic
+	AttestPub                       *tpm20.TPMTPublic
 	AttestPubSize                   *uint32
-	SigningPub                      *tpm2.TPMTPublic
+	SigningPub                      *tpm20.TPMTPublic
 	SigningPubSize                  *uint32
-	SignCertifyInfo                 *tpm2.TPMSAttest
+	SignCertifyInfo                 *tpm20.TPMSAttest
 	SignCertifyInfoSize             *uint32
-	SignCertifyInfoSignature        *tpm2.TPMTSignature
+	SignCertifyInfoSignature        *tpm20.TPMTSignature
 	SignCertifyInfoSignatureSize    *uint32
 	AtCreateTktSize                 *uint32
 	AtCertifyInfoSize               *uint32
@@ -116,53 +117,53 @@ type CsrOptions struct {
 
 func TestVerifyCertifyInfo(t *testing.T) {
 	u := DefaultTPM20Utils{}
-	keyName, err := tpm2.ObjectName(&validTPMTPublic)
+	keyName, err := tpm20.ObjectName(&validTPMTPublic)
 	if err != nil {
-		t.Fatalf("tpm2.ObjectName failed: %v", err)
+		t.Fatalf("tpm20.ObjectName failed: %v", err)
 	}
 
-	attestBase := tpm2.TPMSAttest{
-		Magic:           tpm2.TPMGeneratedValue,
-		Type:            tpm2.TPMSTAttestCertify,
-		QualifiedSigner: tpm2.TPM2BName{Buffer: []byte{0x01}},
-		ExtraData:       tpm2.TPM2BData{Buffer: []byte{}},
-		ClockInfo:       tpm2.TPMSClockInfo{Clock: 1, ResetCount: 1, RestartCount: 1, Safe: false},
+	attestBase := tpm20.TPMSAttest{
+		Magic:           tpm20.TPMGeneratedValue,
+		Type:            tpm20.TPMSTAttestCertify,
+		QualifiedSigner: tpm20.TPM2BName{Buffer: []byte{0x01}},
+		ExtraData:       tpm20.TPM2BData{Buffer: []byte{}},
+		ClockInfo:       tpm20.TPMSClockInfo{Clock: 1, ResetCount: 1, RestartCount: 1, Safe: false},
 		FirmwareVersion: 1,
 	}
 
 	attestWithGoodName := attestBase
-	attestWithGoodName.Attested = tpm2.NewTPMUAttest(tpm2.TPMSTAttestCertify, &tpm2.TPMSCertifyInfo{
+	attestWithGoodName.Attested = tpm20.NewTPMUAttest(tpm20.TPMSTAttestCertify, &tpm20.TPMSCertifyInfo{
 		Name:          *keyName,
-		QualifiedName: tpm2.TPM2BName{Buffer: []byte{0x0a, 0x0b}},
+		QualifiedName: tpm20.TPM2BName{Buffer: []byte{0x0a, 0x0b}},
 	})
 
 	attestWithBadMagic := attestWithGoodName
 	attestWithBadMagic.Magic = 0x1234
-	attestWithBadMagic.Attested = tpm2.NewTPMUAttest(tpm2.TPMSTAttestCertify, &tpm2.TPMSCertifyInfo{
+	attestWithBadMagic.Attested = tpm20.NewTPMUAttest(tpm20.TPMSTAttestCertify, &tpm20.TPMSCertifyInfo{
 		Name:          *keyName,
-		QualifiedName: tpm2.TPM2BName{Buffer: []byte{0x0a, 0x0b}},
+		QualifiedName: tpm20.TPM2BName{Buffer: []byte{0x0a, 0x0b}},
 	})
 
 	attestWithBadType := attestWithGoodName
-	attestWithBadType.Type = tpm2.TPMSTAttestCreation
-	attestWithBadType.Attested = tpm2.NewTPMUAttest(tpm2.TPMSTAttestCreation, &tpm2.TPMSCreationInfo{})
+	attestWithBadType.Type = tpm20.TPMSTAttestCreation
+	attestWithBadType.Attested = tpm20.NewTPMUAttest(tpm20.TPMSTAttestCreation, &tpm20.TPMSCreationInfo{})
 
 	attestWithBadName := attestBase
-	attestWithBadName.Attested = tpm2.NewTPMUAttest(tpm2.TPMSTAttestCertify, &tpm2.TPMSCertifyInfo{
-		Name:          tpm2.TPM2BName{Buffer: []byte{0x01}},
-		QualifiedName: tpm2.TPM2BName{Buffer: []byte{0x02}},
+	attestWithBadName.Attested = tpm20.NewTPMUAttest(tpm20.TPMSTAttestCertify, &tpm20.TPMSCertifyInfo{
+		Name:          tpm20.TPM2BName{Buffer: []byte{0x01}},
+		QualifiedName: tpm20.TPM2BName{Buffer: []byte{0x02}},
 	})
 
 	attestWithSameNameAndQN := attestBase
-	attestWithSameNameAndQN.Attested = tpm2.NewTPMUAttest(tpm2.TPMSTAttestCertify, &tpm2.TPMSCertifyInfo{
+	attestWithSameNameAndQN.Attested = tpm20.NewTPMUAttest(tpm20.TPMSTAttestCertify, &tpm20.TPMSCertifyInfo{
 		Name:          *keyName,
 		QualifiedName: *keyName,
 	})
 
 	tests := []struct {
 		name      string
-		attest    *tpm2.TPMSAttest
-		pub       *tpm2.TPMTPublic
+		attest    *tpm20.TPMSAttest
+		pub       *tpm20.TPMTPublic
 		wantError error
 	}{
 		{
@@ -277,7 +278,7 @@ func generateCsrBytes(options CsrOptions) []byte {
 	if options.InvalidAttestPub {
 		attestPubBytes = invalidBytes
 	} else {
-		attestPubBytes = tpm2.Marshal(*defaultOptions.AttestPub)
+		attestPubBytes = tpm20.Marshal(*defaultOptions.AttestPub)
 	}
 	if options.AttestPubSize != nil {
 		defaultOptions.AttestPubSize = options.AttestPubSize
@@ -291,7 +292,7 @@ func generateCsrBytes(options CsrOptions) []byte {
 	if options.InvalidSigningPub {
 		signingPubBytes = invalidBytes
 	} else {
-		signingPubBytes = tpm2.Marshal(*defaultOptions.SigningPub)
+		signingPubBytes = tpm20.Marshal(*defaultOptions.SigningPub)
 	}
 	if options.SigningPubSize != nil {
 		defaultOptions.SigningPubSize = options.SigningPubSize
@@ -305,7 +306,7 @@ func generateCsrBytes(options CsrOptions) []byte {
 	if options.InvalidSignCertifyInfo {
 		signCertifyInfoBytes = invalidBytes
 	} else {
-		signCertifyInfoBytes = tpm2.Marshal(*defaultOptions.SignCertifyInfo)
+		signCertifyInfoBytes = tpm20.Marshal(*defaultOptions.SignCertifyInfo)
 	}
 	if options.SignCertifyInfoSize != nil {
 		defaultOptions.SignCertifyInfoSize = options.SignCertifyInfoSize
@@ -319,7 +320,7 @@ func generateCsrBytes(options CsrOptions) []byte {
 	if options.InvalidSignCertifyInfoSignature {
 		signCertifyInfoSignatureBytes = invalidBytes
 	} else {
-		signCertifyInfoSignatureBytes = tpm2.Marshal(*defaultOptions.SignCertifyInfoSignature)
+		signCertifyInfoSignatureBytes = tpm20.Marshal(*defaultOptions.SignCertifyInfoSignature)
 	}
 	if options.SignCertifyInfoSignatureSize != nil {
 		defaultOptions.SignCertifyInfoSignatureSize = options.SignCertifyInfoSignatureSize
@@ -547,9 +548,32 @@ func TestParseTCGCSRIDevIDContent(t *testing.T) {
 				t.Fatalf("ParseTCGCSRIDevIDContent returned an unexpected error: %v", err)
 			}
 
-			if diff := cmp.Diff(tc.expectedResult, result, cmpopts.IgnoreUnexported(tpm2.TPMTPublic{}, tpm2.TPMSAttest{}, tpm2.TPMTSignature{}, tpm2.TPMAObject{}, tpm2.TPM2BDigest{}, tpm2.TPMUPublicParms{}, tpm2.TPMUPublicID{}, tpm2.TPM2BName{}, tpm2.TPM2BData{}, tpm2.TPMSClockInfo{}, tpm2.TPMUAttest{}, tpm2.TPMUSignature{})); diff != "" {
+			if diff := cmp.Diff(tc.expectedResult, result, cmpopts.IgnoreUnexported(tpm20.TPMTPublic{}, tpm20.TPMSAttest{}, tpm20.TPMTSignature{}, tpm20.TPMAObject{}, tpm20.TPM2BDigest{}, tpm20.TPMUPublicParms{}, tpm20.TPMUPublicID{}, tpm20.TPM2BName{}, tpm20.TPM2BData{}, tpm20.TPMSClockInfo{}, tpm20.TPMUAttest{}, tpm20.TPMUSignature{})); diff != "" {
 				t.Errorf("ParseTCGCSRIDevIDContent returned an unexpected result: diff (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+func TestGenerateRestrictedHMACKey(t *testing.T) {
+	u := &DefaultTPM20Utils{}
+	pub, priv, err := u.GenerateRestrictedHMACKey()
+	if err != nil {
+		t.Fatalf("TestGenerateRestrictedHMACKey() failed to generate HMAC key: %v", err)
+	}
+	hash, err := pub.Unique.KeyedHash()
+	if err != nil {
+		t.Fatalf("TestGenerateRestrictedHMACKey() failed to get KeyedHash: %v", err)
+	}
+	got := hash.Buffer
+	bits, err := priv.Sensitive.Bits()
+	if err != nil {
+		t.Fatalf("TestGenerateRestrictedHMACKey() failed to get Sensitive Bits: %v", err)
+	}
+	sha := sha256.New()
+	sha.Write(append(priv.SeedValue.Buffer, bits.Buffer...))
+	want := sha.Sum(nil)
+	if !bytes.Equal(got, want) {
+		t.Errorf("TestGenerateRestrictedHMACKey() failed: got %v, want %v", got, want)
 	}
 }

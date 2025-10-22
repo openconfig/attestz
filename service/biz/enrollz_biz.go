@@ -866,7 +866,12 @@ func VerifyIdentityWithHMACChallenge(ctx context.Context, req *VerifyIdentityWit
 // verifyHMAC sends a HMAC challenge to the TPM and verifies the response.
 func verifyHMAC(ctx context.Context, req *VerifyIdentityWithHMACChallengeReq, fetchEKResp *FetchEKResp) (*epb.ChallengeResponse, error) {
 	// Generate restricted HMAC key.
-	hmacPub, hmacSensitive := req.Deps.GenerateRestrictedHMACKey()
+	hmacPub, hmacSensitive, err := req.Deps.GenerateRestrictedHMACKey()
+	if err != nil {
+		errMsg := fmt.Errorf("failed to generate restricted HMAC key: %w", err)
+		log.ErrorContext(ctx, errMsg)
+		return nil, errMsg
+	}
 
 	// Wrap HMAC key to EK public key.
 	duplicate, inSymSeed, err := req.Deps.WrapHMACKeytoRSAPublicKey(fetchEKResp.EkPublicKey, hmacPub, hmacSensitive)
