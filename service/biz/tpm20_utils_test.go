@@ -555,6 +555,73 @@ func TestParseTCGCSRIDevIDContent(t *testing.T) {
 	}
 }
 
+func TestValidateRSAPublicKey_Success(t *testing.T) {
+	tests := []struct {
+		name string
+		pub  *rsa.PublicKey
+	}{
+		{
+			name: "Valid Input",
+			pub: &rsa.PublicKey{
+				N: big.NewInt(123456),
+				E: 65537,
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := ValidateRSAPublicKey(tc.pub); err != nil {
+				t.Errorf("TestValidateRSAPublicKey() failed: got error: %v, want error: nil", err)
+			}
+		})
+	}
+}
+func TestValidateRSAPublicKey_Failure(t *testing.T) {
+	tests := []struct {
+		name string
+		pub  *rsa.PublicKey
+	}{
+		{
+			name: "Nil Input",
+		},
+		{
+			name: "Nil Modulus",
+			pub: &rsa.PublicKey{
+				N: nil,
+				E: 65537,
+			},
+		},
+		{
+			name: "Zero Modulus",
+			pub: &rsa.PublicKey{
+				N: big.NewInt(0),
+				E: 65537,
+			},
+		},
+		{
+			name: "Even Exponent",
+			pub: &rsa.PublicKey{
+				N: big.NewInt(123456),
+				E: 2,
+			},
+		},
+		{
+			name: "Overflown Exponent",
+			pub: &rsa.PublicKey{
+				N: big.NewInt(123456),
+				E: -1,
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := ValidateRSAPublicKey(tc.pub); err == nil {
+				t.Errorf("TestValidateRSAPublicKey_Failure() failed: expected an error, but got error: %v", err)
+			}
+		})
+	}
+}
+
 func TestGenerateRestrictedHMACKey(t *testing.T) {
 	u := &DefaultTPM20Utils{}
 	pub, priv, err := u.GenerateRestrictedHMACKey()
@@ -575,5 +642,80 @@ func TestGenerateRestrictedHMACKey(t *testing.T) {
 	want := sha.Sum(nil)
 	if !bytes.Equal(got, want) {
 		t.Errorf("TestGenerateRestrictedHMACKey() failed: got %v, want %v", got, want)
+	}
+}
+
+func TestRSAPublicKeyToTPMTPublic_Success(t *testing.T) {
+	u := &DefaultTPM20Utils{}
+	input := &rsa.PublicKey{
+		N: big.NewInt(0xABCDEF),
+		E: 65537,
+	}
+	want := &tpm20.TPMTPublic{
+		Type:    tpm20.TPMAlgRSA,
+		NameAlg: tpm20.TPMAlgSHA256,
+		ObjectAttributes: tpm20.TPMAObject{
+			FixedTPM:             true,
+			STClear:              false,
+			FixedParent:          true,
+			SensitiveDataOrigin:  true,
+			UserWithAuth:         false,
+			AdminWithPolicy:      true,
+			NoDA:                 false,
+			EncryptedDuplication: false,
+			Restricted:           true,
+			Decrypt:              true,
+			SignEncrypt:          false,
+		},
+		AuthPolicy: tpm20.TPM2BDigest{
+			Buffer: []byte{
+				// TPM2_PolicySecret(RH_ENDORSEMENT)
+				0x83, 0x71, 0x97, 0x67, 0x44, 0x84, 0xB3, 0xF8,
+				0x1A, 0x90, 0xCC, 0x8D, 0x46, 0xA5, 0xD7, 0x24,
+				0xFD, 0x52, 0xD7, 0x6E, 0x06, 0x52, 0x0B, 0x64,
+				0xF2, 0xA1, 0xDA, 0x1B, 0x33, 0x14, 0x69, 0xAA,
+			},
+		},
+		Parameters: tpm20.NewTPMUPublicParms(
+			tpm20.TPMAlgRSA,
+			&tpm20.TPMSRSAParms{
+				Symmetric: tpm20.TPMTSymDefObject{
+					Algorithm: tpm20.TPMAlgAES,
+					KeyBits: tpm20.NewTPMUSymKeyBits(
+						tpm20.TPMAlgAES,
+						tpm20.TPMKeyBits(128),
+					),
+					Mode: tpm20.NewTPMUSymMode(
+						tpm20.TPMAlgAES,
+						tpm20.TPMAlgCFB,
+					),
+				},
+				KeyBits:  2048,
+				Exponent: 0,
+			},
+		),
+		Unique: tpm20.NewTPMUPublicID(
+			tpm20.TPMAlgRSA,
+			&tpm20.TPM2BPublicKeyRSA{
+				Buffer: []byte{0xAB, 0xCD, 0xEF},
+			},
+		),
+	}
+
+	got, err := u.RSAPublicKeyToTPMTPublic(input)
+	if err != nil {
+		t.Errorf("TestRSAPublicKeyToTPMTPublic_Success() failed, got error %v", err)
+		return
+	}
+	if diff := cmp.Diff(tpm20.Marshal(want), tpm20.Marshal(got)); diff != "" {
+		t.Errorf("TestRSAPublicKeyToTPMTPublic_Success() returned an unexpected result: diff (-want +got):\n%s", diff)
+	}
+}
+
+func TestRSAPublicKeyToTPMTPublic_Failure(t *testing.T) {
+	u := &DefaultTPM20Utils{}
+	_, err := u.RSAPublicKeyToTPMTPublic(nil)
+	if !errors.Is(err, ErrInputNil) {
+		t.Errorf("TestRSAPublicKeyToTPMTPublic_Failure() failed, got error: %v, expected error %v", err, ErrInputNil)
 	}
 }

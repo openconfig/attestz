@@ -37,6 +37,8 @@ var (
 	ErrInvalidCertifyInfo = errors.New("invalid certify info")
 	// ErrCertifiedWrongName is returned when the certified name is invalid.
 	ErrCertifiedWrongName = errors.New("certified wrong name")
+	// ErrInputNil is returned when a required input is nil.
+	ErrInputNil = errors.New("input cannot be nil")
 )
 
 // TCGCSRIDevIDContents is the contents of the TCG_CSR_IDEVID_CONTENT structure.
@@ -58,6 +60,7 @@ type TCGCSRIDevIDContents struct {
 // since it is not possible to test the TPM 2.0  no-IDevID flow with stubbed data.
 type TPM20Utils interface {
 	ParseTCGCSRIDevIDContent(csrBytes []byte) (*TCGCSRIDevIDContents, error)
+	RSAPublicKeyToTPMTPublic(rsaPublicKey *rsa.PublicKey) (*tpm20.TPMTPublic, error)
 	GenerateRestrictedHMACKey() (*tpm20.TPMTPublic, *tpm20.TPMTSensitive, error)
 	WrapHMACKeytoRSAPublicKey(rsaPub *rsa.PublicKey, hmacPub *tpm20.TPMTPublic,
 		hmacSensitive *tpm20.TPMTSensitive) ([]byte, []byte, error)
@@ -127,6 +130,26 @@ func certificateDerToPem(derBytes []byte) (string, error) {
 	return string(pem.EncodeToMemory(block)), nil
 }
 
+// ValidateRSAPublicKey carries out the validation on an RSA public key.
+func ValidateRSAPublicKey(pub *rsa.PublicKey) error {
+	if pub == nil {
+		return fmt.Errorf("ValidateRSAPublicKey: RSA public key cannot be empty, %w", ErrInputNil)
+	}
+	if pub.N == nil || pub.N.BitLen() == 0 {
+		return fmt.Errorf("ValidateRSAPublicKey: invalid RSA public key modulus: %v", pub.N)
+	}
+	// Public exponent needs to be an odd integer, greater than 1 and less than 2^31-1.
+	// While TPMs often use the exponent 65537, other values are possible.
+	if pub.E < 2 || pub.E%2 == 0 {
+		return fmt.Errorf("ValidateRSAPublicKey: invalid RSA public key exponent: %v", pub.E)
+	}
+	if pub.E > 1<<31-1 {
+		return fmt.Errorf("ValidateRSAPublicKey: RSA public key exponent is too large: %v", pub.E)
+	}
+
+	return nil
+}
+
 // GenerateRestrictedHMACKey generates a new HMAC key and emits the TPM public/private blobs.
 func (u *DefaultTPM20Utils) GenerateRestrictedHMACKey() (*tpm20.TPMTPublic, *tpm20.TPMTSensitive, error) {
 	// Generate the random obfuscation value and key
@@ -183,10 +206,29 @@ func (u *DefaultTPM20Utils) GenerateRestrictedHMACKey() (*tpm20.TPMTPublic, *tpm
 }
 
 // RSAPublicKeyToTPMTPublic converts an RSA public key to a TPMT_PUBLIC struct.
-func (u *DefaultTPM20Utils) RSAPublicKeyToTPMTPublic(rsaPublicKey *rsa.PublicKey) (tpm20.TPMTPublic, error) {
-	// TODO: Implement this function.
-	tpmPublicKey := tpm20.TPMTPublic{}
-	return tpmPublicKey, nil
+func (u *DefaultTPM20Utils) RSAPublicKeyToTPMTPublic(rsaPublicKey *rsa.PublicKey) (*tpm20.TPMTPublic, error) {
+	if err := ValidateRSAPublicKey(rsaPublicKey); err != nil {
+		return nil, fmt.Errorf("RSAPublicKeyToTPMTPublic: %w", err)
+	}
+	// TPM considers 65537 to be the default value. And it uses 0 in the params.
+	if rsaPublicKey.E == 65537 {
+		rsaPublicKey.E = 0
+	}
+
+	// Use RSA EK template.
+	tpmPublicKey := tpm20.RSAEKTemplate
+	params, err := tpmPublicKey.Parameters.RSADetail()
+	if err != nil {
+		return nil, fmt.Errorf("RSAPublicKeyToTPMTPublic: %w", err)
+	}
+	paramsCopy := *params
+	paramsCopy.Exponent = uint32(rsaPublicKey.E) // #nosec G115
+	tpmPublicKey.Parameters = tpm20.NewTPMUPublicParms(tpm20.TPMAlgRSA, &paramsCopy)
+	tpmPublicKey.Unique = tpm20.NewTPMUPublicID(tpm20.TPMAlgRSA, &tpm20.TPM2BPublicKeyRSA{
+		Buffer: rsaPublicKey.N.Bytes(),
+	})
+
+	return &tpmPublicKey, nil
 }
 
 // WrapHMACKeytoRSAPublicKey wraps the HMAC key to the RSA public key.
