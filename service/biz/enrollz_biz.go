@@ -19,6 +19,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"math/big"
 
 	// #nosec
 	"crypto/sha1"
@@ -650,10 +651,21 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	}
 
 	// Get AIK public key from identityProof and convert to PEM.
-	aikPubKey := identityProof.AttestationIdentityKey.PubKey.Key
+	aikPubKeyRsa := &rsa.PublicKey{
+		N: new(big.Int).SetBytes(identityProof.AttestationIdentityKey.PubKey.Key),
+		E: 65537,
+	}
+
+	aikPubKeyPkix, err := x509.MarshalPKIXPublicKey(aikPubKeyRsa)
+	if err != nil {
+		err = fmt.Errorf("failed to marshal AIK public key to PKIX: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+
 	pemBlock := &pem.Block{
 		Type:  "PUBLIC KEY",
-		Bytes: aikPubKey,
+		Bytes: aikPubKeyPkix, // Use the marshaled PKIX bytes
 	}
 	aikPubPem := pem.EncodeToMemory(pemBlock)
 
