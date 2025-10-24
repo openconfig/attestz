@@ -555,6 +555,72 @@ func TestParseTCGCSRIDevIDContent(t *testing.T) {
 	}
 }
 
+func TestValidateRSAPublicKey_Success(t *testing.T) {
+	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate RSA key for testing: %v", err)
+	}
+	if err = ValidateRSAPublicKey(&privKey.PublicKey); err != nil {
+		t.Errorf("TestValidateRSAPublicKey_Success() failed: got error: %v", err)
+	}
+}
+
+func TestValidateRSAPublicKey_Failure(t *testing.T) {
+	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate RSA key for testing: %v", err)
+	}
+	tests := []struct {
+		name    string
+		pub     *rsa.PublicKey
+		wantErr string
+	}{
+		{
+			name:    "Nil Input",
+			wantErr: "RSA public key cannot be empty",
+		},
+		{
+			name: "Nil Modulus",
+			pub: &rsa.PublicKey{
+				N: nil,
+				E: 65537,
+			},
+			wantErr: "invalid RSA public key modulus",
+		},
+		{
+			name: "Invalid Bits",
+			pub: &rsa.PublicKey{
+				N: big.NewInt(123456),
+				E: 65537,
+			},
+			wantErr: "invalid RSA public key bits",
+		},
+		{
+			name: "Even Exponent",
+			pub: &rsa.PublicKey{
+				N: privKey.N,
+				E: 2,
+			},
+			wantErr: "invalid RSA public key exponent",
+		},
+		{
+			name: "Overflown Exponent",
+			pub: &rsa.PublicKey{
+				N: privKey.N,
+				E: 1<<31 + 1,
+			},
+			wantErr: "RSA public key exponent is too large",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := ValidateRSAPublicKey(tc.pub); !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("TestValidateRSAPublicKey_Failure() failed: expected error: %v, but got error: %v", tc.wantErr, err)
+			}
+		})
+	}
+}
+
 func TestGenerateRestrictedHMACKey(t *testing.T) {
 	u := &DefaultTPM20Utils{}
 	pub, priv, err := u.GenerateRestrictedHMACKey()
@@ -575,5 +641,84 @@ func TestGenerateRestrictedHMACKey(t *testing.T) {
 	want := sha.Sum(nil)
 	if !bytes.Equal(got, want) {
 		t.Errorf("TestGenerateRestrictedHMACKey() failed: got %v, want %v", got, want)
+	}
+}
+
+func TestRSAEKPublicKeyToTPMTPublic_Success(t *testing.T) {
+	u := &DefaultTPM20Utils{}
+	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate RSA key for testing: %v", err)
+	}
+	input := &rsa.PublicKey{
+		N: privKey.N,
+		E: 65537,
+	}
+	want := &tpm20.TPMTPublic{
+		Type:    tpm20.TPMAlgRSA,
+		NameAlg: tpm20.TPMAlgSHA256,
+		ObjectAttributes: tpm20.TPMAObject{
+			FixedTPM:             true,
+			STClear:              false,
+			FixedParent:          true,
+			SensitiveDataOrigin:  true,
+			UserWithAuth:         false,
+			AdminWithPolicy:      true,
+			NoDA:                 false,
+			EncryptedDuplication: false,
+			Restricted:           true,
+			Decrypt:              true,
+			SignEncrypt:          false,
+		},
+		AuthPolicy: tpm20.TPM2BDigest{
+			Buffer: []byte{
+				// TPM2_PolicySecret(RH_ENDORSEMENT)
+				0x83, 0x71, 0x97, 0x67, 0x44, 0x84, 0xB3, 0xF8,
+				0x1A, 0x90, 0xCC, 0x8D, 0x46, 0xA5, 0xD7, 0x24,
+				0xFD, 0x52, 0xD7, 0x6E, 0x06, 0x52, 0x0B, 0x64,
+				0xF2, 0xA1, 0xDA, 0x1B, 0x33, 0x14, 0x69, 0xAA,
+			},
+		},
+		Parameters: tpm20.NewTPMUPublicParms(
+			tpm20.TPMAlgRSA,
+			&tpm20.TPMSRSAParms{
+				Symmetric: tpm20.TPMTSymDefObject{
+					Algorithm: tpm20.TPMAlgAES,
+					KeyBits: tpm20.NewTPMUSymKeyBits(
+						tpm20.TPMAlgAES,
+						tpm20.TPMKeyBits(128),
+					),
+					Mode: tpm20.NewTPMUSymMode(
+						tpm20.TPMAlgAES,
+						tpm20.TPMAlgCFB,
+					),
+				},
+				KeyBits:  2048,
+				Exponent: 0,
+			},
+		),
+		Unique: tpm20.NewTPMUPublicID(
+			tpm20.TPMAlgRSA,
+			&tpm20.TPM2BPublicKeyRSA{
+				Buffer: input.N.Bytes(),
+			},
+		),
+	}
+
+	got, err := u.RSAEKPublicKeyToTPMTPublic(input)
+	if err != nil {
+		t.Errorf("TestRSAEKPublicKeyToTPMTPublic_Success() failed, got error %v", err)
+		return
+	}
+	if diff := cmp.Diff(tpm20.Marshal(want), tpm20.Marshal(got)); diff != "" {
+		t.Errorf("TestRSAEKPublicKeyToTPMTPublic_Success() returned an unexpected result: want: %#v, got: %#v, diff (-want +got):\n%s", want, got, diff)
+	}
+}
+
+func TestRSAEKPublicKeyToTPMTPublic_Failure(t *testing.T) {
+	u := &DefaultTPM20Utils{}
+	_, err := u.RSAEKPublicKeyToTPMTPublic(nil)
+	if !errors.Is(err, ErrInputNil) {
+		t.Errorf("TestRSAEKPublicKeyToTPMTPublic_Failure() failed, want error: %v, got error %v", ErrInputNil, err)
 	}
 }
