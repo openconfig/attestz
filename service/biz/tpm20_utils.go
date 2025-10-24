@@ -247,16 +247,38 @@ func (u *DefaultTPM20Utils) RSAEKPublicKeyToTPMTPublic(rsaPublicKey *rsa.PublicK
 	return &tpmPublicKey, nil
 }
 
-// WrapHMACKeytoRSAPublicKey wraps the HMAC key to the RSA public key.
+// WrapHMACKeytoRSAPublicKey wraps the HMAC key to the RSA public key, and emits the duplicate and inSymSeed blobs.
 func (u *DefaultTPM20Utils) WrapHMACKeytoRSAPublicKey(rsaPub *rsa.PublicKey, hmacPub *tpm20.TPMTPublic,
 	hmacSensitive *tpm20.TPMTSensitive) ([]byte, []byte, error) {
-	// Convert RSA public key to TPMTPublic.
-	_, err := u.RSAEKPublicKeyToTPMTPublic(rsaPub)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to convert RSA public key to TPMTPublic: %w", err)
+	if hmacPub == nil {
+		return nil, nil, fmt.Errorf("WrapHMACKeytoRSAPublicKey: HMAC pub cannot be empty, %w", ErrInputNil)
 	}
-	// TODO: Implement this function.
-	return []byte{}, []byte{}, nil
+	if hmacSensitive == nil {
+		return nil, nil, fmt.Errorf("WrapHMACKeytoRSAPublicKey: HMAC sensitive cannot be empty, %w", ErrInputNil)
+	}
+
+	// Convert RSA public key to TPMTPublic.
+	tpmPub, err := u.RSAEKPublicKeyToTPMTPublic(rsaPub)
+	if err != nil {
+		return nil, nil, fmt.Errorf("WrapHMACKeytoRSAPublicKey: failed to convert RSA public key to TPMTPublic: %w", err)
+	}
+
+	name, err := tpm20.ObjectName(hmacPub)
+	if err != nil {
+		return nil, nil, fmt.Errorf("WrapHMACKeytoRSAPublicKey: failed to get object name: %w", err)
+	}
+
+	encap, err := tpm20.ImportEncapsulationKey(tpmPub)
+	if err != nil {
+		return nil, nil, fmt.Errorf("WrapHMACKeytoRSAPublicKey: failed to import encapsulation key: %w", err)
+	}
+
+	duplicate, inSymSeed, err := tpm20.CreateDuplicate(rand.Reader, encap, name.Buffer, tpm20.Marshal(hmacSensitive))
+	if err != nil {
+		return nil, nil, fmt.Errorf("WrapHMACKeytoRSAPublicKey: failed to create duplicate: %w", err)
+	}
+
+	return duplicate, inSymSeed, nil
 }
 
 // VerifyHMAC verifies the HMAC signature of the message.

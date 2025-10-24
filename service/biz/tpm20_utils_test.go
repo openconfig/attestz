@@ -945,3 +945,69 @@ func TestRSAEKPublicKeyToTPMTPublic_Failure(t *testing.T) {
 		t.Errorf("TestRSAEKPublicKeyToTPMTPublic_Failure() failed, want error: %v, got error %v", ErrInputNil, err)
 	}
 }
+
+func TestWrapHMACKeytoRSAPublicKey_Success(t *testing.T) {
+	u := &DefaultTPM20Utils{}
+	hmacPub, hmacSensitive, err := u.GenerateRestrictedHMACKey()
+	if err != nil {
+		t.Fatalf("TestWrapHMACKeytoRSAPublicKey_Success() failed to generate HMAC key: %v", err)
+	}
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("TestWrapHMACKeytoRSAPublicKey_Success() failed to generate RSA key: %v", err)
+	}
+
+	if duplicate, inSymSeed, err := u.WrapHMACKeytoRSAPublicKey(&rsaKey.PublicKey, hmacPub, hmacSensitive); err != nil {
+		t.Errorf("TestWrapHMACKeytoRSAPublicKey_Success() failed, got error: %v", err)
+	} else if len(duplicate) == 0 {
+		t.Errorf("TestWrapHMACKeytoRSAPublicKey_Success() failed, got empty duplicate")
+	} else if len(inSymSeed) == 0 {
+		t.Errorf("TestWrapHMACKeytoRSAPublicKey_Success() failed, got empty inSymSeed")
+	}
+}
+
+func TestWrapHMACKeytoRSAPublicKey_Failure(t *testing.T) {
+	u := &DefaultTPM20Utils{}
+	hmacPub, hmacSensitive, err := u.GenerateRestrictedHMACKey()
+	if err != nil {
+		t.Fatalf("TestWrapHMACKeytoRSAPublicKey_Failure() failed to generate HMAC key: %v", err)
+	}
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("TestWrapHMACKeytoRSAPublicKey_Failure() failed to generate RSA key: %v", err)
+	}
+
+	testCases := []struct {
+		name    string
+		ek      *rsa.PublicKey
+		pub     *tpm20.TPMTPublic
+		priv    *tpm20.TPMTSensitive
+		wantErr error
+	}{
+		{
+			name:    "Nil HMAC Pub",
+			ek:      &rsaKey.PublicKey,
+			priv:    hmacSensitive,
+			wantErr: ErrInputNil,
+		},
+		{
+			name:    "Nil HMAC Priv",
+			ek:      &rsaKey.PublicKey,
+			pub:     hmacPub,
+			wantErr: ErrInputNil,
+		},
+		{
+			name:    "Nil EK",
+			pub:     hmacPub,
+			priv:    hmacSensitive,
+			wantErr: ErrInputNil,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, _, err := u.WrapHMACKeytoRSAPublicKey(tc.ek, tc.pub, tc.priv); !errors.Is(err, tc.wantErr) {
+				t.Errorf("TestWrapHMACKeytoRSAPublicKey_Failure() failed, want error %v, got error %v", tc.wantErr, err)
+			}
+		})
+	}
+}
