@@ -719,6 +719,6 @@ func TestRSAEKPublicKeyToTPMTPublic_Failure(t *testing.T) {
 	u := &DefaultTPM20Utils{}
 	_, err := u.RSAEKPublicKeyToTPMTPublic(nil)
 	if !errors.Is(err, ErrInputNil) {
-		t.Errorf("TestRSAEKPublicKeyToTPMTPublic_Failure() failed, got error: %v, expected error %v", err, ErrInputNil)
+		t.Errorf("TestRSAEKPublicKeyToTPMTPublic_Failure() failed, want error: %v, got error %v", ErrInputNil, err)
 	}
 }
