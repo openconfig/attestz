@@ -722,3 +722,65 @@ func TestRSAEKPublicKeyToTPMTPublic_Failure(t *testing.T) {
 		t.Errorf("TestRSAEKPublicKeyToTPMTPublic_Failure() failed, want error: %v, got error %v", ErrInputNil, err)
 	}
 }
+
+func TestWrapHMACKeytoRSAPublicKey_Success(t *testing.T) {
+	u := &DefaultTPM20Utils{}
+	hmacPub, hmacSensitive, err := u.GenerateRestrictedHMACKey()
+	if err != nil {
+		t.Fatalf("TestWrapHMACKeytoRSAPublicKey_Success() failed to generate HMAC key: %v", err)
+	}
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("TestWrapHMACKeytoRSAPublicKey_Success() failed to generate RSA key: %v", err)
+	}
+
+	if _, _, err = u.WrapHMACKeytoRSAPublicKey(&rsaKey.PublicKey, hmacPub, hmacSensitive); err != nil {
+		t.Errorf("TestWrapHMACKeytoRSAPublicKey_Success() failed, got error: %v", err)
+	}
+}
+
+func TestWrapHMACKeytoRSAPublicKey_Failure(t *testing.T) {
+	u := &DefaultTPM20Utils{}
+	hmacPub, hmacSensitive, err := u.GenerateRestrictedHMACKey()
+	if err != nil {
+		t.Fatalf("TestWrapHMACKeytoRSAPublicKey_Failure() failed to generate HMAC key: %v", err)
+	}
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("TestWrapHMACKeytoRSAPublicKey_Failure() failed to generate RSA key: %v", err)
+	}
+
+	testCases := []struct {
+		name    string
+		ek      *rsa.PublicKey
+		pub     *tpm20.TPMTPublic
+		priv    *tpm20.TPMTSensitive
+		wantErr string
+	}{
+		{
+			name:    "Nil HMAC Pub",
+			ek:      &rsaKey.PublicKey,
+			priv:    hmacSensitive,
+			wantErr: "HMAC pub cannot be empty",
+		},
+		{
+			name:    "Nil HMAC Priv",
+			ek:      &rsaKey.PublicKey,
+			pub:     hmacPub,
+			wantErr: "HMAC sensitive cannot be empty",
+		},
+		{
+			name:    "Nil EK",
+			pub:     hmacPub,
+			priv:    hmacSensitive,
+			wantErr: "failed to convert RSA public key to TPMTPublic",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, _, err := u.WrapHMACKeytoRSAPublicKey(tc.ek, tc.pub, tc.priv); !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("TestWrapHMACKeytoRSAPublicKey_Failure() failed, want error %v, got error %v", tc.wantErr, err)
+			}
+		})
+	}
+}
