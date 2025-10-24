@@ -213,7 +213,6 @@ type TPM12Utils interface {
 	DecryptWithSymmetricKey(ctx context.Context, symKey *TPMSymmetricKey, keyParams *TPMKeyParms, ciphertext []byte) ([]byte, error)
 	TpmPubKeyToRSAPubKey(pubKey *TPMPubKey) (*rsa.PublicKey, error)
 	VerifySignatureWithRSAKey(ctx context.Context, pubKey *TPMPubKey, signature []byte, digest []byte) (bool, error)
-	VerifySignature(ctx context.Context, pubKey []byte, signature []byte, data []byte, hash crypto.Hash) (bool, error)
 	SerializeStorePubKey(pubKey *TPMStorePubKey) ([]byte, error)
 	SerializeRSAKeyParms(rsaParms *TPMRSAKeyParms) ([]byte, error)
 	SerializeSymmetricKeyParms(symParms *TPMSymmetricKeyParms) ([]byte, error)
