@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"strings"
 	"testing"
 
@@ -853,6 +854,7 @@ type stubRotateAIKCertInfraDeps struct {
 	decryptWithSymmetricKeyErr   error
 	constructIdentityContentsErr error
 	serializeIdentityContentsErr error
+	tpmPubKeyToRSAPubKeyErr      error
 	rotateAikCertClient          epb.TpmEnrollzService_RotateAIKCertClient
 	rotateAikCertStreamError     error
 
@@ -980,6 +982,14 @@ func (s *stubRotateAIKCertInfraDeps) RotateAIKCert(ctx context.Context, opts ...
 	return s.rotateAikCertClient, nil
 }
 
+func (s *stubRotateAIKCertInfraDeps) TpmPubKeyToRSAPubKey(pubKey *TPMPubKey) (*rsa.PublicKey, error) {
+	if s.tpmPubKeyToRSAPubKeyErr != nil {
+		return nil, s.tpmPubKeyToRSAPubKeyErr
+	}
+	// Return a default non-nil rsa.PublicKey to avoid issues in subsequent code.
+	return &rsa.PublicKey{N: big.NewInt(1), E: 65537}, nil
+}
+
 func (s *stubRotateAIKCertInfraDeps) IssueAikCert(ctx context.Context, req *IssueAikCertReq) (*IssueAikCertResp, error) {
 	// Validate that no stub (captured) request params were set prior to execution.
 	if s.issueAikCertReq != nil {
@@ -1074,6 +1084,7 @@ func TestRotateAIKCert(t *testing.T) {
 		serializeAsymCAContentsErr   error
 		encryptWithPublicKeyErr      error
 		decryptWithPrivateKeyErr     error
+		tpmPubKeyToRSAPubKeyErr      error
 		decryptWithSymmetricKeyErr   error
 		constructIdentityContentsErr error
 		serializeIdentityContentsErr error
@@ -1347,6 +1358,7 @@ func TestRotateAIKCert(t *testing.T) {
 				decryptWithSymmetricKeyErr:   tc.decryptWithSymmetricKeyErr,
 				constructIdentityContentsErr: tc.constructIdentityContentsErr,
 				serializeIdentityContentsErr: tc.serializeIdentityContentsErr,
+				tpmPubKeyToRSAPubKeyErr:      tc.tpmPubKeyToRSAPubKeyErr,
 				rotateAikCertStreamError:     tc.rotateAikCertStreamError,
 				rotateAikCertClient:          stubClient,
 				customIssueAikCertResp:       tc.customIssueAikCertResp,
