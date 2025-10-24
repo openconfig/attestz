@@ -930,7 +930,7 @@ func VerifyIdentityWithHMACChallenge(ctx context.Context, controlCardSelection *
 	}
 
 	// Verify IDevID Public Key and CSR.
-	err = verifyIDevIDKey(ctx, deps, fetchEKResp, iakPubKey, getIDevIDCSRResp)
+	err = VerifyIdevidKey(ctx, deps, fetchEKResp, iakPubKey, getIDevIDCSRResp.GetCsrResponse(), keyTemplate)
 	if err != nil {
 		errMsg := fmt.Errorf("failed to verify IDevID key and CSR: %w", err)
 		log.ErrorContext(ctx, errMsg)
@@ -960,6 +960,11 @@ func fetchEKPublicKey(ctx context.Context, client ROTDBClient, cardID *cpb.Contr
 
 // CreateHMACChallenge creates an HMAC and wraps it to the EK and returns a epb.HMACChallenge struct.
 func CreateHMACChallenge(ctx context.Context, deps TPM20Utils, fetchEKResp *FetchEKResp) (*epb.HMACChallenge, *tpm20.TPMTSensitive, error) {
+	if deps == nil {
+		errMsg := fmt.Errorf("deps cannot be nil")
+		log.ErrorContext(ctx, errMsg)
+		return nil, nil, errMsg
+	}
 	// Generate restricted HMAC key.
 	hmacPub, hmacSensitive, err := deps.GenerateRestrictedHMACKey()
 	if err != nil {
@@ -968,6 +973,11 @@ func CreateHMACChallenge(ctx context.Context, deps TPM20Utils, fetchEKResp *Fetc
 		return nil, nil, errMsg
 	}
 
+	if fetchEKResp == nil {
+		errMsg := fmt.Errorf("fetchEKResp cannot be nil")
+		log.ErrorContext(ctx, errMsg)
+		return nil, nil, errMsg
+	}
 	// Wrap HMAC key to EK public key.
 	duplicate, inSymSeed, err := deps.WrapHMACKeytoRSAPublicKey(fetchEKResp.EkPublicKey, hmacPub, hmacSensitive)
 	if err != nil {
@@ -993,13 +1003,66 @@ func VerifyIAKKey(ctx context.Context, deps TPM20Utils, hmacChallengeResp *epb.H
 	return &tpm20.TPMTPublic{}, nil
 }
 
-func verifyIDevIDKey(ctx context.Context, deps TPM20Utils, fetchEKResp *FetchEKResp, iakPubKey *tpm20.TPMTPublic, getIdevidCsrResp *epb.GetIdevidCsrResponse) error {
-	// TODO: implement this function.
-	// 1. Verify IDevID Certify Info Signature using IAK pub key.
-	// 2. Verify IDevID Certify Info.
-	// 3. Verify IDevID Key Attributes.
-	// 4. Verify CSR signature using IDevID
-	// 5. Verify EK returned in CSR matches one obtained from RoT
+// VerifyIdevidKey verifies the IDevID Certify Info, IDevID Attributes, and the IDevID CSR signature.
+func VerifyIdevidKey(ctx context.Context, deps TPM20Utils, fetchEKResp *FetchEKResp, iakPubKey *tpm20.TPMTPublic, csrResponse *epb.CsrResponse, keyTemplate epb.KeyTemplate) error {
+	if csrResponse == nil {
+		errMsg := fmt.Errorf("csrResponse cannot be nil")
+		log.ErrorContext(ctx, errMsg)
+		return errMsg
+	}
+	if deps == nil {
+		errMsg := fmt.Errorf("deps cannot be nil")
+		log.ErrorContext(ctx, errMsg)
+		return errMsg
+	}
+	// ParseTCGCSRIDevIDContent will verify that SignCertifyInfo, SignCertifyInfoSignature and IDevIDPub and are not empty.
+	idevidCsrContents, err := deps.ParseTCGCSRIDevIDContent(csrResponse.CsrContents)
+	if err != nil {
+		errMsg := fmt.Errorf("failed to parse IDevID CSR contents: %w", err)
+		log.ErrorContext(ctx, errMsg)
+		return errMsg
+	}
+	err = deps.VerifyTPMTSignature(tpm20.Marshal(idevidCsrContents.SignCertifyInfo), &idevidCsrContents.SignCertifyInfoSignature, iakPubKey)
+	if err != nil {
+		errMsg := fmt.Errorf("failed to verify IDevID certify info signature using IAK public key: %w", err)
+		log.ErrorContext(ctx, errMsg)
+		return errMsg
+	}
+
+	err = deps.VerifyCertifyInfo(&idevidCsrContents.SignCertifyInfo, &idevidCsrContents.IDevIDPub)
+	if err != nil {
+		errMsg := fmt.Errorf("failed to verify IDevID certify info: %w", err)
+		log.ErrorContext(ctx, errMsg)
+		return errMsg
+	}
+
+	err = deps.VerifyIDevIDAttributes(&idevidCsrContents.IDevIDPub, keyTemplate)
+	if err != nil {
+		errMsg := fmt.Errorf("failed to verify IDevID attributes: %w", err)
+		log.ErrorContext(ctx, errMsg)
+		return errMsg
+	}
+
+	idevidCsrSignature, err := tpm20.Unmarshal[tpm20.TPMTSignature](csrResponse.IdevidSignatureCsr)
+	if err != nil {
+		errMsg := fmt.Errorf("failed to unmarshal IDevID CSR signature: %w", err)
+		log.ErrorContext(ctx, errMsg)
+		return errMsg
+	}
+
+	err = deps.VerifyTPMTSignature(csrResponse.CsrContents, idevidCsrSignature, &idevidCsrContents.IDevIDPub)
+	if err != nil {
+		errMsg := fmt.Errorf("failed to verify IDevID CSR signature using IDevID public key: %w", err)
+		log.ErrorContext(ctx, errMsg)
+		return errMsg
+	}
+
+	// TODO: do validation on EK and Serial Number obtained from the CSR.
+	if fetchEKResp == nil {
+		errMsg := fmt.Errorf("fetchEKResp cannot be nil")
+		log.ErrorContext(ctx, errMsg)
+		return errMsg
+	}
 
 	return nil
 }

@@ -64,7 +64,7 @@ type TPM20Utils interface {
 	VerifyHMAC(message []byte, signature []byte, hmacSensitive *tpm20.TPMTSensitive) error
 	VerifyCertifyInfo(certifyInfoAttest *tpm20.TPMSAttest, certifiedKey *tpm20.TPMTPublic) error
 	VerifyIAKAttributes(iakPub *tpm20.TPMTPublic) error
-	VerifyTPMTSignature(pubKey *tpm20.TPMTPublic, signature *tpm20.TPMTSignature, data []byte) error
+	VerifyTPMTSignature(data []byte, signature *tpm20.TPMTSignature, pubKey *tpm20.TPMTPublic) error
 	VerifyIDevIDAttributes(idevidPub *tpm20.TPMTPublic, keyTemplate epb.KeyTemplate) error
 }
 
@@ -73,6 +73,9 @@ type DefaultTPM20Utils struct{}
 
 // readNonZeroUint23 is a helper function to read a non-zero 4-byte Big Endian unsigned integer.
 func readNonZeroUint32(r *bytes.Reader) (uint32, error) {
+	if r == nil {
+		return 0, fmt.Errorf("readNonZeroUint32: reader is nil, cannot read")
+	}
 	var val uint32
 	err := binary.Read(r, binary.BigEndian, &val)
 	if err != nil {
@@ -86,6 +89,9 @@ func readNonZeroUint32(r *bytes.Reader) (uint32, error) {
 
 // readUint32 is a helper function to read a 4-byte Big Endian unsigned integer.
 func readUint32(r *bytes.Reader) (uint32, error) {
+	if r == nil {
+		return 0, fmt.Errorf("readUint32: reader is nil, cannot read")
+	}
 	var val uint32
 	err := binary.Read(r, binary.BigEndian, &val)
 	if err != nil {
@@ -96,6 +102,9 @@ func readUint32(r *bytes.Reader) (uint32, error) {
 
 // readBytes is a helper function to read a specified number of bytes.
 func readBytes(r *bytes.Reader, size uint32) ([]byte, error) {
+	if r == nil {
+		return nil, fmt.Errorf("readBytes: reader is nil, cannot read")
+	}
 	if size == 0 {
 		return []byte{}, nil // Return empty slice for size 0
 	}
@@ -246,7 +255,7 @@ func (u *DefaultTPM20Utils) VerifyIAKAttributes(iakPub *tpm20.TPMTPublic) error 
 }
 
 // VerifyTPMTSignature verifies the TPMT_SIGNATURE structure using the given public key.
-func (u *DefaultTPM20Utils) VerifyTPMTSignature(pubKey *tpm20.TPMTPublic, signature *tpm20.TPMTSignature, data []byte) error {
+func (u *DefaultTPM20Utils) VerifyTPMTSignature(data []byte, signature *tpm20.TPMTSignature, pubKey *tpm20.TPMTPublic) error {
 	// TODO: Implement this function.
 	return nil
 }
@@ -260,7 +269,7 @@ func (u *DefaultTPM20Utils) VerifyIDevIDAttributes(idevidPub *tpm20.TPMTPublic, 
 // ParseTCGCSRIDevIDContent parses the TCG_CSR_IDEVID_CONTENT structure from a byte slice
 // and returns a TCGCSRIDevIDContents struct.
 // Ref: https://trustedcomputinggroup.org/wp-content/uploads/TPM-2.0-Keys-for-Device-Identity-and-Attestation-v1.10r9_pub.pdf#page=71
-func ParseTCGCSRIDevIDContent(csrBytes []byte) (*TCGCSRIDevIDContents, error) {
+func (u *DefaultTPM20Utils) ParseTCGCSRIDevIDContent(csrBytes []byte) (*TCGCSRIDevIDContents, error) {
 	reader := bytes.NewReader(csrBytes)
 	result := &TCGCSRIDevIDContents{}
 
