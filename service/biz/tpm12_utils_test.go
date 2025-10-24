@@ -590,6 +590,38 @@ func TestParseIdentityRequestSuccess(t *testing.T) {
 				SymBlob:  make([]byte, 16),
 			},
 		},
+		{
+			name:  "leftover bytes: all zeros",
+			input: append(identityRequest{}.toBytes(), 0, 0, 0, 0),
+			expected: &TPMIdentityReq{
+				AsymAlgorithm: TPMKeyParms{
+					AlgID:     tpm12.AlgRSA,
+					EncScheme: EsRSAEsPKCSv15,
+					SigScheme: SsRSASaPKCS1v15SHA1,
+					Params: TPMParams{
+						RSAParams: &TPMRSAKeyParms{
+							KeyLength: 2048,
+							NumPrimes: 2,
+							Exponent:  []byte{1, 2, 3},
+						},
+					},
+				},
+				SymAlgorithm: TPMKeyParms{
+					AlgID:     tpm12.AlgAES128,
+					EncScheme: EsSymCBCPKCS5,
+					SigScheme: SsNone,
+					Params: TPMParams{
+						SymParams: &TPMSymmetricKeyParms{
+							KeyLength: 16,
+							BlockSize: 16,
+							IV:        make([]byte, 16),
+						},
+					},
+				},
+				AsymBlob: make([]byte, 10),
+				SymBlob:  make([]byte, 16),
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -700,7 +732,7 @@ func TestParseIdentityRequestFailure(t *testing.T) {
 		{
 			name:          "leftover bytes",
 			input:         append(identityRequest{}.toBytes(), 1, 2, 3),
-			expectedError: "leftover bytes in TPM_IDENTITY_REQ after parsing",
+			expectedError: "leftover non-zero bytes in TPM_IDENTITY_REQ after parsing: 3",
 		},
 	}
 
