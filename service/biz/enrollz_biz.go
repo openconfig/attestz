@@ -183,8 +183,8 @@ type RotateAIKCertInfraDeps interface {
 	TPM12Utils
 }
 
-// VerifyIdentityWithHmacChallengeInfraDeps is the infra-specific dependencies of the VerifyIdentityWithHMACChallenge business logic.
-type VerifyIdentityWithHMACChallengeInfraDeps interface {
+// EnrollSwitchWithHMACChallengeInfraDeps is the infra-specific dependencies of the EnrollWithHMACChallenge business logic.
+type EnrollSwitchWithHMACChallengeInfraDeps interface {
 	// Common enrollz dependencies.
 	EnrollzInfraDeps
 
@@ -798,30 +798,77 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	return nil
 }
 
-// VerifyIdentityWithHMACChallengeReq is the request to VerifyIdentityWithHmacChallenge().
-type VerifyIdentityWithHMACChallengeReq struct {
-	// Selection of a specific switch control card.
-	ControlCardSelection *cpb.ControlCardSelection
+// EnrollWithHMACChallengeReq is the request to EnrollWithHMACChallenge().
+type EnrollSwitchWithHMACChallengeReq struct {
+	// List of switch control cards to be enrolled.
+	ControlCardSelections []*cpb.ControlCardSelection
 	// Infra-specific wired dependencies.
-	Deps VerifyIdentityWithHMACChallengeInfraDeps
+	Deps EnrollSwitchWithHMACChallengeInfraDeps
+}
+
+// EnrollSwitchWithHMACChallenge enrolls a list of switch TPM 2.0 control cards using an HMAC challenge.
+// For each control card, it verifies the identity using an HMAC challenge. Then it issues and
+// rotates the IAK and OIDevID certificates for all control cards atomically.
+func EnrollSwitchWithHMACChallenge(ctx context.Context, req *EnrollSwitchWithHMACChallengeReq) error {
+	// validate the request
+	if req == nil {
+		errMsg := fmt.Errorf("request EnrollWithHMACChallengeReq is nil")
+		log.ErrorContext(ctx, errMsg)
+		return errMsg
+	}
+	if req.ControlCardSelections == nil {
+		errMsg := fmt.Errorf("field ControlCardSelections in EnrollWithHMACChallengeReq request cannot be nil")
+		log.ErrorContext(ctx, errMsg)
+		return errMsg
+	}
+	if req.Deps == nil {
+		errMsg := fmt.Errorf("field Deps in EnrollWithHMACChallengeReq request cannot be nil")
+		log.ErrorContext(ctx, errMsg)
+		return errMsg
+	}
+
+	for _, controlCardSelection := range req.ControlCardSelections {
+		err := VerifyIdentityWithHMACChallenge(ctx, controlCardSelection, req.Deps)
+		if err != nil {
+			errMsg := fmt.Errorf("failed to verify Identity with HMAC Challenge: %w", err)
+			log.ErrorContext(ctx, errMsg)
+			return errMsg
+		}
+	}
+
+	// TODO: issue and rotate oIAK and OIDevID certs for all control cards.
+	return nil
 }
 
 // VerifyIdentityWithHMACChallenge verifies the identity of the switch using an HMAC challenge for
-// TPM 2.0 devices that do not have an IDevID cert provisioned.
-func VerifyIdentityWithHMACChallenge(ctx context.Context, req *VerifyIdentityWithHMACChallengeReq) error {
+// TPM 2.0 devices that do not have an IDevID cert provisioned. This is typically used during
+// the initial enrollment of a device where a secure channel cannot be established using
+// an IDevID certificate. The process involves:
+//  1. Fetching the Endorsement Key (EK) public key from a Rotate-of-Trust (RoT) database.
+//  2. Generating a restricted HMAC key and securely wrapping it to the fetched EK public key.
+//  3. Sending the wrapped HMAC key as a challenge to the device's TPM.
+//  4. The TPM uses the EK private key to unwrap the HMAC key and generates a challenge response.
+//  5. The service verifies the TPM's HMAC response to confirm possession of the EK private key.
+//  6. The service also verifies the integrity of the IAK public key and the IDevID CSR
+//     received from the device.
+func VerifyIdentityWithHMACChallenge(ctx context.Context, controlCardSelection *cpb.ControlCardSelection, deps EnrollSwitchWithHMACChallengeInfraDeps) error {
 	// validate the request
-	if req == nil {
-		return fmt.Errorf("request VerifyIdentityWithHMACChallengeReq is nil")
-	}
-	if req.ControlCardSelection == nil {
-		return fmt.Errorf("field ControlCardSelection in VerifyIdentityWithHMACChallengeReq request cannot be nil")
-	}
-	if req.Deps == nil {
-		return fmt.Errorf("field Deps in VerifyIdentityWithHMACChallengeReq request cannot be nil")
+	if controlCardSelection == nil {
+		errMsg := fmt.Errorf("controlCardSelection cannot be nil")
+		log.ErrorContext(ctx, errMsg)
+		return errMsg
 	}
 
-	controlCardVendorID, err := req.Deps.GetControlCardVendorID(ctx, &epb.GetControlCardVendorIDRequest{
-		ControlCardSelection: req.ControlCardSelection,
+	if deps == nil {
+		errMsg := fmt.Errorf("deps cannot be nil")
+		log.ErrorContext(ctx, errMsg)
+		return errMsg
+	}
+
+	// Get Control Card Vendor ID from the TPM.
+	// TODO: add more validations on controlCardSelection
+	controlCardVendorID, err := deps.GetControlCardVendorID(ctx, &epb.GetControlCardVendorIDRequest{
+		ControlCardSelection: controlCardSelection,
 	})
 	if err != nil {
 		errMsg := fmt.Errorf("failed to get control card vendor ID: %w", err)
@@ -829,100 +876,130 @@ func VerifyIdentityWithHMACChallenge(ctx context.Context, req *VerifyIdentityWit
 		return errMsg
 	}
 
-	// Get EK Public Key from RoT database.
-	fetchEKResp, err := req.Deps.FetchEK(ctx, &FetchEKReq{
-		Serial:   controlCardVendorID.GetControlCardId().GetChassisSerialNumber(),
-		Supplier: controlCardVendorID.GetControlCardId().GetChassisManufacturer(),
-	})
+	// Get EK Public Key (or PPK) from RoT database.
+	fetchEKResp, err := fetchEKPublicKey(ctx, deps, controlCardVendorID.GetControlCardId())
 	if err != nil {
-		errMsg := fmt.Errorf("failed to fetch EK public key : %w", err)
-		log.ErrorContext(ctx, errMsg)
-		return errMsg
-	}
-	if fetchEKResp == nil {
-		errMsg := fmt.Errorf("failed to fetch EK public key: RoT database returned an empty response")
+		errMsg := fmt.Errorf("failed to fetch EK: %w", err)
 		log.ErrorContext(ctx, errMsg)
 		return errMsg
 	}
 
-	challengeResp, err := verifyHMAC(ctx, req, fetchEKResp)
+	// Create HMAC Challenge request.
+	hmacChallenge, hmacSensitive, err := CreateHMACChallenge(ctx, deps, fetchEKResp)
 	if err != nil {
-		return err
-	}
-
-	iakPubKey, err := verifyIAKKey(ctx, req, challengeResp)
-	if err != nil {
-		return err
-	}
-
-	err = verifyIDevIDKey(ctx, req, fetchEKResp, iakPubKey)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// verifyHMAC sends a HMAC challenge to the TPM and verifies the response.
-func verifyHMAC(ctx context.Context, req *VerifyIdentityWithHMACChallengeReq, fetchEKResp *FetchEKResp) (*epb.ChallengeResponse, error) {
-	// Generate restricted HMAC key.
-	hmacPub, hmacSensitive, err := req.Deps.GenerateRestrictedHMACKey()
-	if err != nil {
-		errMsg := fmt.Errorf("failed to generate restricted HMAC key: %w", err)
+		errMsg := fmt.Errorf("failed to create HMAC challenge: %w", err)
 		log.ErrorContext(ctx, errMsg)
-		return nil, errMsg
+		return errMsg
 	}
 
-	// Wrap HMAC key to EK public key.
-	duplicate, inSymSeed, err := req.Deps.WrapHMACKeytoRSAPublicKey(fetchEKResp.EkPublicKey, hmacPub, hmacSensitive)
-	if err != nil {
-		errMsg := fmt.Errorf("failed to wrap HMAC key to EK public key: %w", err)
-		log.ErrorContext(ctx, errMsg)
-		return nil, errMsg
-	}
-
-	// Send HMAC Challenge to the TPM.
-	challengeReq := &epb.ChallengeRequest{
-		ControlCardSelection: req.ControlCardSelection,
-		Challenge: &epb.HMACChallenge{
-			HmacPubKey: tpm20.Marshal(hmacPub),
-			Duplicate:  duplicate,
-			InSymSeed:  inSymSeed,
-		},
-		Key: fetchEKResp.KeyType,
-	}
-	challengeResp, err := req.Deps.Challenge(ctx, challengeReq)
+	challengeResp, err := deps.Challenge(ctx, &epb.ChallengeRequest{ControlCardSelection: controlCardSelection, Challenge: hmacChallenge, Key: fetchEKResp.KeyType})
 	if err != nil {
 		errMsg := fmt.Errorf("failed to challenge the TPM: %w", err)
 		log.ErrorContext(ctx, errMsg)
-		return nil, errMsg
+		return errMsg
 	}
+	hmacResp := challengeResp.GetChallengeResp()
 
 	// Verify HMAC Challenge response from the TPM.
-	err = req.Deps.VerifyHMAC(challengeResp.ChallengeResp.IakCertifyInfo, challengeResp.ChallengeResp.IakCertifyInfoSignature, hmacSensitive)
+	err = deps.VerifyHMAC(hmacResp.GetIakCertifyInfo(), hmacResp.GetIakCertifyInfoSignature(), hmacSensitive)
 	if err != nil {
 		errMsg := fmt.Errorf("failed to verify HMAC Challenge response: %w", err)
 		log.ErrorContext(ctx, errMsg)
-		return nil, errMsg
+		return errMsg
 	}
-	return challengeResp, nil
+
+	// Verify IAK Public Key.
+	iakPubKey, err := VerifyIAKKey(ctx, deps, hmacResp)
+	if err != nil {
+		errMsg := fmt.Errorf("failed to verify IAK public key: %w", err)
+		log.ErrorContext(ctx, errMsg)
+		return errMsg
+	}
+
+	// Get IDevID CSR from the TPM.
+	keyTemplate := epb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384
+	getIDevIDCSRResp, err := deps.GetIdevidCsr(ctx, &epb.GetIdevidCsrRequest{
+		ControlCardSelection: controlCardSelection,
+		Key:                  fetchEKResp.KeyType,
+		KeyTemplate:          keyTemplate,
+	})
+	if err != nil {
+		errMsg := fmt.Errorf("failed to get IDevID CSR: %w", err)
+		log.ErrorContext(ctx, errMsg)
+		return errMsg
+	}
+
+	// Verify IDevID Public Key and CSR.
+	err = verifyIDevIDKey(ctx, deps, fetchEKResp, iakPubKey, getIDevIDCSRResp)
+	if err != nil {
+		errMsg := fmt.Errorf("failed to verify IDevID key and CSR: %w", err)
+		log.ErrorContext(ctx, errMsg)
+		return errMsg
+	}
+	return nil
 }
 
-func verifyIAKKey(ctx context.Context, req *VerifyIdentityWithHMACChallengeReq, hmacChallengeResp *epb.ChallengeResponse) (*tpm20.TPMTPublic, error) {
+// fetchEKPublicKey fetches the EK Public Key from the RoT database.
+func fetchEKPublicKey(ctx context.Context, client ROTDBClient, cardID *cpb.ControlCardVendorId) (*FetchEKResp, error) {
+	fetchEKResp, err := client.FetchEK(ctx, &FetchEKReq{
+		Serial:   cardID.GetChassisSerialNumber(),
+		Supplier: cardID.GetChassisManufacturer(),
+	})
+	if err != nil {
+		errMsg := fmt.Errorf("failed to fetch EK public key for control card %s: %w", prototext.Format(cardID), err)
+		log.ErrorContext(ctx, errMsg)
+		return nil, errMsg
+	}
+	if fetchEKResp == nil {
+		errMsg := fmt.Errorf("RoT database returned an empty FetchEKResp for control card %s", prototext.Format(cardID))
+		log.ErrorContext(ctx, errMsg)
+		return nil, errMsg
+	}
+	return fetchEKResp, nil
+}
+
+// CreateHMACChallenge creates an HMAC and wraps it to the EK and returns a epb.HMACChallenge struct.
+func CreateHMACChallenge(ctx context.Context, deps TPM20Utils, fetchEKResp *FetchEKResp) (*epb.HMACChallenge, *tpm20.TPMTSensitive, error) {
+	// Generate restricted HMAC key.
+	hmacPub, hmacSensitive, err := deps.GenerateRestrictedHMACKey()
+	if err != nil {
+		errMsg := fmt.Errorf("failed to generate restricted HMAC key: %w", err)
+		log.ErrorContext(ctx, errMsg)
+		return nil, nil, errMsg
+	}
+
+	// Wrap HMAC key to EK public key.
+	duplicate, inSymSeed, err := deps.WrapHMACKeytoRSAPublicKey(fetchEKResp.EkPublicKey, hmacPub, hmacSensitive)
+	if err != nil {
+		errMsg := fmt.Errorf("failed to wrap HMAC key to EK public key: %w", err)
+		log.ErrorContext(ctx, errMsg)
+		return nil, nil, errMsg
+	}
+
+	challengeReq := &epb.HMACChallenge{
+		HmacPubKey: tpm20.Marshal(hmacPub),
+		Duplicate:  duplicate,
+		InSymSeed:  inSymSeed,
+	}
+
+	return challengeReq, hmacSensitive, nil
+}
+
+// VerifyIAKKey verifies the IAK Certify Info and IAK Attributes.
+func VerifyIAKKey(ctx context.Context, deps TPM20Utils, hmacChallengeResp *epb.HMACChallengeResponse) (*tpm20.TPMTPublic, error) {
 	// TODO: impleament this function.
 	// 1. Verify IAK Certify Info.
 	// 2. Verify IAK attributes.
 	return &tpm20.TPMTPublic{}, nil
 }
 
-func verifyIDevIDKey(ctx context.Context, req *VerifyIdentityWithHMACChallengeReq, fetchEKResp *FetchEKResp, iakPubKey *tpm20.TPMTPublic) error {
+func verifyIDevIDKey(ctx context.Context, deps TPM20Utils, fetchEKResp *FetchEKResp, iakPubKey *tpm20.TPMTPublic, getIdevidCsrResp *epb.GetIdevidCsrResponse) error {
 	// TODO: implement this function.
-	// 1. Get IDevID CSR from device.
-	// 2. Verify IDevID Certify Info Signature using IAK pub key.
-	// 3. Verify IDevID Certify Info.
-	// 4. Verify IDevID Key Attributes.
-	// 5. Verify CSR signature using IDevID
-	// 6. Verify EK returned in CSR matches one obtained from RoT
+	// 1. Verify IDevID Certify Info Signature using IAK pub key.
+	// 2. Verify IDevID Certify Info.
+	// 3. Verify IDevID Key Attributes.
+	// 4. Verify CSR signature using IDevID
+	// 5. Verify EK returned in CSR matches one obtained from RoT
 
 	return nil
 }
