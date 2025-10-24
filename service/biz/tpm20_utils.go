@@ -37,6 +37,8 @@ var (
 	ErrInvalidCertifyInfo = errors.New("invalid certify info")
 	// ErrCertifiedWrongName is returned when the certified name is invalid.
 	ErrCertifiedWrongName = errors.New("certified wrong name")
+	// ErrInvalidPubKeyAttributes is returned when public key attributes are invalid.
+	ErrInvalidPubKeyAttributes = errors.New("invalid public key attributes")
 )
 
 // TCGCSRIDevIDContents is the contents of the TCG_CSR_IDEVID_CONTENT structure.
@@ -63,7 +65,7 @@ type TPM20Utils interface {
 		hmacSensitive *tpm20.TPMTSensitive) ([]byte, []byte, error)
 	VerifyHMAC(message []byte, signature []byte, hmacSensitive *tpm20.TPMTSensitive) error
 	VerifyCertifyInfo(certifyInfoAttest *tpm20.TPMSAttest, certifiedKey *tpm20.TPMTPublic) error
-	VerifyIAKAttributes(iakPub *tpm20.TPMTPublic) error
+	VerifyIAKAttributes(iakPub []byte) (*tpm20.TPMTPublic, error)
 	VerifyTPMTSignature(pubKey *tpm20.TPMTPublic, signature *tpm20.TPMTSignature, data []byte) error
 	VerifyIDevIDAttributes(idevidPub *tpm20.TPMTPublic, keyTemplate epb.KeyTemplate) error
 }
@@ -239,10 +241,53 @@ func (u *DefaultTPM20Utils) VerifyCertifyInfo(certifyInfoAttest *tpm20.TPMSAttes
 	return nil
 }
 
-// VerifyIAKAttributes verifies the IAK attributes.
-func (u *DefaultTPM20Utils) VerifyIAKAttributes(iakPub *tpm20.TPMTPublic) error {
-	// TODO: Implement this function.
+func verifyTPMTPublicAttributes(pubKey tpm20.TPMTPublic, expectedObjAttributes tpm20.TPMAObject) error {
+	if pubKey.ObjectAttributes.FixedTPM != expectedObjAttributes.FixedTPM {
+		return fmt.Errorf("%w: FixedTPM mismatch, got %v, want %v", ErrInvalidPubKeyAttributes, pubKey.ObjectAttributes.FixedTPM, expectedObjAttributes.FixedTPM)
+	}
+	if pubKey.ObjectAttributes.Restricted != expectedObjAttributes.Restricted {
+		return fmt.Errorf("%w: Restricted mismatch, got %v, want %v", ErrInvalidPubKeyAttributes, pubKey.ObjectAttributes.Restricted, expectedObjAttributes.Restricted)
+	}
+	if pubKey.ObjectAttributes.SensitiveDataOrigin != expectedObjAttributes.SensitiveDataOrigin {
+		return fmt.Errorf("%w: SensitiveDataOrigin mismatch, got %v, want %v", ErrInvalidPubKeyAttributes, pubKey.ObjectAttributes.SensitiveDataOrigin, expectedObjAttributes.SensitiveDataOrigin)
+	}
+	if pubKey.ObjectAttributes.SignEncrypt != expectedObjAttributes.SignEncrypt {
+		return fmt.Errorf("%w: SignEncrypt mismatch, got %v, want %v", ErrInvalidPubKeyAttributes, pubKey.ObjectAttributes.SignEncrypt, expectedObjAttributes.SignEncrypt)
+	}
+	if pubKey.ObjectAttributes.Decrypt != expectedObjAttributes.Decrypt {
+		return fmt.Errorf("%w: Decrypt mismatch, got %v, want %v", ErrInvalidPubKeyAttributes, pubKey.ObjectAttributes.Decrypt, expectedObjAttributes.Decrypt)
+	}
+	if pubKey.ObjectAttributes.FixedParent != expectedObjAttributes.FixedParent {
+		return fmt.Errorf("%w: FixedParent mismatch, got %v, want %v", ErrInvalidPubKeyAttributes, pubKey.ObjectAttributes.FixedParent, expectedObjAttributes.FixedParent)
+	}
 	return nil
+}
+
+// VerifyIAKAttributes verifies the IAK attributes.
+func (u *DefaultTPM20Utils) VerifyIAKAttributes(iakPub []byte) (*tpm20.TPMTPublic, error) {
+	iakPubKey, err := tpm20.Unmarshal[tpm20.TPMTPublic](iakPub)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal IAK public key: %w", err)
+	}
+
+	expectedObjAttributes := tpm20.TPMAObject{
+		FixedTPM:            true,
+		Restricted:          true,
+		SensitiveDataOrigin: true,
+		SignEncrypt:         true,
+		Decrypt:             false,
+		FixedParent:         true,
+	}
+
+	if err := verifyTPMTPublicAttributes(*iakPubKey, expectedObjAttributes); err != nil {
+		return nil, fmt.Errorf("failed to verify IAK attributes: %w", err)
+	}
+
+	if iakPubKey.NameAlg != tpm20.TPMAlgSHA256 && iakPubKey.NameAlg != tpm20.TPMAlgSHA384 {
+		return nil, fmt.Errorf("%w: IAKPub.NameAlg (%v) must be one of TPMAlgSHA256, TPMAlgSHA384, or TPMAlgSHA512", ErrInvalidPubKeyAttributes, iakPubKey.NameAlg)
+	}
+
+	return iakPubKey, nil
 }
 
 // VerifyTPMTSignature verifies the TPMT_SIGNATURE structure using the given public key.
