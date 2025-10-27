@@ -39,7 +39,7 @@ go_library(
 go_test(
     name = "enrollz_biz_test",
     srcs = ["enrollz_biz_test.go"],
-    embed = [":enrollz_biz"],
+    embed = [":enrollz_biz", ":test_utils"],
     deps = [
         "//proto:common_definitions_go_proto",
         "//proto:tpm_attestz_go_proto",
@@ -133,5 +133,7 @@ go_library(
     srcs = ["test_utils.go"],
     importpath = "github.com/openconfig/attestz/service/biz",
     visibility = ["//visibility:public"],
-    deps = [],
+    deps = [
+        "@com_github_google_go_tpm//tpm2",
+    ],
 )
