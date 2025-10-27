@@ -650,10 +650,23 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	}
 
 	// Get AIK public key from identityProof and convert to PEM.
-	aikPubKey := identityProof.AttestationIdentityKey.PubKey.Key
+	aikPubKeyRsa, err := req.Deps.TpmPubKeyToRSAPubKey(&identityProof.AttestationIdentityKey)
+	if err != nil {
+		err = fmt.Errorf("failed to convert AIK TPM pub key to RSA pub key: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+
+	aikPubKeyPkix, err := x509.MarshalPKIXPublicKey(aikPubKeyRsa)
+	if err != nil {
+		err = fmt.Errorf("failed to marshal AIK public key to PKIX: %w", err)
+		log.ErrorContext(ctx, err)
+		return err
+	}
+
 	pemBlock := &pem.Block{
 		Type:  "PUBLIC KEY",
-		Bytes: aikPubKey,
+		Bytes: aikPubKeyPkix, // Use the marshaled PKIX bytes
 	}
 	aikPubPem := pem.EncodeToMemory(pemBlock)
 
