@@ -811,7 +811,7 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	return nil
 }
 
-// EnrollWithHMACChallengeReq is the request to EnrollWithHMACChallenge().
+// EnrollSwitchWithHMACChallengeReq is the request to EnrollWithHMACChallenge().
 type EnrollSwitchWithHMACChallengeReq struct {
 	// List of switch control cards to be enrolled.
 	ControlCardSelections []*cpb.ControlCardSelection
@@ -1010,10 +1010,38 @@ func CreateHMACChallenge(ctx context.Context, deps TPM20Utils, fetchEKResp *Fetc
 
 // VerifyIAKKey verifies the IAK Certify Info and IAK Attributes.
 func VerifyIAKKey(ctx context.Context, deps TPM20Utils, hmacChallengeResp *epb.HMACChallengeResponse) (*tpm20.TPMTPublic, error) {
-	// TODO: impleament this function.
-	// 1. Verify IAK Certify Info.
-	// 2. Verify IAK attributes.
-	return &tpm20.TPMTPublic{}, nil
+	if deps == nil {
+		errMsg := fmt.Errorf("deps cannot be nil")
+		log.ErrorContext(ctx, errMsg)
+		return nil, errMsg
+	}
+	if hmacChallengeResp == nil {
+		errMsg := fmt.Errorf("hmacChallengeResp cannot be nil")
+		log.ErrorContext(ctx, errMsg)
+		return nil, errMsg
+	}
+	// unmarshall IAK public key (TPMT_PUBLIC) and verify its attributes.
+	iakPubKey, err := deps.VerifyIAKAttributes(hmacChallengeResp.IakPub)
+	if err != nil {
+		errMsg := fmt.Errorf("failed to verify IAK attributes: %w", err)
+		log.ErrorContext(ctx, errMsg)
+		return nil, errMsg
+	}
+	iakCertifyInfo, err := tpm20.Unmarshal[tpm20.TPMSAttest](hmacChallengeResp.IakCertifyInfo)
+	if err != nil {
+		errMsg := fmt.Errorf("failed to unmarshal IAK Certify Info: %w", err)
+		log.ErrorContext(ctx, errMsg)
+		return nil, errMsg
+	}
+	// Verify IAK Certify Info.
+	err = deps.VerifyCertifyInfo(iakCertifyInfo, iakPubKey)
+	if err != nil {
+		errMsg := fmt.Errorf("failed to verify IAK Certify Info: %w", err)
+		log.ErrorContext(ctx, errMsg)
+		return nil, errMsg
+	}
+
+	return iakPubKey, nil
 }
 
 // VerifyIdevidKey verifies the IDevID Certify Info, IDevID Attributes, and the IDevID CSR signature.

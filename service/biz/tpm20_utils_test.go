@@ -82,6 +82,261 @@ type CsrOptions struct {
 	AddExtraBytesToEnd              bool
 }
 
+func TestVerifyTPMTPublicAttributes_Success(t *testing.T) {
+	// Base attributes
+	baseAttributes := tpm20.TPMAObject{
+		FixedTPM:            true,
+		Restricted:          true,
+		SensitiveDataOrigin: true,
+		SignEncrypt:         true,
+		Decrypt:             false,
+		FixedParent:         true,
+		UserWithAuth:        true,
+		AdminWithPolicy:     true,
+	}
+
+	// Public key with base attributes
+	pubKeyWithBaseAttributes := tpm20.TPMTPublic{
+		ObjectAttributes: baseAttributes,
+	}
+
+	if err := verifyTPMTPublicAttributes(pubKeyWithBaseAttributes, baseAttributes); err != nil {
+		t.Errorf("verifyTPMTPublicAttributes() returned an unexpected error: %v", err)
+	}
+}
+
+func TestVerifyTPMTPublicAttributes_Failure(t *testing.T) {
+	// Base attributes
+	baseAttributes := tpm20.TPMAObject{
+		FixedTPM:            true,
+		Restricted:          true,
+		SensitiveDataOrigin: true,
+		SignEncrypt:         true,
+		Decrypt:             false,
+		FixedParent:         true,
+		UserWithAuth:        true,
+		AdminWithPolicy:     true,
+	}
+
+	// Public key with base attributes
+	pubKeyWithBaseAttributes := tpm20.TPMTPublic{
+		ObjectAttributes: baseAttributes,
+	}
+
+	// Test cases
+	tests := []struct {
+		name     string
+		pubKey   tpm20.TPMTPublic
+		expected tpm20.TPMAObject
+	}{
+		{
+			name: "FixedTPM mismatch",
+			pubKey: func() tpm20.TPMTPublic {
+				p := pubKeyWithBaseAttributes
+				p.ObjectAttributes.FixedTPM = false
+				return p
+			}(),
+			expected: baseAttributes,
+		},
+		{
+			name: "Restricted mismatch",
+			pubKey: func() tpm20.TPMTPublic {
+				p := pubKeyWithBaseAttributes
+				p.ObjectAttributes.Restricted = false
+				return p
+			}(),
+			expected: baseAttributes,
+		},
+		{
+			name: "SensitiveDataOrigin mismatch",
+			pubKey: func() tpm20.TPMTPublic {
+				p := pubKeyWithBaseAttributes
+				p.ObjectAttributes.SensitiveDataOrigin = false
+				return p
+			}(),
+			expected: baseAttributes,
+		},
+		{
+			name: "SignEncrypt mismatch",
+			pubKey: func() tpm20.TPMTPublic {
+				p := pubKeyWithBaseAttributes
+				p.ObjectAttributes.SignEncrypt = false
+				return p
+			}(),
+			expected: baseAttributes,
+		},
+		{
+			name: "Decrypt mismatch",
+			pubKey: func() tpm20.TPMTPublic {
+				p := pubKeyWithBaseAttributes
+				p.ObjectAttributes.Decrypt = true
+				return p
+			}(),
+			expected: baseAttributes,
+		},
+		{
+			name: "FixedParent mismatch",
+			pubKey: func() tpm20.TPMTPublic {
+				p := pubKeyWithBaseAttributes
+				p.ObjectAttributes.FixedParent = false
+				return p
+			}(),
+			expected: baseAttributes,
+		},
+		{
+			name: "UserWithAuth mismatch",
+			pubKey: func() tpm20.TPMTPublic {
+				p := pubKeyWithBaseAttributes
+				p.ObjectAttributes.UserWithAuth = false
+				return p
+			}(),
+			expected: baseAttributes,
+		},
+		{
+			name: "AdminWithPolicy mismatch",
+			pubKey: func() tpm20.TPMTPublic {
+				p := pubKeyWithBaseAttributes
+				p.ObjectAttributes.AdminWithPolicy = false
+				return p
+			}(),
+			expected: baseAttributes,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := verifyTPMTPublicAttributes(tc.pubKey, tc.expected)
+			if err == nil {
+				t.Error("verifyTPMTPublicAttributes() expected an error, but got nil")
+			}
+			if !errors.Is(err, ErrInvalidPubKeyAttributes) {
+				t.Errorf("verifyTPMTPublicAttributes() expected error to wrap ErrInvalidPubKeyAttributes, but got %v", err)
+			}
+		})
+	}
+}
+
+func TestVerifyIAKAttributes_Success(t *testing.T) {
+	u := DefaultTPM20Utils{}
+
+	validIAKPub := validTPMTPublic
+	validIAKPub.ObjectAttributes = tpm20.TPMAObject{
+		FixedTPM:            true,
+		Restricted:          true,
+		SensitiveDataOrigin: true,
+		SignEncrypt:         true,
+		Decrypt:             false,
+		FixedParent:         true,
+		UserWithAuth:        true,
+		AdminWithPolicy:     true,
+	}
+	validIAKPub.NameAlg = tpm20.TPMAlgSHA256
+	validIAKPubBytes := tpm20.Marshal(validIAKPub)
+
+	pubWithSHA384 := validIAKPub
+	pubWithSHA384.NameAlg = tpm20.TPMAlgSHA384
+	pubWithSHA384Bytes := tpm20.Marshal(pubWithSHA384)
+
+	tests := []struct {
+		name   string
+		iakPub []byte
+		want   *tpm20.TPMTPublic
+	}{
+		{
+			name:   "Success",
+			iakPub: validIAKPubBytes,
+			want:   &validIAKPub,
+		},
+		{
+			name:   "Success SHA384",
+			iakPub: pubWithSHA384Bytes,
+			want:   &pubWithSHA384,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := u.VerifyIAKAttributes(tc.iakPub)
+			if err != nil {
+				t.Errorf("VerifyIAKAttributes() returned an unexpected error: %v", err)
+			}
+			if diff := cmp.Diff(tc.want, got, cmpopts.IgnoreUnexported(tpm20.TPMTPublic{}, tpm20.TPMAObject{}, tpm20.TPM2BDigest{}, tpm20.TPMUPublicParms{}, tpm20.TPMUPublicID{})); diff != "" {
+				t.Errorf("VerifyIAKAttributes() returned an unexpected result: diff (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestVerifyIAKAttributes_Failure(t *testing.T) {
+	u := DefaultTPM20Utils{}
+
+	validIAKPub := validTPMTPublic
+	validIAKPub.ObjectAttributes = tpm20.TPMAObject{
+		FixedTPM:            true,
+		Restricted:          true,
+		SensitiveDataOrigin: true,
+		SignEncrypt:         true,
+		Decrypt:             false,
+		FixedParent:         true,
+		UserWithAuth:        true,
+		AdminWithPolicy:     true,
+	}
+	validIAKPub.NameAlg = tpm20.TPMAlgSHA256
+
+	invalidUnmarshalBytes := []byte("invalid bytes")
+
+	pubWithBadAttr := validIAKPub
+	pubWithBadAttr.ObjectAttributes.FixedTPM = false
+	pubWithBadAttrBytes := tpm20.Marshal(pubWithBadAttr)
+
+	pubWithBadUserWithAuth := validIAKPub
+	pubWithBadUserWithAuth.ObjectAttributes.UserWithAuth = false
+	pubWithBadUserWithAuthBytes := tpm20.Marshal(pubWithBadUserWithAuth)
+
+	pubWithBadAdminWithPolicy := validIAKPub
+	pubWithBadAdminWithPolicy.ObjectAttributes.AdminWithPolicy = false
+	pubWithBadAdminWithPolicyBytes := tpm20.Marshal(pubWithBadAdminWithPolicy)
+
+	pubWithBadNameAlg := validIAKPub
+	pubWithBadNameAlg.NameAlg = tpm20.TPMAlgSHA1
+	pubWithBadNameAlgBytes := tpm20.Marshal(pubWithBadNameAlg)
+
+	tests := []struct {
+		name   string
+		iakPub []byte
+	}{
+		{
+			name:   "Unmarshal error",
+			iakPub: invalidUnmarshalBytes,
+		},
+		{
+			name:   "Attribute mismatch",
+			iakPub: pubWithBadAttrBytes,
+		},
+		{
+			name:   "UserWithAuth mismatch",
+			iakPub: pubWithBadUserWithAuthBytes,
+		},
+		{
+			name:   "AdminWithPolicy mismatch",
+			iakPub: pubWithBadAdminWithPolicyBytes,
+		},
+		{
+			name:   "Invalid NameAlg",
+			iakPub: pubWithBadNameAlgBytes,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := u.VerifyIAKAttributes(tc.iakPub)
+			if err == nil {
+				t.Error("VerifyIAKAttributes() expected an error, but got nil")
+			}
+		})
+	}
+}
+
 func TestVerifyCertifyInfo(t *testing.T) {
 	u := DefaultTPM20Utils{}
 	keyName, err := tpm20.ObjectName(&validTPMTPublic)
