@@ -1486,7 +1486,7 @@ func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) VerifyTPMTSignature(data 
 	return s.verifyTPMTSignatureErr
 }
 
-func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) VerifyIDevIDAttributes(idevidPub *tpm20.TPMTPublic, keyTemplate epb.KeyTemplate) error {
+func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) VerifyIdevidAttributes(idevidPub *tpm20.TPMTPublic, keyTemplate epb.KeyTemplate) error {
 	return s.verifyIDevIDAttributesErr
 }
 

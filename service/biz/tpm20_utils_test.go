@@ -17,6 +17,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	tpm20 "github.com/google/go-tpm/tpm2"
+	epb "github.com/openconfig/attestz/proto/tpm_enrollz"
 )
 
 var (
@@ -1007,6 +1008,150 @@ func TestWrapHMACKeytoRSAPublicKey_Failure(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if _, _, err := u.WrapHMACKeytoRSAPublicKey(tc.ek, tc.pub, tc.priv); !errors.Is(err, tc.wantErr) {
 				t.Errorf("TestWrapHMACKeytoRSAPublicKey_Failure() failed, want error %v, got error %v", tc.wantErr, err)
+			}
+		})
+	}
+}
+
+func TestVerifyIdevidAttributes(t *testing.T) {
+	u := DefaultTPM20Utils{}
+
+	// Base for a valid IDevID public key.
+	validIdevidPub := tpm20.TPMTPublic{
+		Type:    tpm20.TPMAlgECC,
+		NameAlg: tpm20.TPMAlgSHA384,
+		ObjectAttributes: tpm20.TPMAObject{
+			FixedTPM:            true,
+			Restricted:          false,
+			SensitiveDataOrigin: true,
+			SignEncrypt:         true,
+			Decrypt:             false,
+			FixedParent:         true,
+			UserWithAuth:        true,
+			AdminWithPolicy:     true,
+		},
+		Parameters: tpm20.NewTPMUPublicParms(tpm20.TPMAlgECC, &tpm20.TPMSECCParms{
+			Scheme: tpm20.TPMTECCScheme{
+				Scheme: tpm20.TPMAlgECDSA,
+			},
+			CurveID: tpm20.TPMECCNistP384,
+		}),
+	}
+
+	successTests := []struct {
+		name        string
+		idevidPub   *tpm20.TPMTPublic
+		keyTemplate epb.KeyTemplate
+	}{
+		{
+			name:        "Success ECC P384",
+			idevidPub:   &validIdevidPub,
+			keyTemplate: epb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384,
+		},
+	}
+
+	for _, tc := range successTests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := u.VerifyIdevidAttributes(tc.idevidPub, tc.keyTemplate)
+			if err != nil {
+				t.Errorf("VerifyIDevIDAttributes() returned an unexpected error: %v", err)
+			}
+		})
+	}
+
+	// Make copies and modify for failure cases
+	pubWithBadAttr := validIdevidPub
+	pubWithBadAttr.ObjectAttributes.Restricted = true // Should be false for IDevID
+
+	pubWithBadType := validIdevidPub
+	pubWithBadType.Type = tpm20.TPMAlgRSA
+
+	pubWithBadNameAlg := validIdevidPub
+	pubWithBadNameAlg.NameAlg = tpm20.TPMAlgSHA256
+
+	pubWithBadCurve := validIdevidPub
+	p, err := pubWithBadCurve.Parameters.ECCDetail()
+	if err != nil {
+		panic(err)
+	}
+	newP := *p
+	newP.CurveID = tpm20.TPMECCNistP256 // Wrong curve
+	pubWithBadCurve.Parameters = tpm20.NewTPMUPublicParms(tpm20.TPMAlgECC, &newP)
+
+	pubWithBadScheme := validIdevidPub
+	p, err = pubWithBadScheme.Parameters.ECCDetail()
+	if err != nil {
+		panic(err)
+	}
+	newP2 := *p
+	newP2.Scheme.Scheme = tpm20.TPMAlgECDAA // Wrong scheme
+	pubWithBadScheme.Parameters = tpm20.NewTPMUPublicParms(tpm20.TPMAlgECC, &newP2)
+
+	pubWithMismatchedParams := validIdevidPub
+	pubWithMismatchedParams.Type = tpm20.TPMAlgECC
+	pubWithMismatchedParams.Parameters = tpm20.NewTPMUPublicParms(tpm20.TPMAlgRSA, &tpm20.TPMSRSAParms{})
+
+	failureTests := []struct {
+		name        string
+		idevidPub   *tpm20.TPMTPublic
+		keyTemplate epb.KeyTemplate
+		wantErr     error
+	}{
+		{
+			name:        "Nil idevidPub",
+			idevidPub:   nil,
+			keyTemplate: epb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384,
+			wantErr:     ErrInputNil,
+		},
+		{
+			name:        "Unsupported key template",
+			idevidPub:   &validIdevidPub,
+			keyTemplate: epb.KeyTemplate_KEY_TEMPLATE_UNSPECIFIED,
+			wantErr:     ErrUnsupportedKeyTemplate,
+		},
+		{
+			name:        "Attribute mismatch",
+			idevidPub:   &pubWithBadAttr,
+			keyTemplate: epb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384,
+			wantErr:     ErrInvalidPubKeyAttributes,
+		},
+		{
+			name:        "Wrong Type",
+			idevidPub:   &pubWithBadType,
+			keyTemplate: epb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384,
+			wantErr:     ErrInvalidPubKeyAttributes,
+		},
+		{
+			name:        "Wrong NameAlg",
+			idevidPub:   &pubWithBadNameAlg,
+			keyTemplate: epb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384,
+			wantErr:     ErrInvalidPubKeyAttributes,
+		},
+		{
+			name:        "Parameters not ECC",
+			idevidPub:   &pubWithMismatchedParams,
+			keyTemplate: epb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384,
+			wantErr:     ErrInvalidPubKeyAttributes,
+		},
+		{
+			name:        "Wrong Curve",
+			idevidPub:   &pubWithBadCurve,
+			keyTemplate: epb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384,
+			wantErr:     ErrInvalidPubKeyAttributes,
+		},
+		{
+			name:        "Wrong Scheme",
+			idevidPub:   &pubWithBadScheme,
+			keyTemplate: epb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384,
+			wantErr:     ErrInvalidPubKeyAttributes,
+		},
+	}
+
+	for _, tc := range failureTests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := u.VerifyIdevidAttributes(tc.idevidPub, tc.keyTemplate)
+			if !errors.Is(err, tc.wantErr) {
+				t.Errorf("VerifyIDevIDAttributes() returned error %v, want error to be %v", err, tc.wantErr)
 			}
 		})
 	}
