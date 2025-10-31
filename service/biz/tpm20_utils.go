@@ -17,9 +17,11 @@ package biz
 
 import (
 	"bytes"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/subtle"
 	"crypto/x509"
 	"encoding/binary"
 	"encoding/pem"
@@ -41,6 +43,10 @@ var (
 	ErrInputNil = errors.New("input cannot be nil")
 	// ErrInvalidPubKeyAttributes is returned when public key attributes are invalid.
 	ErrInvalidPubKeyAttributes = errors.New("invalid public key attributes")
+	// ErrHMACNotMatch is returned when the HMAC does not match the expected one.
+	ErrHMACNotMatch = errors.New("HMAC does not match")
+	// ErrWrongAlgo is returned when an algorithm is not as expected.
+	ErrWrongAlgo = errors.New("unexpected algorithm")
 	// ErrUnsupportedKeyTemplate is returned when the key template is unsupported.
 	ErrUnsupportedKeyTemplate = errors.New("unsupported key template")
 )
@@ -285,7 +291,40 @@ func (u *DefaultTPM20Utils) WrapHMACKeytoRSAPublicKey(rsaPub *rsa.PublicKey, hma
 
 // VerifyHMAC verifies the HMAC signature of the message.
 func (u *DefaultTPM20Utils) VerifyHMAC(message []byte, signature []byte, hmacSensitive *tpm20.TPMTSensitive) error {
-	// TODO: Implement this function.
+	if hmacSensitive == nil {
+		return fmt.Errorf("VerifyHMAC: hmacSensitive cannot be empty, %w", ErrInputNil)
+	}
+	if len(message) == 0 {
+		return fmt.Errorf("VerifyHMAC: message cannot be empty, %w", ErrInputNil)
+	}
+	if len(signature) == 0 {
+		return fmt.Errorf("VerifyHMAC: signature cannot be empty, %w", ErrInputNil)
+	}
+
+	sig, err := tpm20.Unmarshal[tpm20.TPMTSignature](signature)
+	if err != nil {
+		return fmt.Errorf("VerifyHMAC: failed to unmarshal signature, %w", err)
+	}
+	ha, err := sig.Signature.HMAC()
+	if err != nil {
+		return fmt.Errorf("VerifyHMAC: failed to get HMAC from signature, %w", err)
+	}
+	if ha.HashAlg != tpm20.TPMAlgSHA256 {
+		return fmt.Errorf("VerifyHMAC: wrong HMAC algorithm: %v (expected SHA256), %w", ha.HashAlg, ErrWrongAlgo)
+	}
+
+	bits, err := hmacSensitive.Sensitive.Bits()
+	if err != nil {
+		return fmt.Errorf("VerifyHMAC: failed to get HMAC key from hmacSensitive, %w", err)
+	}
+	// The HMAC is over SHA256(message).
+	digest := sha256.Sum256(message)
+	h := hmac.New(sha256.New, bits.Buffer)
+	h.Write(digest[:])
+	if subtle.ConstantTimeCompare(ha.Digest, h.Sum(nil)) != 1 {
+		return fmt.Errorf("VerifyHMAC: HMAC verification failed, %w", ErrHMACNotMatch)
+	}
+
 	return nil
 }
 
