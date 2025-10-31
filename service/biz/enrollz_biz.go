@@ -1077,7 +1077,7 @@ func VerifyIdevidKey(ctx context.Context, deps TPM20Utils, fetchEKResp *FetchEKR
 		return errMsg
 	}
 
-	err = deps.VerifyIDevIDAttributes(&idevidCsrContents.IDevIDPub, keyTemplate)
+	err = deps.VerifyIdevidAttributes(&idevidCsrContents.IDevIDPub, keyTemplate)
 	if err != nil {
 		errMsg := fmt.Errorf("failed to verify IDevID attributes: %w", err)
 		log.ErrorContext(ctx, errMsg)

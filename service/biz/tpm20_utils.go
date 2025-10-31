@@ -47,6 +47,8 @@ var (
 	ErrHMACNotMatch = errors.New("HMAC does not match")
 	// ErrWrongAlgo is returned when an algorithm is not as expected.
 	ErrWrongAlgo = errors.New("unexpected algorithm")
+	// ErrUnsupportedKeyTemplate is returned when the key template is unsupported.
+	ErrUnsupportedKeyTemplate = errors.New("unsupported key template")
 )
 
 // TCGCSRIDevIDContents is the contents of the TCG_CSR_IDEVID_CONTENT structure.
@@ -76,7 +78,7 @@ type TPM20Utils interface {
 	VerifyCertifyInfo(certifyInfoAttest *tpm20.TPMSAttest, certifiedKey *tpm20.TPMTPublic) error
 	VerifyIAKAttributes(iakPub []byte) (*tpm20.TPMTPublic, error)
 	VerifyTPMTSignature(data []byte, signature *tpm20.TPMTSignature, pubKey *tpm20.TPMTPublic) error
-	VerifyIDevIDAttributes(idevidPub *tpm20.TPMTPublic, keyTemplate epb.KeyTemplate) error
+	VerifyIdevidAttributes(idevidPub *tpm20.TPMTPublic, keyTemplate epb.KeyTemplate) error
 }
 
 // DefaultTPM20Utils is a concrete implementation of the TPM20Utils interface.
@@ -427,9 +429,49 @@ func (u *DefaultTPM20Utils) VerifyTPMTSignature(data []byte, signature *tpm20.TP
 	return nil
 }
 
-// VerifyIDevIDAttributes verifies the IDevID attributes and make sure they match the template provided.
-func (u *DefaultTPM20Utils) VerifyIDevIDAttributes(idevidPub *tpm20.TPMTPublic, keyTemplate epb.KeyTemplate) error {
-	// TODO: Implement this function.
+// VerifyIdevidAttributes verifies the IDevID attributes and make sure they match the template provided.
+func (u *DefaultTPM20Utils) VerifyIdevidAttributes(idevidPub *tpm20.TPMTPublic, keyTemplate epb.KeyTemplate) error {
+	if idevidPub == nil {
+		return fmt.Errorf("%w: IDevID pub cannot be nil", ErrInputNil)
+	}
+
+	// IDevID must be unrestricted, fixedTPM, fixedParent, and be a signing key.
+	expAttributes := tpm20.TPMAObject{
+		FixedTPM:            true,
+		Restricted:          false,
+		SensitiveDataOrigin: true,
+		SignEncrypt:         true,
+		Decrypt:             false,
+		FixedParent:         true,
+		UserWithAuth:        true,
+		AdminWithPolicy:     true,
+	}
+	if err := verifyTPMTPublicAttributes(*idevidPub, expAttributes); err != nil {
+		return fmt.Errorf("failed to verify IDevID attributes: %w", err)
+	}
+	switch keyTemplate {
+	// This template follows the "ECC NIST P384 Key Template" as specified in
+	// https://trustedcomputinggroup.org/wp-content/uploads/TPM-2.0-Keys-for-Device-Identity-and-Attestation-v1.10r9_pub.pdf#page=46
+	case epb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384:
+		if idevidPub.Type != tpm20.TPMAlgECC {
+			return fmt.Errorf("%w: unexpected idevidPub.Type got %v, want %v", ErrInvalidPubKeyAttributes, idevidPub.Type, tpm20.TPMAlgECC)
+		}
+		if idevidPub.NameAlg != tpm20.TPMAlgSHA384 {
+			return fmt.Errorf("%w: unexpected idevidPub.NameAlg got %v, want %v", ErrInvalidPubKeyAttributes, idevidPub.NameAlg, tpm20.TPMAlgSHA384)
+		}
+		eccParams, err := idevidPub.Parameters.ECCDetail()
+		if err != nil {
+			return fmt.Errorf("%w: idevidPub.Parameters are not ECCParams: %v", ErrInvalidPubKeyAttributes, err)
+		}
+		if eccParams.CurveID != tpm20.TPMECCNistP384 {
+			return fmt.Errorf("%w: unexpected eccParams.CurveID in idevidPub got %v, want %v", ErrInvalidPubKeyAttributes, eccParams.CurveID, tpm20.TPMECCNistP384)
+		}
+		if eccParams.Scheme.Scheme != tpm20.TPMAlgECDSA {
+			return fmt.Errorf("%w: unexpected eccParams.Scheme.Scheme in idevidPub got %v, want %v", ErrInvalidPubKeyAttributes, eccParams.Scheme.Scheme, tpm20.TPMAlgECDSA)
+		}
+	default:
+		return fmt.Errorf("%w: %v", ErrUnsupportedKeyTemplate, keyTemplate)
+	}
 	return nil
 }
 
