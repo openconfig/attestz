@@ -5,10 +5,10 @@ go 1.23.0
 require (
 	github.com/golang/glog v1.2.5
 	github.com/google/go-cmp v0.7.0
-	github.com/google/go-tpm v0.9.5
-	google.golang.org/grpc v1.75.1
+	github.com/google/go-tpm v0.9.7
+	google.golang.org/grpc v1.77.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.5.1
-	google.golang.org/protobuf v1.36.9
+	google.golang.org/protobuf v1.36.10
 )
 
 require (
