@@ -947,6 +947,76 @@ func TestRSAEKPublicKeyToTPMTPublic_Failure(t *testing.T) {
 	}
 }
 
+func TestTPMTPublicToPEM(t *testing.T) {
+	u := DefaultTPM20Utils{}
+	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate RSA key for testing: %v", err)
+	}
+
+	// Create a TPMT_PUBLIC from the RSA public key
+	pubKeyTPM, err := u.RSAEKPublicKeyToTPMTPublic(&privKey.PublicKey)
+	if err != nil {
+		t.Fatalf("Failed to convert RSA public key to TPMT_PUBLIC: %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		pubKey  *tpm20.TPMTPublic
+		wantErr error
+		wantPem bool
+	}{
+		{
+			name:    "Successful conversion",
+			pubKey:  pubKeyTPM,
+			wantErr: nil,
+			wantPem: true,
+		},
+		{
+			name:    "Nil TPMTPublic input",
+			pubKey:  nil,
+			wantErr: ErrInputNil,
+			wantPem: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			gotPem, err := u.TPMTPublicToPEM(tc.pubKey)
+
+			if !errors.Is(err, tc.wantErr) {
+				t.Errorf("TPMTPublicToPEM() got error %v, want error %v", err, tc.wantErr)
+			}
+			if tc.wantPem && gotPem == "" {
+				t.Errorf("TPMTPublicToPEM() got empty PEM string, wanted non-empty")
+			}
+			if !tc.wantPem && gotPem != "" {
+				t.Errorf("TPMTPublicToPEM() got non-empty PEM string %q, wanted empty", gotPem)
+			}
+
+			if tc.wantErr == nil && tc.wantPem {
+				// Further validate the PEM content
+				block, _ := pem.Decode([]byte(gotPem))
+				if block == nil {
+					t.Fatalf("Failed to decode PEM block from generated string: %s", gotPem)
+				}
+				pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+				if err != nil {
+					t.Errorf("Failed to parse PKIX public key from PEM block: %v", err)
+				}
+				rsaPub, ok := pub.(*rsa.PublicKey)
+				if !ok {
+					t.Errorf("Expected RSA public key, got %T", pub)
+				}
+				// Just a basic check to ensure it's a valid RSA public key, further deep comparison can be added if needed.
+				if rsaPub.N.Cmp(privKey.N) != 0 || rsaPub.E != privKey.E {
+					t.Errorf("Converted RSA public key does not match original")
+				}
+			}
+		})
+	}
+}
+
 func TestWrapHMACKeytoRSAPublicKey_Success(t *testing.T) {
 	u := &DefaultTPM20Utils{}
 	hmacPub, hmacSensitive, err := u.GenerateRestrictedHMACKey()

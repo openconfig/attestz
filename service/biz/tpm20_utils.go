@@ -79,6 +79,7 @@ type TPM20Utils interface {
 	VerifyIAKAttributes(iakPub []byte) (*tpm20.TPMTPublic, error)
 	VerifyTPMTSignature(data []byte, signature *tpm20.TPMTSignature, pubKey *tpm20.TPMTPublic) error
 	VerifyIdevidAttributes(idevidPub *tpm20.TPMTPublic, keyTemplate epb.KeyTemplate) error
+	TPMTPublicToPEM(pubKey *tpm20.TPMTPublic) (string, error)
 }
 
 // DefaultTPM20Utils is a concrete implementation of the TPM20Utils interface.
@@ -225,6 +226,27 @@ func (u *DefaultTPM20Utils) GenerateRestrictedHMACKey() (*tpm20.TPMTPublic, *tpm
 	}
 
 	return pub, priv, nil
+}
+
+// TPMTPublicToPEM converts a TPMT_PUBLIC struct to a PEM string.
+func (u *DefaultTPM20Utils) TPMTPublicToPEM(pubKey *tpm20.TPMTPublic) (string, error) {
+	if pubKey == nil {
+		return "", fmt.Errorf("TPMTPublicToPEM: pubKey cannot be empty, %w", ErrInputNil)
+	}
+	pubKeyCrypto, err := tpm20.Pub(*pubKey)
+	if err != nil {
+		return "", fmt.Errorf("TPMTPublicToPEM: failed to encode public key to PEM: %w", err)
+	}
+	pubKeyPkix, err := x509.MarshalPKIXPublicKey(pubKeyCrypto)
+	if err != nil {
+		return "", fmt.Errorf("TPMTPublicToPEM: failed to marshal public key to PKIX: %w", err)
+	}
+	pemBlock := &pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: pubKeyPkix, // Use the marshaled PKIX bytes
+	}
+	pubKeyPem := pem.EncodeToMemory(pemBlock)
+	return string(pubKeyPem), nil
 }
 
 // RSAEKPublicKeyToTPMTPublic converts an RSA public key to a TPMT_PUBLIC struct.
