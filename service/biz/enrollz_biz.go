@@ -24,6 +24,7 @@ import (
 	"crypto/sha1"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 
@@ -36,6 +37,11 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/prototext"
+)
+
+var (
+	// ErrFailedToIssueOwnerCert is returned when the Switch Owner CA fails to issue an owner certificate.
+	ErrFailedToIssueOwnerCert = errors.New("failed to issue owner cert")
 )
 
 // RSAkeySize2048 is the size of the RSA key used for TPM enrollment.
@@ -356,6 +362,27 @@ func EnrollControlCard(ctx context.Context, req *EnrollControlCardReq) error {
 
 	// Return a successful (no-error) response.
 	return nil
+}
+
+type ControlCardCertData struct {
+	ControlCardSelections *cpb.ControlCardSelection
+	ControlCardID         *cpb.ControlCardVendorId
+	IAKPubPem             string
+	IDevIDPubPem          string
+}
+
+func issueOwnerIakCert(ctx context.Context, deps EnrollzInfraDeps, certData ControlCardCertData) (string, error) {
+	issueOwnerIakCertReq := &IssueOwnerIakCertReq{
+		CardID:    certData.ControlCardID,
+		IakPubPem: certData.IAKPubPem,
+	}
+	issueOwnerIakCertResp, err := deps.IssueOwnerIakCert(ctx, issueOwnerIakCertReq)
+	if err != nil {
+		return "", fmt.Errorf("issuing IAK cert: %w: %v", ErrFailedToIssueOwnerCert, err)
+	}
+	log.InfoContextf(ctx, "Successful Switch Owner CA IssueOwnerIakCert() for control_card_id=%s IAK_pub_pem=%s resp=%s",
+		prototext.Format(certData.ControlCardID), certData.IAKPubPem, issueOwnerIakCertResp.OwnerIakCertPem)
+	return issueOwnerIakCertResp.OwnerIakCertPem, nil
 }
 
 // RotateOwnerIakCertReq is the request to RotateOwnerIakCert().

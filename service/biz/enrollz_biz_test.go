@@ -1600,4 +1600,76 @@ func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
 	}
 }
 
+func TestIssueOwnerIakCert(t *testing.T) {
+	// Constants to be used in request params and stubbing.
+	vendorID := &cpb.ControlCardVendorId{
+		ControlCardSerial:   "Some card serial",
+		ChassisManufacturer: "Some manufacturer",
+		ChassisSerialNumber: "Some chassis serial",
+	}
+	iakPubPem := "Some IAK pub PEM"
+	ownerIakCertPem := "Some Owner IAK cert PEM"
+	errorResp := errors.New("some error from CA")
+
+	tests := []struct {
+		desc                string
+		certData            ControlCardCertData
+		stubbedResp         *IssueOwnerIakCertResp
+		stubbedErr          error
+		wantReq             *IssueOwnerIakCertReq
+		wantOwnerIakCertPem string
+		wantErr             error
+	}{
+		{
+			desc: "Successful certificate issuance",
+			certData: ControlCardCertData{
+				ControlCardID: vendorID,
+				IAKPubPem:     iakPubPem,
+			},
+			stubbedResp: &IssueOwnerIakCertResp{
+				OwnerIakCertPem: ownerIakCertPem,
+			},
+			wantReq: &IssueOwnerIakCertReq{
+				CardID:    vendorID,
+				IakPubPem: iakPubPem,
+			},
+			wantOwnerIakCertPem: ownerIakCertPem,
+		},
+		{
+			desc: "Failure in Switch Owner CA",
+			certData: ControlCardCertData{
+				ControlCardID: vendorID,
+				IAKPubPem:     iakPubPem,
+			},
+			stubbedErr: errorResp,
+			wantReq: &IssueOwnerIakCertReq{
+				CardID:    vendorID,
+				IakPubPem: iakPubPem,
+			},
+			wantErr: ErrFailedToIssueOwnerCert,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			stub := &stubEnrollzInfraDeps{
+				issueOwnerIakCertResp: test.stubbedResp,
+				errorResp:             test.stubbedErr,
+			}
+
+			ctx := context.Background()
+			gotOwnerIakCertPem, gotErr := issueOwnerIakCert(ctx, stub, test.certData)
+			if !errors.Is(gotErr, test.wantErr) {
+				t.Errorf("issueOwnerIakCert() got error %v, want error %v", gotErr, test.wantErr)
+			}
+			if gotOwnerIakCertPem != test.wantOwnerIakCertPem {
+				t.Errorf("issueOwnerIakCert() got cert %q, want %q", gotOwnerIakCertPem, test.wantOwnerIakCertPem)
+			}
+			if diff := cmp.Diff(test.wantReq, stub.issueOwnerIakCertReq, protocmp.Transform()); diff != "" {
+				t.Errorf("issueOwnerIakCert() sent unexpected request to SwitchOwnerCaClient: (-want +got)\n%s", diff)
+			}
+		})
+	}
+}
+
 // TODO: Add tests for  VerifyIdentityWithHMACChallenge, VerifyIAKKey and VerifyIdevidKey with test vectors
