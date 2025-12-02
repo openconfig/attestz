@@ -63,6 +63,9 @@ type stubEnrollzInfraDeps struct {
 	// If we need to simulate an error response from any of the deps, then set
 	// the dep's response to nil and populate this error field.
 	errorResp error
+
+	// Custom mock functions for more complex test scenarios such as tracking number of calls to RotateOIakCert.
+	RotateOIakCertFn func(context.Context, *epb.RotateOIakCertRequest) (*epb.RotateOIakCertResponse, error)
 }
 
 func (s *stubEnrollzInfraDeps) VerifyIakAndIDevIDCerts(ctx context.Context, req *VerifyIakAndIDevIDCertsReq) (*VerifyIakAndIDevIDCertsResp, error) {
@@ -136,6 +139,9 @@ func (s *stubEnrollzInfraDeps) GetIakCert(ctx context.Context, req *epb.GetIakCe
 }
 
 func (s *stubEnrollzInfraDeps) RotateOIakCert(ctx context.Context, req *epb.RotateOIakCertRequest) (*epb.RotateOIakCertResponse, error) {
+	if s.RotateOIakCertFn != nil {
+		return s.RotateOIakCertFn(ctx, req)
+	}
 	// Validate that no stub (captured) request params were set prior to execution.
 	if s.rotateOIakCertReq != nil {
 		return nil, fmt.Errorf("RotateOIakCert unexpected req %s", prototext.Format(s.rotateOIakCertReq))
@@ -1672,8 +1678,6 @@ func TestIssueOwnerIakCert(t *testing.T) {
 	}
 }
 
-// TODO: Add tests for  VerifyIdentityWithHMACChallenge, VerifyIAKKey and VerifyIdevidKey with test vectors
-
 func TestIssueOwnerIDevIDCert(t *testing.T) {
 	// Constants to be used in request params and stubbing.
 	vendorID := &cpb.ControlCardVendorId{
@@ -1778,3 +1782,265 @@ func TestIssueOwnerIDevIDCert(t *testing.T) {
 		})
 	}
 }
+
+func TestRotateOIakCert(t *testing.T) {
+	// Constants to be used in request params and stubbing.
+	controlCardSelection1 := &cpb.ControlCardSelection{
+		ControlCardId: &cpb.ControlCardSelection_Role{
+			Role: cpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE,
+		},
+	}
+	controlCardSelection2 := &cpb.ControlCardSelection{
+		ControlCardId: &cpb.ControlCardSelection_Role{
+			Role: cpb.ControlCardRole_CONTROL_CARD_ROLE_STANDBY,
+		},
+	}
+	sslProfileID := "Some SSL profile ID"
+	oIakCert1 := "Some Owner IAK cert PEM 1"
+	oIdevIDCert1 := "Some Owner IDevID cert PEM 1"
+	oIakCert2 := "Some Owner IAK cert PEM 2"
+	oIdevIDCert2 := "Some Owner IDevID cert PEM 2"
+	errorResp := errors.New("some error")
+
+	tests := []struct {
+		desc                        string
+		atomicCertRotationSupported bool
+		controlCardCerts            []*epb.ControlCardCertUpdate
+		wantReqs                    []*epb.RotateOIakCertRequest
+		mockErrs                    []error
+		wantErr                     error
+	}{
+		{
+			desc:                        "Successful atomic rotation (multiple cards)",
+			atomicCertRotationSupported: true,
+			controlCardCerts: []*epb.ControlCardCertUpdate{
+				{
+					ControlCardSelection: controlCardSelection1,
+					OiakCert:             oIakCert1,
+					OidevidCert:          oIdevIDCert1,
+				},
+				{
+					ControlCardSelection: controlCardSelection2,
+					OiakCert:             oIakCert2,
+					OidevidCert:          oIdevIDCert2,
+				},
+			},
+			wantReqs: []*epb.RotateOIakCertRequest{
+				{
+					SslProfileId: sslProfileID,
+					Updates: []*epb.ControlCardCertUpdate{
+						{
+							ControlCardSelection: controlCardSelection1,
+							OiakCert:             oIakCert1,
+							OidevidCert:          oIdevIDCert1,
+						},
+						{
+							ControlCardSelection: controlCardSelection2,
+							OiakCert:             oIakCert2,
+							OidevidCert:          oIdevIDCert2,
+						},
+					},
+				},
+			},
+			mockErrs: []error{nil},
+		},
+		{
+			desc:                        "Successful non-atomic rotation (multiple cards)",
+			atomicCertRotationSupported: false,
+			controlCardCerts: []*epb.ControlCardCertUpdate{
+				{
+					ControlCardSelection: controlCardSelection1,
+					OiakCert:             oIakCert1,
+					OidevidCert:          oIdevIDCert1,
+				},
+				{
+					ControlCardSelection: controlCardSelection2,
+					OiakCert:             oIakCert2,
+					OidevidCert:          oIdevIDCert2,
+				},
+			},
+			wantReqs: []*epb.RotateOIakCertRequest{
+				{
+					SslProfileId:         sslProfileID,
+					ControlCardSelection: controlCardSelection1,
+					OiakCert:             oIakCert1,
+					OidevidCert:          oIdevIDCert1,
+				},
+				{
+					SslProfileId:         sslProfileID,
+					ControlCardSelection: controlCardSelection2,
+					OiakCert:             oIakCert2,
+					OidevidCert:          oIdevIDCert2,
+				},
+			},
+			mockErrs: []error{nil, nil},
+		},
+		{
+			desc:                        "Successful non-atomic rotation (single card)",
+			atomicCertRotationSupported: false,
+			controlCardCerts: []*epb.ControlCardCertUpdate{
+				{
+					ControlCardSelection: controlCardSelection1,
+					OiakCert:             oIakCert1,
+					OidevidCert:          oIdevIDCert1,
+				},
+			},
+			wantReqs: []*epb.RotateOIakCertRequest{
+				{
+					SslProfileId:         sslProfileID,
+					ControlCardSelection: controlCardSelection1,
+					OiakCert:             oIakCert1,
+					OidevidCert:          oIdevIDCert1,
+				},
+			},
+			mockErrs: []error{nil},
+		},
+		{
+			desc:                        "Atomic rotation failure (multiple cards)",
+			atomicCertRotationSupported: true,
+			controlCardCerts: []*epb.ControlCardCertUpdate{
+				{
+					ControlCardSelection: controlCardSelection1,
+					OiakCert:             oIakCert1,
+					OidevidCert:          oIdevIDCert1,
+				},
+				{
+					ControlCardSelection: controlCardSelection2,
+					OiakCert:             oIakCert2,
+					OidevidCert:          oIdevIDCert2,
+				},
+			},
+			wantReqs: []*epb.RotateOIakCertRequest{
+				{
+					SslProfileId: sslProfileID,
+					Updates: []*epb.ControlCardCertUpdate{
+						{
+							ControlCardSelection: controlCardSelection1,
+							OiakCert:             oIakCert1,
+							OidevidCert:          oIdevIDCert1,
+						},
+						{
+							ControlCardSelection: controlCardSelection2,
+							OiakCert:             oIakCert2,
+							OidevidCert:          oIdevIDCert2,
+						},
+					},
+				},
+			},
+			mockErrs: []error{errorResp},
+			wantErr:  ErrRotateOIakCert,
+		},
+		{
+			desc:                        "Non-atomic rotation failure on first card (multiple cards)",
+			atomicCertRotationSupported: false,
+			controlCardCerts: []*epb.ControlCardCertUpdate{
+				{
+					ControlCardSelection: controlCardSelection1,
+					OiakCert:             oIakCert1,
+					OidevidCert:          oIdevIDCert1,
+				},
+				{
+					ControlCardSelection: controlCardSelection2,
+					OiakCert:             oIakCert2,
+					OidevidCert:          oIdevIDCert2,
+				},
+			},
+			wantReqs: []*epb.RotateOIakCertRequest{
+				{
+					SslProfileId:         sslProfileID,
+					ControlCardSelection: controlCardSelection1,
+					OiakCert:             oIakCert1,
+					OidevidCert:          oIdevIDCert1,
+				},
+			},
+			mockErrs: []error{errorResp},
+			wantErr:  ErrRotateOIakCert,
+		},
+		{
+			desc:                        "Non-atomic rotation failure on second card (multiple cards)",
+			atomicCertRotationSupported: false,
+			controlCardCerts: []*epb.ControlCardCertUpdate{
+				{
+					ControlCardSelection: controlCardSelection1,
+					OiakCert:             oIakCert1,
+					OidevidCert:          oIdevIDCert1,
+				},
+				{
+					ControlCardSelection: controlCardSelection2,
+					OiakCert:             oIakCert2,
+					OidevidCert:          oIdevIDCert2,
+				},
+			},
+			wantReqs: []*epb.RotateOIakCertRequest{
+				{
+					SslProfileId:         sslProfileID,
+					ControlCardSelection: controlCardSelection1,
+					OiakCert:             oIakCert1,
+					OidevidCert:          oIdevIDCert1,
+				},
+				{
+					SslProfileId:         sslProfileID,
+					ControlCardSelection: controlCardSelection2,
+					OiakCert:             oIakCert2,
+					OidevidCert:          oIdevIDCert2,
+				},
+			},
+			mockErrs: []error{nil, errorResp},
+			wantErr:  ErrRotateOIakCert,
+		},
+		{
+			desc:                        "Non-atomic rotation failure (single card)",
+			atomicCertRotationSupported: false,
+			controlCardCerts: []*epb.ControlCardCertUpdate{
+				{
+					ControlCardSelection: controlCardSelection1,
+					OiakCert:             oIakCert1,
+					OidevidCert:          oIdevIDCert1,
+				},
+			},
+			wantReqs: []*epb.RotateOIakCertRequest{
+				{
+					SslProfileId:         sslProfileID,
+					ControlCardSelection: controlCardSelection1,
+					OiakCert:             oIakCert1,
+					OidevidCert:          oIdevIDCert1,
+				},
+			},
+			mockErrs: []error{errorResp},
+			wantErr:  ErrRotateOIakCert,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			var capturedReqs []*epb.RotateOIakCertRequest
+			callCount := 0
+			stub := &stubEnrollzInfraDeps{}
+			stub.RotateOIakCertFn = func(ctx context.Context, req *epb.RotateOIakCertRequest) (*epb.RotateOIakCertResponse, error) {
+				capturedReqs = append(capturedReqs, req)
+				var err error
+				if callCount < len(test.mockErrs) {
+					err = test.mockErrs[callCount]
+				}
+				callCount++
+				if err != nil {
+					return nil, err
+				}
+				return &epb.RotateOIakCertResponse{}, nil
+			}
+
+			ctx := context.Background()
+			gotErr := rotateOIakCert(ctx, stub, sslProfileID, test.controlCardCerts, test.atomicCertRotationSupported)
+
+			if !errors.Is(gotErr, test.wantErr) {
+				t.Errorf("rotateOIakCert() got error %v, want error %v", gotErr, test.wantErr)
+			}
+
+			if diff := cmp.Diff(test.wantReqs, capturedReqs, protocmp.Transform()); diff != "" {
+				t.Errorf("rotateOIakCert() sent unexpected requests: (-want +got)\n%s", diff)
+			}
+		})
+	}
+}
+
+// TODO: Add tests for  VerifyIdentityWithHMACChallenge, VerifyIAKKey and VerifyIdevidKey with test vectors

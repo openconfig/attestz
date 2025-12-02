@@ -44,6 +44,8 @@ var (
 	ErrFailedToIssueOwnerCert = errors.New("failed to issue owner cert")
 	// ErrEmptyField is returned when a required field is empty.
 	ErrEmptyField = errors.New("required field is empty")
+	// ErrRotateOIakCert is returned when the device fails to rotate the oIAK and oIDevID certificates.
+	ErrRotateOIakCert = errors.New("failed to rotate oIAK and oIDevID certs")
 )
 
 // RSAkeySize2048 is the size of the RSA key used for TPM enrollment.
@@ -406,6 +408,41 @@ func issueOwnerIDevIDCert(ctx context.Context, deps EnrollzInfraDeps, certData C
 	log.InfoContextf(ctx, "Successful Switch Owner CA IssueOwnerIDevIDCert() for control_card_id=%s IDevID_pub_pem=%s resp=%s",
 		prototext.Format(certData.ControlCardID), certData.IDevIDPubPem, issueOwnerIDevIDCertResp.OwnerIDevIDCertPem)
 	return issueOwnerIDevIDCertResp.OwnerIDevIDCertPem, nil
+}
+
+func rotateOIakCert(ctx context.Context, deps EnrollzInfraDeps, sslProfileID string, controlCardCerts []*epb.ControlCardCertUpdate, atomicCertRotationSupported bool) error {
+	if atomicCertRotationSupported {
+		// Rotate oIAK and oIDevID certs for all control cards atomically.
+		// This is the preferred way to rotate certs going forward.
+		rotateOIakCertReq := &epb.RotateOIakCertRequest{
+			SslProfileId: sslProfileID,
+			Updates:      controlCardCerts,
+		}
+
+		rotateOIakCertResp, err := deps.RotateOIakCert(ctx, rotateOIakCertReq)
+		if err != nil {
+			return fmt.Errorf("%w: %v", ErrRotateOIakCert, err)
+		}
+		log.InfoContextf(ctx, "Successfully received from device RotateOIakCert() for req=%s resp=%s",
+			prototext.Format(rotateOIakCertReq), prototext.Format(rotateOIakCertResp))
+	} else {
+		// Rotate oIAK and oIDevID certs for each control card separately.
+		for _, certData := range controlCardCerts {
+			rotateOIakCertReq := &epb.RotateOIakCertRequest{
+				SslProfileId:         sslProfileID,
+				ControlCardSelection: certData.ControlCardSelection,
+				OiakCert:             certData.OiakCert,
+				OidevidCert:          certData.OidevidCert,
+			}
+			rotateOIakCertResp, err := deps.RotateOIakCert(ctx, rotateOIakCertReq)
+			if err != nil {
+				return fmt.Errorf("%w: %v", ErrRotateOIakCert, err)
+			}
+			log.InfoContextf(ctx, "Successfully received from device RotateOIakCert(%+v) = %+v",
+				prototext.Format(rotateOIakCertReq), prototext.Format(rotateOIakCertResp))
+		}
+	}
+	return nil
 }
 
 // RotateOwnerIakCertReq is the request to RotateOwnerIakCert().
