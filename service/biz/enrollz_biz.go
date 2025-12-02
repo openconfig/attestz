@@ -380,7 +380,7 @@ func issueOwnerIakCert(ctx context.Context, deps EnrollzInfraDeps, certData Cont
 	}
 	issueOwnerIakCertResp, err := deps.IssueOwnerIakCert(ctx, issueOwnerIakCertReq)
 	if err != nil {
-		return "", fmt.Errorf("issuing IAK cert: %w: %v", ErrFailedToIssueOwnerCert, err)
+		return "", fmt.Errorf("%w: type oIAK: %v", ErrFailedToIssueOwnerCert, err)
 	}
 	log.InfoContextf(ctx, "Successful Switch Owner CA IssueOwnerIakCert() for control_card_id=%s IAK_pub_pem=%s resp=%s",
 		prototext.Format(certData.ControlCardID), certData.IAKPubPem, issueOwnerIakCertResp.OwnerIakCertPem)
@@ -388,6 +388,7 @@ func issueOwnerIakCert(ctx context.Context, deps EnrollzInfraDeps, certData Cont
 }
 
 func issueOwnerIDevIDCert(ctx context.Context, deps EnrollzInfraDeps, certData ControlCardCertData, sslProfileID string, skipOidevidRotate bool) (string, error) {
+	// TODO: add validation to ensure that IDevIDPubPem is not empty for active control card when skipOidevidRotate is false.
 	if skipOidevidRotate || certData.IDevIDPubPem == "" {
 		return "", nil
 	}
@@ -400,7 +401,7 @@ func issueOwnerIDevIDCert(ctx context.Context, deps EnrollzInfraDeps, certData C
 	}
 	issueOwnerIDevIDCertResp, err := deps.IssueOwnerIDevIDCert(ctx, issueOwnerIDevIDCertReq)
 	if err != nil {
-		return "", fmt.Errorf("issuing IDevID cert: %w: %v", ErrFailedToIssueOwnerCert, err)
+		return "", fmt.Errorf("%w: type oIDevID: %v", ErrFailedToIssueOwnerCert, err)
 	}
 	log.InfoContextf(ctx, "Successful Switch Owner CA IssueOwnerIDevIDCert() for control_card_id=%s IDevID_pub_pem=%s resp=%s",
 		prototext.Format(certData.ControlCardID), certData.IDevIDPubPem, issueOwnerIDevIDCertResp.OwnerIDevIDCertPem)
