@@ -1673,3 +1673,108 @@ func TestIssueOwnerIakCert(t *testing.T) {
 }
 
 // TODO: Add tests for  VerifyIdentityWithHMACChallenge, VerifyIAKKey and VerifyIdevidKey with test vectors
+
+func TestIssueOwnerIDevIDCert(t *testing.T) {
+	// Constants to be used in request params and stubbing.
+	vendorID := &cpb.ControlCardVendorId{
+		ControlCardSerial:   "Some card serial",
+		ChassisManufacturer: "Some manufacturer",
+		ChassisSerialNumber: "Some chassis serial",
+	}
+	iDevIDPubPem := "Some IDevID pub PEM"
+	ownerIDevIDCertPem := "Some Owner IDevID cert PEM"
+	sslProfileID := "Some SSL profile ID"
+	errorResp := errors.New("some error from CA")
+
+	tests := []struct {
+		desc                   string
+		certData               ControlCardCertData
+		sslProfileID           string
+		skipOidevidRotate      bool
+		stubbedResp            *IssueOwnerIDevIDCertResp
+		stubbedErr             error
+		wantReq                *IssueOwnerIDevIDCertReq
+		wantOwnerIDevIDCertPem string
+		wantErr                error
+	}{
+		{
+			desc: "Successful certificate issuance",
+			certData: ControlCardCertData{
+				ControlCardID: vendorID,
+				IDevIDPubPem:  iDevIDPubPem,
+			},
+			sslProfileID:      sslProfileID,
+			skipOidevidRotate: false,
+			stubbedResp: &IssueOwnerIDevIDCertResp{
+				OwnerIDevIDCertPem: ownerIDevIDCertPem,
+			},
+			wantReq: &IssueOwnerIDevIDCertReq{
+				CardID:       vendorID,
+				IDevIDPubPem: iDevIDPubPem,
+			},
+			wantOwnerIDevIDCertPem: ownerIDevIDCertPem,
+		},
+		{
+			desc: "skipOidevidRotate is true",
+			certData: ControlCardCertData{
+				ControlCardID: vendorID,
+				IDevIDPubPem:  iDevIDPubPem,
+			},
+			sslProfileID:      sslProfileID,
+			skipOidevidRotate: true,
+		},
+		{
+			desc: "IDevIDPubPem is empty",
+			certData: ControlCardCertData{
+				ControlCardID: vendorID,
+			},
+			sslProfileID:      sslProfileID,
+			skipOidevidRotate: false,
+		},
+		{
+			desc: "sslProfileID is empty",
+			certData: ControlCardCertData{
+				ControlCardID: vendorID,
+				IDevIDPubPem:  iDevIDPubPem,
+			},
+			skipOidevidRotate: false,
+			wantErr:           ErrEmptyField,
+		},
+		{
+			desc: "Failure in Switch Owner CA",
+			certData: ControlCardCertData{
+				ControlCardID: vendorID,
+				IDevIDPubPem:  iDevIDPubPem,
+			},
+			sslProfileID:      sslProfileID,
+			skipOidevidRotate: false,
+			stubbedErr:        errorResp,
+			wantReq: &IssueOwnerIDevIDCertReq{
+				CardID:       vendorID,
+				IDevIDPubPem: iDevIDPubPem,
+			},
+			wantErr: ErrFailedToIssueOwnerCert,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			stub := &stubEnrollzInfraDeps{
+				issueOwnerIDevIDCertResp: test.stubbedResp,
+				errorResp:                test.stubbedErr,
+			}
+
+			ctx := context.Background()
+			gotOwnerIDevIDCertPem, gotErr := issueOwnerIDevIDCert(ctx, stub, test.certData, test.sslProfileID, test.skipOidevidRotate)
+			if !errors.Is(gotErr, test.wantErr) {
+				t.Errorf("issueOwnerIDevIDCert() got error %v, want error %v", gotErr, test.wantErr)
+			}
+			if gotOwnerIDevIDCertPem != test.wantOwnerIDevIDCertPem {
+				t.Errorf("issueOwnerIDevIDCert() got cert %q, want %q", gotOwnerIDevIDCertPem, test.wantOwnerIDevIDCertPem)
+			}
+			if diff := cmp.Diff(test.wantReq, stub.issueOwnerIDevIDCertReq, protocmp.Transform()); diff != "" {
+				t.Errorf("issueOwnerIDevIDCert() sent unexpected request to SwitchOwnerCaClient: (-want +got)\n%s", diff)
+			}
+		})
+	}
+}
