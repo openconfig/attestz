@@ -1600,271 +1600,74 @@ func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
 	}
 }
 
-func TestIssueAndRotateOwnerCerts(t *testing.T) {
+func TestIssueOwnerIakCert(t *testing.T) {
 	// Constants to be used in request params and stubbing.
-	controlCardSelection := &cpb.ControlCardSelection{
-		ControlCardId: &cpb.ControlCardSelection_Role{
-			Role: cpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE,
-		},
-	}
 	vendorID := &cpb.ControlCardVendorId{
-		ControlCardRole:     controlCardSelection.GetRole(),
 		ControlCardSerial:   "Some card serial",
-		ControlCardSlot:     "Some card slot",
 		ChassisManufacturer: "Some manufacturer",
-		ChassisPartNumber:   "Some part",
 		ChassisSerialNumber: "Some chassis serial",
 	}
-	sslProfileID := "Some SSL profile ID"
-	iakPub := "Some IAK pub PEM"
-	iDevIDPub := "Some IDevID pub PEM"
-	oIakCert := "Some Owner IAK cert PEM"
-	oIdevIDCert := "Some Owner IDevID cert PEM"
-	errorResp := errors.New("Some error")
-
-	cardDataList := []ControlCardCertData{
-		{
-			ControlCardSelections: controlCardSelection,
-			ControlCardID:         vendorID,
-			IAKPubPem:             iakPub,
-			IDevIDPubPem:          iDevIDPub,
-		},
-	}
+	iakPubPem := "Some IAK pub PEM"
+	ownerIakCertPem := "Some Owner IAK cert PEM"
+	errorResp := errors.New("some error from CA")
 
 	tests := []struct {
-		desc                        string
-		wantErrResp                 error
-		cardDataList                []ControlCardCertData
-		sslProfileID                string
-		skipOidevidRotate           bool
-		atomicCertRotationSupported bool
-
-		issueOwnerIakCertResp    *IssueOwnerIakCertResp
-		issueOwnerIDevIDCertResp *IssueOwnerIDevIDCertResp
-		rotateOIakCertResp       *epb.RotateOIakCertResponse
-
-		wantIssueOwnerIakCertReq    *IssueOwnerIakCertReq
-		wantIssueOwnerIDevIDCertReq *IssueOwnerIDevIDCertReq
-		wantRotateOIakCertReq       *epb.RotateOIakCertRequest
+		desc                string
+		certData            ControlCardCertData
+		stubbedResp         *IssueOwnerIakCertResp
+		stubbedErr          error
+		wantReq             *IssueOwnerIakCertReq
+		wantOwnerIakCertPem string
+		wantErr             error
 	}{
 		{
-			desc:                        "Successful atomic rotation",
-			cardDataList:                cardDataList,
-			sslProfileID:                sslProfileID,
-			atomicCertRotationSupported: true,
-			issueOwnerIakCertResp:       &IssueOwnerIakCertResp{OwnerIakCertPem: oIakCert},
-			issueOwnerIDevIDCertResp:    &IssueOwnerIDevIDCertResp{OwnerIDevIDCertPem: oIdevIDCert},
-			rotateOIakCertResp:          &epb.RotateOIakCertResponse{},
-			wantIssueOwnerIakCertReq:    &IssueOwnerIakCertReq{CardID: vendorID, IakPubPem: iakPub},
-			wantIssueOwnerIDevIDCertReq: &IssueOwnerIDevIDCertReq{CardID: vendorID, IDevIDPubPem: iDevIDPub},
-			wantRotateOIakCertReq: &epb.RotateOIakCertRequest{
-				SslProfileId: sslProfileID,
-				Updates: []*epb.ControlCardCertUpdate{
-					{
-						ControlCardSelection: controlCardSelection,
-						OiakCert:             oIakCert,
-						OidevidCert:          oIdevIDCert,
-					},
-				},
+			desc: "Successful certificate issuance",
+			certData: ControlCardCertData{
+				ControlCardID: vendorID,
+				IAKPubPem:     iakPubPem,
 			},
-		},
-		{
-			desc:                        "Successful non-atomic rotation",
-			cardDataList:                cardDataList,
-			sslProfileID:                sslProfileID,
-			atomicCertRotationSupported: false,
-			issueOwnerIakCertResp:       &IssueOwnerIakCertResp{OwnerIakCertPem: oIakCert},
-			issueOwnerIDevIDCertResp:    &IssueOwnerIDevIDCertResp{OwnerIDevIDCertPem: oIdevIDCert},
-			rotateOIakCertResp:          &epb.RotateOIakCertResponse{},
-			wantIssueOwnerIakCertReq:    &IssueOwnerIakCertReq{CardID: vendorID, IakPubPem: iakPub},
-			wantIssueOwnerIDevIDCertReq: &IssueOwnerIDevIDCertReq{CardID: vendorID, IDevIDPubPem: iDevIDPub},
-			wantRotateOIakCertReq: &epb.RotateOIakCertRequest{
-				SslProfileId:         sslProfileID,
-				ControlCardSelection: controlCardSelection,
-				OiakCert:             oIakCert,
-				OidevidCert:          oIdevIDCert,
+			stubbedResp: &IssueOwnerIakCertResp{
+				OwnerIakCertPem: ownerIakCertPem,
 			},
-		},
-		{
-			desc:                        "Empty cardDataList causes error",
-			cardDataList:                []ControlCardCertData{},
-			wantErrResp:                 errors.New("request cardDataList is empty"),
-			atomicCertRotationSupported: true,
-		},
-		{
-			desc:                        "IssueOwnerIakCert fails",
-			cardDataList:                cardDataList,
-			sslProfileID:                sslProfileID,
-			atomicCertRotationSupported: true,
-			issueOwnerIakCertResp:       nil, // Simulate error
-			wantErrResp:                 errorResp,
-			wantIssueOwnerIakCertReq:    &IssueOwnerIakCertReq{CardID: vendorID, IakPubPem: iakPub},
-		},
-		{
-			desc:                        "IssueOwnerIDevIDCert fails",
-			cardDataList:                cardDataList,
-			sslProfileID:                sslProfileID,
-			atomicCertRotationSupported: true,
-			issueOwnerIakCertResp:       &IssueOwnerIakCertResp{OwnerIakCertPem: oIakCert},
-			issueOwnerIDevIDCertResp:    nil, // Simulate error
-			wantErrResp:                 errorResp,
-			wantIssueOwnerIakCertReq:    &IssueOwnerIakCertReq{CardID: vendorID, IakPubPem: iakPub},
-			wantIssueOwnerIDevIDCertReq: &IssueOwnerIDevIDCertReq{CardID: vendorID, IDevIDPubPem: iDevIDPub},
-		},
-		{
-			desc:                        "RotateOIakCert fails (atomic)",
-			cardDataList:                cardDataList,
-			sslProfileID:                sslProfileID,
-			atomicCertRotationSupported: true,
-			issueOwnerIakCertResp:       &IssueOwnerIakCertResp{OwnerIakCertPem: oIakCert},
-			issueOwnerIDevIDCertResp:    &IssueOwnerIDevIDCertResp{OwnerIDevIDCertPem: oIdevIDCert},
-			rotateOIakCertResp:          nil, // Simulate error
-			wantErrResp:                 errorResp,
-			wantIssueOwnerIakCertReq:    &IssueOwnerIakCertReq{CardID: vendorID, IakPubPem: iakPub},
-			wantIssueOwnerIDevIDCertReq: &IssueOwnerIDevIDCertReq{CardID: vendorID, IDevIDPubPem: iDevIDPub},
-			wantRotateOIakCertReq: &epb.RotateOIakCertRequest{
-				SslProfileId: sslProfileID,
-				Updates: []*epb.ControlCardCertUpdate{
-					{
-						ControlCardSelection: controlCardSelection,
-						OiakCert:             oIakCert,
-						OidevidCert:          oIdevIDCert,
-					},
-				},
+			wantReq: &IssueOwnerIakCertReq{
+				CardID:    vendorID,
+				IakPubPem: iakPubPem,
 			},
+			wantOwnerIakCertPem: ownerIakCertPem,
 		},
 		{
-			desc:                        "RotateOIakCert fails (non-atomic)",
-			cardDataList:                cardDataList,
-			sslProfileID:                sslProfileID,
-			atomicCertRotationSupported: false,
-			issueOwnerIakCertResp:       &IssueOwnerIakCertResp{OwnerIakCertPem: oIakCert},
-			issueOwnerIDevIDCertResp:    &IssueOwnerIDevIDCertResp{OwnerIDevIDCertPem: oIdevIDCert},
-			rotateOIakCertResp:          nil, // Simulate error
-			wantErrResp:                 errorResp,
-			wantIssueOwnerIakCertReq:    &IssueOwnerIakCertReq{CardID: vendorID, IakPubPem: iakPub},
-			wantIssueOwnerIDevIDCertReq: &IssueOwnerIDevIDCertReq{CardID: vendorID, IDevIDPubPem: iDevIDPub},
-			wantRotateOIakCertReq: &epb.RotateOIakCertRequest{
-				SslProfileId:         sslProfileID,
-				ControlCardSelection: controlCardSelection,
-				OiakCert:             oIakCert,
-				OidevidCert:          oIdevIDCert,
+			desc: "Failure in Switch Owner CA",
+			certData: ControlCardCertData{
+				ControlCardID: vendorID,
+				IAKPubPem:     iakPubPem,
 			},
-		},
-		{
-			desc:                        "SkipOidevidRotate is true",
-			cardDataList:                cardDataList,
-			sslProfileID:                sslProfileID,
-			skipOidevidRotate:           true,
-			atomicCertRotationSupported: true,
-			issueOwnerIakCertResp:       &IssueOwnerIakCertResp{OwnerIakCertPem: oIakCert},
-			rotateOIakCertResp:          &epb.RotateOIakCertResponse{},
-			wantIssueOwnerIakCertReq:    &IssueOwnerIakCertReq{CardID: vendorID, IakPubPem: iakPub},
-			wantRotateOIakCertReq: &epb.RotateOIakCertRequest{
-				SslProfileId: sslProfileID,
-				Updates: []*epb.ControlCardCertUpdate{
-					{
-						ControlCardSelection: controlCardSelection,
-						OiakCert:             oIakCert,
-						OidevidCert:          "",
-					},
-				},
+			stubbedErr: errorResp,
+			wantReq: &IssueOwnerIakCertReq{
+				CardID:    vendorID,
+				IakPubPem: iakPubPem,
 			},
-		},
-		{
-			desc:                        "sslProfileID is empty but not skipping oIDevID rotation",
-			cardDataList:                cardDataList,
-			sslProfileID:                "",
-			atomicCertRotationSupported: true,
-			issueOwnerIakCertResp:       &IssueOwnerIakCertResp{OwnerIakCertPem: oIakCert},
-			issueOwnerIDevIDCertResp:    &IssueOwnerIDevIDCertResp{OwnerIDevIDCertPem: oIdevIDCert},
-			wantErrResp:                 errors.New("sslProfileID is empty"),
-			wantIssueOwnerIakCertReq:    &IssueOwnerIakCertReq{CardID: vendorID, IakPubPem: iakPub},
-		},
-		{
-			desc: "ControlCardID is nil in cardDataList",
-			cardDataList: []ControlCardCertData{
-				{
-					ControlCardSelections: controlCardSelection,
-					ControlCardID:         nil,
-					IAKPubPem:             iakPub,
-					IDevIDPubPem:          iDevIDPub,
-				},
-			},
-			sslProfileID:                sslProfileID,
-			atomicCertRotationSupported: true,
-			wantErrResp:                 errors.New("ControlCardID is nil"),
-		},
-		{
-			desc: "ControlCardSelections is nil in cardDataList",
-			cardDataList: []ControlCardCertData{
-				{
-					ControlCardSelections: nil,
-					ControlCardID:         vendorID,
-					IAKPubPem:             iakPub,
-					IDevIDPubPem:          iDevIDPub,
-				},
-			},
-			sslProfileID:                sslProfileID,
-			atomicCertRotationSupported: true,
-			wantErrResp:                 errors.New("ControlCardSelections is nil"),
-		},
-		{
-			desc: "IAKPubPem is empty in cardDataList",
-			cardDataList: []ControlCardCertData{
-				{
-					ControlCardSelections: controlCardSelection,
-					ControlCardID:         vendorID,
-					IAKPubPem:             "",
-					IDevIDPubPem:          iDevIDPub,
-				},
-			},
-			sslProfileID:                sslProfileID,
-			atomicCertRotationSupported: true,
-			wantErrResp:                 errors.New("IAKPubPem is empty"),
+			wantErr: ErrFailedToIssueOwnerCert,
 		},
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.desc, func(t *testing.T) {
-			t.Parallel()
 			stub := &stubEnrollzInfraDeps{
-				issueOwnerIakCertResp:    test.issueOwnerIakCertResp,
-				issueOwnerIDevIDCertResp: test.issueOwnerIDevIDCertResp,
-				rotateOIakCertResp:       test.rotateOIakCertResp,
-				errorResp:                test.wantErrResp,
+				issueOwnerIakCertResp: test.stubbedResp,
+				errorResp:             test.stubbedErr,
 			}
+
 			ctx := context.Background()
-			got := IssueAndRotateOwnerCerts(ctx, stub, test.cardDataList, test.sslProfileID, test.skipOidevidRotate, test.atomicCertRotationSupported)
-
-			if test.wantErrResp != nil {
-				if got == nil || !strings.Contains(got.Error(), test.wantErrResp.Error()) {
-					t.Errorf("IssueAndRotateOwnerCerts() got error %v, want error %v", got, test.wantErrResp)
-				}
-			} else if got != nil {
-				t.Errorf("IssueAndRotateOwnerCerts() got unexpected error: %v", got)
+			gotOwnerIakCertPem, gotErr := issueOwnerIakCert(ctx, stub, test.certData)
+			if !errors.Is(gotErr, test.wantErr) {
+				t.Errorf("issueOwnerIakCert() got error %v, want error %v", gotErr, test.wantErr)
 			}
-
-			// Verify that all stubbed dependencies were called with the right params if no error was expected.
-			// If an error was expected, we only verify the calls up to the point of failure.
-			if test.wantIssueOwnerIakCertReq != nil {
-				if diff := cmp.Diff(stub.issueOwnerIakCertReq, test.wantIssueOwnerIakCertReq, protocmp.Transform()); diff != "" {
-					t.Errorf("IssueOwnerIakCertReq request param to stubbed IssueOwnerIakCert dep does not match expectations: diff = %v", diff)
-				}
+			if gotOwnerIakCertPem != test.wantOwnerIakCertPem {
+				t.Errorf("issueOwnerIakCert() got cert %q, want %q", gotOwnerIakCertPem, test.wantOwnerIakCertPem)
 			}
-			if test.wantIssueOwnerIDevIDCertReq != nil {
-				if diff := cmp.Diff(stub.issueOwnerIDevIDCertReq, test.wantIssueOwnerIDevIDCertReq, protocmp.Transform()); diff != "" {
-					t.Errorf("IssueOwnerIDevIDCertReq request param to stubbed IssueOwnerIDevIDCert dep does not match expectations: diff = %v", diff)
-				}
-			}
-			if test.wantRotateOIakCertReq != nil {
-				if diff := cmp.Diff(stub.rotateOIakCertReq, test.wantRotateOIakCertReq, protocmp.Transform()); diff != "" {
-					t.Errorf("RotateOIakCertRequest request param to stubbed RotateOIakCert dep does not match expectations: diff = %v", diff)
-				}
+			if diff := cmp.Diff(test.wantReq, stub.issueOwnerIakCertReq, protocmp.Transform()); diff != "" {
+				t.Errorf("issueOwnerIakCert() sent unexpected request to SwitchOwnerCaClient: (-want +got)\n%s", diff)
 			}
 		})
 	}
 }
-
-// TODO: Add tests for  VerifyIdentityWithHMACChallenge, VerifyIAKKey and VerifyIdevidKey with test vectors

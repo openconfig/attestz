@@ -243,7 +243,7 @@ func (u *DefaultTPM20Utils) TPMTPublicToPEM(pubKey *tpm20.TPMTPublic) (string, e
 	}
 	pemBlock := &pem.Block{
 		Type:  "PUBLIC KEY",
-		Bytes: pubKeyPkix, // Use the marshaled PKIX bytes
+		Bytes: pubKeyPkix,
 	}
 	pubKeyPem := pem.EncodeToMemory(pemBlock)
 	return string(pubKeyPem), nil

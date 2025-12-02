@@ -19,23 +19,32 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
-
 	// #nosec
 	"crypto/sha1"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 
 	log "github.com/golang/glog"
 	tpm12 "github.com/google/go-tpm/tpm"
 	tpm20 "github.com/google/go-tpm/tpm2"
-
 	cpb "github.com/openconfig/attestz/proto/common_definitions"
 	epb "github.com/openconfig/attestz/proto/tpm_enrollz"
-
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/prototext"
+)
+
+var (
+	// ErrFailedToIssueOwnerCert is returned when the Switch Owner CA fails to issue an owner certificate.
+	ErrFailedToIssueOwnerCert = errors.New("failed to issue owner cert")
+	// ErrRotateOIakCert is returned when the device fails to rotate the oIAK and oIDevID certificates.
+	ErrRotateOIakCert = errors.New("failed to rotate oIAK and oIDevID certs")
+	// ErrNilDeps is returned when the dependencies are nil.
+	ErrNilDeps = errors.New("dependencies are nil")
+	// ErrEmptyField is returned when a required field is empty.
+	ErrEmptyField = errors.New("required field is empty")
 )
 
 // RSAkeySize2048 is the size of the RSA key used for TPM enrollment.
@@ -367,104 +376,59 @@ type ControlCardCertData struct {
 	IDevIDPubPem          string
 }
 
-// IssueAndRotateOwnerCerts issues oIAK and oIDevID certs for each control card and rotates them on the device.
-func IssueAndRotateOwnerCerts(ctx context.Context, deps EnrollzInfraDeps, cardDataList []ControlCardCertData, sslProfileID string, skipOidevidRotate bool, atomicCertRotationSupported bool) error {
-	if len(cardDataList) == 0 {
-		err := fmt.Errorf("request cardDataList is empty")
-		log.ErrorContext(ctx, err)
-		return err
+func issueOwnerIakCert(ctx context.Context, deps EnrollzInfraDeps, certData ControlCardCertData) (string, error) {
+	issueOwnerIakCertReq := &IssueOwnerIakCertReq{
+		CardID:    certData.ControlCardID,
+		IakPubPem: certData.IAKPubPem,
 	}
-	if deps == nil {
-		err := fmt.Errorf("field deps is nil")
-		log.ErrorContext(ctx, err)
-		return err
+	issueOwnerIakCertResp, err := deps.IssueOwnerIakCert(ctx, issueOwnerIakCertReq)
+	if err != nil {
+		return "", fmt.Errorf("issuing IAK cert: %w: %v", ErrFailedToIssueOwnerCert, err)
 	}
+	log.InfoContextf(ctx, "Successful Switch Owner CA IssueOwnerIakCert() for control_card_id=%s IAK_pub_pem=%s resp=%s",
+		prototext.Format(certData.ControlCardID), certData.IAKPubPem, issueOwnerIakCertResp.OwnerIakCertPem)
+	return issueOwnerIakCertResp.OwnerIakCertPem, nil
+}
 
-	// Issue oIAK and oIDevID certs for each control card.
-	var controlCardCerts []*epb.ControlCardCertUpdate
-	for _, certData := range cardDataList {
-		if certData.ControlCardID == nil {
-			err := fmt.Errorf("ControlCardID is nil")
-			log.ErrorContext(ctx, err)
-			return err
-		}
-		if certData.ControlCardSelections == nil {
-			err := fmt.Errorf("ControlCardSelections is nil")
-			log.ErrorContext(ctx, err)
-			return err
-		}
-		if certData.IAKPubPem == "" {
-			err := fmt.Errorf("IAKPubPem is empty")
-			log.ErrorContext(ctx, err)
-			return err
-		}
-
-		issueOwnerIakCertReq := &IssueOwnerIakCertReq{
-			CardID:    certData.ControlCardID,
-			IakPubPem: certData.IAKPubPem,
-		}
-		issueOwnerIakCertResp, err := deps.IssueOwnerIakCert(ctx, issueOwnerIakCertReq)
-		if err != nil {
-			err = fmt.Errorf("failed to execute Switch Owner CA IssueOwnerIakCert() with IAK_pub_pem=%s: %w",
-				certData.IAKPubPem, err)
-			log.ErrorContext(ctx, err)
-			return err
-		}
-		log.InfoContextf(ctx, "Successfully received Switch Owner CA IssueOwnerIakCert() resp=%s for control_card_id=%s IAK_pub_pem=%s",
-			issueOwnerIakCertResp.OwnerIakCertPem, prototext.Format(certData.ControlCardID), certData.IAKPubPem)
-
-		oidevidCert := ""
-		if !skipOidevidRotate && certData.IDevIDPubPem != "" {
-			if sslProfileID == "" {
-				err = fmt.Errorf("sslProfileID is empty")
-				log.ErrorContext(ctx, err)
-				return err
-			}
-			issueOwnerIDevIDCertReq := &IssueOwnerIDevIDCertReq{
-				CardID:       certData.ControlCardID,
-				IDevIDPubPem: certData.IDevIDPubPem,
-			}
-			issueOwnerIDevIDCertResp, err := deps.IssueOwnerIDevIDCert(ctx, issueOwnerIDevIDCertReq)
-			if err != nil {
-				err = fmt.Errorf("failed to execute Switch Owner CA IssueOwnerIDevIDCert() with IDevID_pub_pem=%s: %w", certData.IDevIDPubPem, err)
-				log.ErrorContext(ctx, err)
-				return err
-			}
-			log.InfoContextf(ctx, "Successfully received Switch Owner CA IssueOwnerIDevIDCert() resp=%s for control_card_id=%s IDevID_pub_pem=%s",
-				issueOwnerIDevIDCertResp.OwnerIDevIDCertPem, prototext.Format(certData.ControlCardID), certData.IDevIDPubPem)
-
-			oidevidCert = issueOwnerIDevIDCertResp.OwnerIDevIDCertPem
-		}
-
-		controlCardCerts = append(controlCardCerts, &epb.ControlCardCertUpdate{
-			ControlCardSelection: certData.ControlCardSelections,
-			OiakCert:             issueOwnerIakCertResp.OwnerIakCertPem,
-			OidevidCert:          oidevidCert,
-		})
+func issueOwnerIDevIDCert(ctx context.Context, deps EnrollzInfraDeps, certData ControlCardCertData, sslProfileID string, skipOidevidRotate bool) (string, error) {
+	if skipOidevidRotate || certData.IDevIDPubPem == "" {
+		return "", nil
 	}
+	if sslProfileID == "" {
+		return "", fmt.Errorf("%s: %w", "SSLProfileID", ErrEmptyField)
+	}
+	issueOwnerIDevIDCertReq := &IssueOwnerIDevIDCertReq{
+		CardID:       certData.ControlCardID,
+		IDevIDPubPem: certData.IDevIDPubPem,
+	}
+	issueOwnerIDevIDCertResp, err := deps.IssueOwnerIDevIDCert(ctx, issueOwnerIDevIDCertReq)
+	if err != nil {
+		return "", fmt.Errorf("issuing IDevID cert: %w: %v", ErrFailedToIssueOwnerCert, err)
+	}
+	log.InfoContextf(ctx, "Successful Switch Owner CA IssueOwnerIDevIDCert() for control_card_id=%s IDevID_pub_pem=%s resp=%s",
+		prototext.Format(certData.ControlCardID), certData.IDevIDPubPem, issueOwnerIDevIDCertResp.OwnerIDevIDCertPem)
+	return issueOwnerIDevIDCertResp.OwnerIDevIDCertPem, nil
+}
 
-	var rotateOIakCertReq *epb.RotateOIakCertRequest
+func rotateOIakCert(ctx context.Context, deps EnrollzInfraDeps, sslProfileID string, controlCardCerts []*epb.ControlCardCertUpdate, atomicCertRotationSupported bool) error {
 	if atomicCertRotationSupported {
 		// Rotate oIAK and oIDevID certs for all control cards atomically.
 		// This is the preferred way to rotate certs going forward.
-		rotateOIakCertReq = &epb.RotateOIakCertRequest{
+		rotateOIakCertReq := &epb.RotateOIakCertRequest{
 			SslProfileId: sslProfileID,
 			Updates:      controlCardCerts,
 		}
 
 		rotateOIakCertResp, err := deps.RotateOIakCert(ctx, rotateOIakCertReq)
 		if err != nil {
-			err = fmt.Errorf("failed to rotate oIAK and oIDevID certs from the device with req=%s: %w",
-				prototext.Format(rotateOIakCertReq), err)
-			log.ErrorContext(ctx, err)
-			return err
+			return fmt.Errorf("%w: %v", ErrRotateOIakCert, err)
 		}
-		log.InfoContextf(ctx, "Successfully received from device RotateOIakCert() resp=%s for req=%s",
-			prototext.Format(rotateOIakCertResp), prototext.Format(rotateOIakCertReq))
+		log.InfoContextf(ctx, "Successfully received from device RotateOIakCert() for req=%s resp=%s",
+			prototext.Format(rotateOIakCertReq), prototext.Format(rotateOIakCertResp))
 	} else {
 		// Rotate oIAK and oIDevID certs for each control card separately.
 		for _, certData := range controlCardCerts {
-			rotateOIakCertReq = &epb.RotateOIakCertRequest{
+			rotateOIakCertReq := &epb.RotateOIakCertRequest{
 				SslProfileId:         sslProfileID,
 				ControlCardSelection: certData.ControlCardSelection,
 				OiakCert:             certData.OiakCert,
@@ -472,17 +436,54 @@ func IssueAndRotateOwnerCerts(ctx context.Context, deps EnrollzInfraDeps, cardDa
 			}
 			rotateOIakCertResp, err := deps.RotateOIakCert(ctx, rotateOIakCertReq)
 			if err != nil {
-				err = fmt.Errorf("failed to rotate oIAK and oIDevID certs from the device with req=%s: %w",
-					prototext.Format(rotateOIakCertReq), err)
-				log.ErrorContext(ctx, err)
-				return err
+				return fmt.Errorf("%w: %v", ErrRotateOIakCert, err)
 			}
-			log.InfoContextf(ctx, "Successfully received from device RotateOIakCert() resp=%s for req=%s",
-				prototext.Format(rotateOIakCertResp), prototext.Format(rotateOIakCertReq))
+			log.InfoContextf(ctx, "Successfully received from device RotateOIakCert(%+v) = %+v",
+				prototext.Format(rotateOIakCertReq), prototext.Format(rotateOIakCertResp))
 		}
 	}
-
 	return nil
+}
+
+// IssueAndRotateOwnerCerts issues oIAK and oIDevID certs for each control card and rotates them on the device.
+func IssueAndRotateOwnerCerts(ctx context.Context, deps EnrollzInfraDeps, cardDataList []ControlCardCertData, sslProfileID string, skipOidevidRotate bool, atomicCertRotationSupported bool) error {
+	if len(cardDataList) == 0 {
+		return fmt.Errorf("%s: %w", "card data list", ErrEmptyField)
+	}
+	if deps == nil {
+		return fmt.Errorf("%s: %w", "deps", ErrEmptyField)
+	}
+
+	// Issue oIAK and oIDevID certs for each control card.
+	var controlCardCerts []*epb.ControlCardCertUpdate
+	for _, certData := range cardDataList {
+		if certData.ControlCardID == nil {
+			return fmt.Errorf("%s: %w", "ControlCardID", ErrEmptyField)
+		}
+		if certData.ControlCardSelections == nil {
+			return fmt.Errorf("%s: %w", "ControlCardSelections", ErrEmptyField)
+		}
+		if certData.IAKPubPem == "" {
+			return fmt.Errorf("%s: %w", "IAKPubPem", ErrEmptyField)
+		}
+
+		oidevidCert, err := issueOwnerIDevIDCert(ctx, deps, certData, sslProfileID, skipOidevidRotate)
+		if err != nil {
+			return err
+		}
+		oiakCert, err := issueOwnerIakCert(ctx, deps, certData)
+		if err != nil {
+			return err
+		}
+
+		controlCardCerts = append(controlCardCerts, &epb.ControlCardCertUpdate{
+			ControlCardSelection: certData.ControlCardSelections,
+			OiakCert:             oiakCert,
+			OidevidCert:          oidevidCert,
+		})
+	}
+
+	return rotateOIakCert(ctx, deps, sslProfileID, controlCardCerts, atomicCertRotationSupported)
 }
 
 // RotateOwnerIakCertReq is the request to RotateOwnerIakCert().
