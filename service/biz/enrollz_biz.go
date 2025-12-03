@@ -42,6 +42,8 @@ import (
 var (
 	// ErrFailedToIssueOwnerCert is returned when the Switch Owner CA fails to issue an owner certificate.
 	ErrFailedToIssueOwnerCert = errors.New("failed to issue owner cert")
+	// ErrEmptyField is returned when a required field is empty.
+	ErrEmptyField = errors.New("required field is empty")
 )
 
 // RSAkeySize2048 is the size of the RSA key used for TPM enrollment.
@@ -378,11 +380,32 @@ func issueOwnerIakCert(ctx context.Context, deps EnrollzInfraDeps, certData Cont
 	}
 	issueOwnerIakCertResp, err := deps.IssueOwnerIakCert(ctx, issueOwnerIakCertReq)
 	if err != nil {
-		return "", fmt.Errorf("issuing IAK cert: %w: %v", ErrFailedToIssueOwnerCert, err)
+		return "", fmt.Errorf("%w: type oIAK: %v", ErrFailedToIssueOwnerCert, err)
 	}
 	log.InfoContextf(ctx, "Successful Switch Owner CA IssueOwnerIakCert() for control_card_id=%s IAK_pub_pem=%s resp=%s",
 		prototext.Format(certData.ControlCardID), certData.IAKPubPem, issueOwnerIakCertResp.OwnerIakCertPem)
 	return issueOwnerIakCertResp.OwnerIakCertPem, nil
+}
+
+func issueOwnerIDevIDCert(ctx context.Context, deps EnrollzInfraDeps, certData ControlCardCertData, sslProfileID string, skipOidevidRotate bool) (string, error) {
+	// TODO: add validation to ensure that IDevIDPubPem is not empty for active control card when skipOidevidRotate is false.
+	if skipOidevidRotate || certData.IDevIDPubPem == "" {
+		return "", nil
+	}
+	if sslProfileID == "" {
+		return "", fmt.Errorf("%s: %w", "SSLProfileID", ErrEmptyField)
+	}
+	issueOwnerIDevIDCertReq := &IssueOwnerIDevIDCertReq{
+		CardID:       certData.ControlCardID,
+		IDevIDPubPem: certData.IDevIDPubPem,
+	}
+	issueOwnerIDevIDCertResp, err := deps.IssueOwnerIDevIDCert(ctx, issueOwnerIDevIDCertReq)
+	if err != nil {
+		return "", fmt.Errorf("%w: type oIDevID: %v", ErrFailedToIssueOwnerCert, err)
+	}
+	log.InfoContextf(ctx, "Successful Switch Owner CA IssueOwnerIDevIDCert() for control_card_id=%s IDevID_pub_pem=%s resp=%s",
+		prototext.Format(certData.ControlCardID), certData.IDevIDPubPem, issueOwnerIDevIDCertResp.OwnerIDevIDCertPem)
+	return issueOwnerIDevIDCertResp.OwnerIDevIDCertPem, nil
 }
 
 // RotateOwnerIakCertReq is the request to RotateOwnerIakCert().
