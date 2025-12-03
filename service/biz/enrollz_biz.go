@@ -19,6 +19,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"strings"
 
 	// #nosec
 	"crypto/sha1"
@@ -43,7 +44,7 @@ var (
 	// ErrFailedToIssueOwnerCert is returned when the Switch Owner CA fails to issue an owner certificate.
 	ErrFailedToIssueOwnerCert = errors.New("failed to issue owner cert")
 	// ErrEmptyField is returned when a required field is empty.
-	ErrEmptyField = errors.New("required field is empty")
+	ErrEmptyField = errors.New("empty required field(s)")
 	// ErrRotateOIakCert is returned when the device fails to rotate the oIAK and oIDevID certificates.
 	ErrRotateOIakCert = errors.New("failed to rotate oIAK and oIDevID certs")
 )
@@ -395,7 +396,7 @@ func issueOwnerIDevIDCert(ctx context.Context, deps EnrollzInfraDeps, certData C
 		return "", nil
 	}
 	if sslProfileID == "" {
-		return "", fmt.Errorf("%s: %w", "SSLProfileID", ErrEmptyField)
+		return "", fmt.Errorf("%w: %s", ErrEmptyField, "SSLProfileID")
 	}
 	issueOwnerIDevIDCertReq := &IssueOwnerIDevIDCertReq{
 		CardID:       certData.ControlCardID,
@@ -412,7 +413,7 @@ func issueOwnerIDevIDCert(ctx context.Context, deps EnrollzInfraDeps, certData C
 
 func rotateOIakCert(ctx context.Context, deps EnrollzInfraDeps, sslProfileID string, controlCardCerts []*epb.ControlCardCertUpdate, atomicCertRotationSupported bool) error {
 	if len(controlCardCerts) == 0 {
-		return fmt.Errorf("%s: %w", "control card cert data list", ErrEmptyField)
+		return fmt.Errorf("%w: %s", ErrEmptyField, "control card cert data list")
 	}
 	if atomicCertRotationSupported {
 		// Rotate oIAK and oIDevID certs for all control cards atomically.
@@ -446,6 +447,50 @@ func rotateOIakCert(ctx context.Context, deps EnrollzInfraDeps, sslProfileID str
 		}
 	}
 	return nil
+}
+
+// IssueAndRotateOwnerCerts issues oIAK and oIDevID certs for each control card and rotates them on the device.
+func IssueAndRotateOwnerCerts(ctx context.Context, deps EnrollzInfraDeps, cardDataList []ControlCardCertData, sslProfileID string, skipOidevidRotate bool, atomicCertRotationSupported bool) error {
+	if len(cardDataList) == 0 {
+		return fmt.Errorf("%w: %s", ErrEmptyField, "card data list")
+	}
+	if deps == nil {
+		return fmt.Errorf("%w: %s", ErrEmptyField, "deps")
+	}
+
+	// Issue oIAK and oIDevID certs for each control card.
+	var controlCardCerts []*epb.ControlCardCertUpdate
+	for _, certData := range cardDataList {
+		var validationErrs []string
+		if certData.ControlCardID == nil {
+			validationErrs = append(validationErrs, "ControlCardID")
+		}
+		if certData.ControlCardSelections == nil {
+			validationErrs = append(validationErrs, "ControlCardSelections")
+		}
+		if certData.IAKPubPem == "" {
+			validationErrs = append(validationErrs, "IAKPubPem")
+		}
+		if len(validationErrs) > 0 {
+			return fmt.Errorf("%w: %s", ErrEmptyField, strings.Join(validationErrs, ", "))
+		}
+		oidevidCert, err := issueOwnerIDevIDCert(ctx, deps, certData, sslProfileID, skipOidevidRotate)
+		if err != nil {
+			return err
+		}
+		oiakCert, err := issueOwnerIakCert(ctx, deps, certData)
+		if err != nil {
+			return err
+		}
+
+		controlCardCerts = append(controlCardCerts, &epb.ControlCardCertUpdate{
+			ControlCardSelection: certData.ControlCardSelections,
+			OiakCert:             oiakCert,
+			OidevidCert:          oidevidCert,
+		})
+	}
+
+	return rotateOIakCert(ctx, deps, sslProfileID, controlCardCerts, atomicCertRotationSupported)
 }
 
 // RotateOwnerIakCertReq is the request to RotateOwnerIakCert().
