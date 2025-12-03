@@ -2009,6 +2009,12 @@ func TestRotateOIakCert(t *testing.T) {
 			mockErrs: []error{errorResp},
 			wantErr:  ErrRotateOIakCert,
 		},
+		{
+			desc:                        "Empty control card cert data list",
+			atomicCertRotationSupported: true,
+			controlCardCerts:            []*epb.ControlCardCertUpdate{},
+			wantErr:                     ErrEmptyField,
+		},
 	}
 
 	for _, test := range tests {

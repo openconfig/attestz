@@ -411,6 +411,9 @@ func issueOwnerIDevIDCert(ctx context.Context, deps EnrollzInfraDeps, certData C
 }
 
 func rotateOIakCert(ctx context.Context, deps EnrollzInfraDeps, sslProfileID string, controlCardCerts []*epb.ControlCardCertUpdate, atomicCertRotationSupported bool) error {
+	if len(controlCardCerts) == 0 {
+		return fmt.Errorf("%s: %w", "control card cert data list", ErrEmptyField)
+	}
 	if atomicCertRotationSupported {
 		// Rotate oIAK and oIDevID certs for all control cards atomically.
 		// This is the preferred way to rotate certs going forward.
@@ -421,7 +424,7 @@ func rotateOIakCert(ctx context.Context, deps EnrollzInfraDeps, sslProfileID str
 
 		rotateOIakCertResp, err := deps.RotateOIakCert(ctx, rotateOIakCertReq)
 		if err != nil {
-			return fmt.Errorf("%w: %v", ErrRotateOIakCert, err)
+			return fmt.Errorf("%w with req=%s: %v", ErrRotateOIakCert, rotateOIakCertReq, err)
 		}
 		log.InfoContextf(ctx, "Successfully received from device RotateOIakCert() for req=%s resp=%s",
 			prototext.Format(rotateOIakCertReq), prototext.Format(rotateOIakCertResp))
@@ -436,7 +439,7 @@ func rotateOIakCert(ctx context.Context, deps EnrollzInfraDeps, sslProfileID str
 			}
 			rotateOIakCertResp, err := deps.RotateOIakCert(ctx, rotateOIakCertReq)
 			if err != nil {
-				return fmt.Errorf("%w: %v", ErrRotateOIakCert, err)
+				return fmt.Errorf("%w with req=%s: %v", ErrRotateOIakCert, rotateOIakCertReq, err)
 			}
 			log.InfoContextf(ctx, "Successfully received from device RotateOIakCert(%+v) = %+v",
 				prototext.Format(rotateOIakCertReq), prototext.Format(rotateOIakCertResp))
