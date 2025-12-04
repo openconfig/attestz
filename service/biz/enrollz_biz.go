@@ -901,6 +901,8 @@ type EnrollSwitchWithHMACChallengeReq struct {
 	ControlCardSelections []*cpb.ControlCardSelection
 	// Infra-specific wired dependencies.
 	Deps EnrollSwitchWithHMACChallengeInfraDeps
+	// SSL profile ID to which newly-issued Owner IDevID cert should be applied.
+	SSLProfileID string
 }
 
 // EnrollSwitchWithHMACChallenge enrolls a list of switch TPM 2.0 control cards using an HMAC challenge.
@@ -924,16 +926,42 @@ func EnrollSwitchWithHMACChallenge(ctx context.Context, req *EnrollSwitchWithHMA
 		return errMsg
 	}
 
+	var controlCardCertUpdates []ControlCardCertData
+
+	// Verify identity with HMAC challenge for each control card.
 	for _, controlCardSelection := range req.ControlCardSelections {
-		err := VerifyIdentityWithHMACChallenge(ctx, controlCardSelection, req.Deps)
+		cardID, iakPubKey, idevidPubKey, err := VerifyIdentityWithHMACChallenge(ctx, controlCardSelection, req.Deps)
 		if err != nil {
 			errMsg := fmt.Errorf("failed to verify Identity with HMAC Challenge: %w", err)
 			log.ErrorContext(ctx, errMsg)
 			return errMsg
 		}
+
+		iakPubPem, err := req.Deps.TPMTPublicToPEM(iakPubKey)
+		if err != nil {
+			errMsg := fmt.Errorf("failed to convert IAK public key to PEM: %w", err)
+			log.ErrorContext(ctx, errMsg)
+			return errMsg
+		}
+		idevidPubPem, err := req.Deps.TPMTPublicToPEM(idevidPubKey)
+		if err != nil {
+			errMsg := fmt.Errorf("failed to convert IDevID public key to PEM: %w", err)
+			log.ErrorContext(ctx, errMsg)
+			return errMsg
+		}
+		controlCardCertUpdates = append(controlCardCertUpdates, ControlCardCertData{
+			ControlCardSelections: controlCardSelection,
+			ControlCardID:         cardID,
+			IAKPubPem:             iakPubPem,
+			IDevIDPubPem:          idevidPubPem,
+		})
 	}
 
-	// TODO: issue and rotate oIAK and OIDevID certs for all control cards.
+	if err := IssueAndRotateOwnerCerts(ctx, req.Deps, controlCardCertUpdates, req.SSLProfileID, false, true); err != nil {
+		errMsg := fmt.Errorf("failed to issue and rotate owner certificates: %w", err)
+		log.ErrorContext(ctx, errMsg)
+		return errMsg
+	}
 	return nil
 }
 
@@ -948,18 +976,18 @@ func EnrollSwitchWithHMACChallenge(ctx context.Context, req *EnrollSwitchWithHMA
 //  5. The service verifies the TPM's HMAC response to confirm possession of the EK private key.
 //  6. The service also verifies the integrity of the IAK public key and the IDevID CSR
 //     received from the device.
-func VerifyIdentityWithHMACChallenge(ctx context.Context, controlCardSelection *cpb.ControlCardSelection, deps EnrollSwitchWithHMACChallengeInfraDeps) error {
+func VerifyIdentityWithHMACChallenge(ctx context.Context, controlCardSelection *cpb.ControlCardSelection, deps EnrollSwitchWithHMACChallengeInfraDeps) (controlCardID *cpb.ControlCardVendorId, iakPub *tpm20.TPMTPublic, idevidPub *tpm20.TPMTPublic, err error) {
 	// validate the request
 	if controlCardSelection == nil {
 		errMsg := fmt.Errorf("controlCardSelection cannot be nil")
 		log.ErrorContext(ctx, errMsg)
-		return errMsg
+		return nil, nil, nil, errMsg
 	}
 
 	if deps == nil {
 		errMsg := fmt.Errorf("deps cannot be nil")
 		log.ErrorContext(ctx, errMsg)
-		return errMsg
+		return nil, nil, nil, errMsg
 	}
 
 	// Get Control Card Vendor ID from the TPM.
@@ -970,7 +998,7 @@ func VerifyIdentityWithHMACChallenge(ctx context.Context, controlCardSelection *
 	if err != nil {
 		errMsg := fmt.Errorf("failed to get control card vendor ID: %w", err)
 		log.ErrorContext(ctx, errMsg)
-		return errMsg
+		return nil, nil, nil, errMsg
 	}
 
 	// Get EK Public Key (or PPK) from RoT database.
@@ -978,7 +1006,7 @@ func VerifyIdentityWithHMACChallenge(ctx context.Context, controlCardSelection *
 	if err != nil {
 		errMsg := fmt.Errorf("failed to fetch EK: %w", err)
 		log.ErrorContext(ctx, errMsg)
-		return errMsg
+		return nil, nil, nil, errMsg
 	}
 
 	// Create HMAC Challenge request.
@@ -986,14 +1014,14 @@ func VerifyIdentityWithHMACChallenge(ctx context.Context, controlCardSelection *
 	if err != nil {
 		errMsg := fmt.Errorf("failed to create HMAC challenge: %w", err)
 		log.ErrorContext(ctx, errMsg)
-		return errMsg
+		return nil, nil, nil, errMsg
 	}
 
 	challengeResp, err := deps.Challenge(ctx, &epb.ChallengeRequest{ControlCardSelection: controlCardSelection, Challenge: hmacChallenge, Key: fetchEKResp.KeyType})
 	if err != nil {
 		errMsg := fmt.Errorf("failed to challenge the TPM: %w", err)
 		log.ErrorContext(ctx, errMsg)
-		return errMsg
+		return nil, nil, nil, errMsg
 	}
 	hmacResp := challengeResp.GetChallengeResp()
 
@@ -1002,7 +1030,7 @@ func VerifyIdentityWithHMACChallenge(ctx context.Context, controlCardSelection *
 	if err != nil {
 		errMsg := fmt.Errorf("failed to verify HMAC Challenge response: %w", err)
 		log.ErrorContext(ctx, errMsg)
-		return errMsg
+		return nil, nil, nil, errMsg
 	}
 
 	// Verify IAK Public Key.
@@ -1010,7 +1038,7 @@ func VerifyIdentityWithHMACChallenge(ctx context.Context, controlCardSelection *
 	if err != nil {
 		errMsg := fmt.Errorf("failed to verify IAK public key: %w", err)
 		log.ErrorContext(ctx, errMsg)
-		return errMsg
+		return nil, nil, nil, errMsg
 	}
 
 	// Get IDevID CSR from the TPM.
@@ -1023,17 +1051,17 @@ func VerifyIdentityWithHMACChallenge(ctx context.Context, controlCardSelection *
 	if err != nil {
 		errMsg := fmt.Errorf("failed to get IDevID CSR: %w", err)
 		log.ErrorContext(ctx, errMsg)
-		return errMsg
+		return nil, nil, nil, errMsg
 	}
 
 	// Verify IDevID Public Key and CSR.
-	err = VerifyIdevidKey(ctx, deps, fetchEKResp, iakPubKey, getIDevIDCSRResp.GetCsrResponse(), keyTemplate)
+	idevidPubKey, err := VerifyIdevidKey(ctx, deps, fetchEKResp, iakPubKey, getIDevIDCSRResp.GetCsrResponse(), keyTemplate)
 	if err != nil {
 		errMsg := fmt.Errorf("failed to verify IDevID key and CSR: %w", err)
 		log.ErrorContext(ctx, errMsg)
-		return errMsg
+		return nil, nil, nil, errMsg
 	}
-	return nil
+	return controlCardVendorID.GetControlCardId(), iakPubKey, idevidPubKey, nil
 }
 
 // fetchEKPublicKey fetches the EK Public Key from the RoT database.
@@ -1129,65 +1157,65 @@ func VerifyIAKKey(ctx context.Context, deps TPM20Utils, hmacChallengeResp *epb.H
 }
 
 // VerifyIdevidKey verifies the IDevID Certify Info, IDevID Attributes, and the IDevID CSR signature.
-func VerifyIdevidKey(ctx context.Context, deps TPM20Utils, fetchEKResp *FetchEKResp, iakPubKey *tpm20.TPMTPublic, csrResponse *epb.CsrResponse, keyTemplate epb.KeyTemplate) error {
+func VerifyIdevidKey(ctx context.Context, deps TPM20Utils, fetchEKResp *FetchEKResp, iakPubKey *tpm20.TPMTPublic, csrResponse *epb.CsrResponse, keyTemplate epb.KeyTemplate) (*tpm20.TPMTPublic, error) {
 	if csrResponse == nil {
 		errMsg := fmt.Errorf("csrResponse cannot be nil")
 		log.ErrorContext(ctx, errMsg)
-		return errMsg
+		return nil, errMsg
 	}
 	if deps == nil {
 		errMsg := fmt.Errorf("deps cannot be nil")
 		log.ErrorContext(ctx, errMsg)
-		return errMsg
+		return nil, errMsg
 	}
 	// ParseTCGCSRIDevIDContent will verify that SignCertifyInfo, SignCertifyInfoSignature and IDevIDPub and are not empty.
 	idevidCsrContents, err := deps.ParseTCGCSRIDevIDContent(csrResponse.CsrContents)
 	if err != nil {
 		errMsg := fmt.Errorf("failed to parse IDevID CSR contents: %w", err)
 		log.ErrorContext(ctx, errMsg)
-		return errMsg
+		return nil, errMsg
 	}
 	err = deps.VerifyTPMTSignature(tpm20.Marshal(idevidCsrContents.SignCertifyInfo), &idevidCsrContents.SignCertifyInfoSignature, iakPubKey)
 	if err != nil {
 		errMsg := fmt.Errorf("failed to verify IDevID certify info signature using IAK public key: %w", err)
 		log.ErrorContext(ctx, errMsg)
-		return errMsg
+		return nil, errMsg
 	}
 
 	err = deps.VerifyCertifyInfo(&idevidCsrContents.SignCertifyInfo, &idevidCsrContents.IDevIDPub)
 	if err != nil {
 		errMsg := fmt.Errorf("failed to verify IDevID certify info: %w", err)
 		log.ErrorContext(ctx, errMsg)
-		return errMsg
+		return nil, errMsg
 	}
 
 	err = deps.VerifyIdevidAttributes(&idevidCsrContents.IDevIDPub, keyTemplate)
 	if err != nil {
 		errMsg := fmt.Errorf("failed to verify IDevID attributes: %w", err)
 		log.ErrorContext(ctx, errMsg)
-		return errMsg
+		return nil, errMsg
 	}
 
 	idevidCsrSignature, err := tpm20.Unmarshal[tpm20.TPMTSignature](csrResponse.IdevidSignatureCsr)
 	if err != nil {
 		errMsg := fmt.Errorf("failed to unmarshal IDevID CSR signature: %w", err)
 		log.ErrorContext(ctx, errMsg)
-		return errMsg
+		return nil, errMsg
 	}
 
 	err = deps.VerifyTPMTSignature(csrResponse.CsrContents, idevidCsrSignature, &idevidCsrContents.IDevIDPub)
 	if err != nil {
 		errMsg := fmt.Errorf("failed to verify IDevID CSR signature using IDevID public key: %w", err)
 		log.ErrorContext(ctx, errMsg)
-		return errMsg
+		return nil, errMsg
 	}
 
 	// TODO: do validation on EK and Serial Number obtained from the CSR.
 	if fetchEKResp == nil {
 		errMsg := fmt.Errorf("fetchEKResp cannot be nil")
 		log.ErrorContext(ctx, errMsg)
-		return errMsg
+		return nil, errMsg
 	}
 
-	return nil
+	return &idevidCsrContents.IDevIDPub, nil
 }
