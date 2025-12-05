@@ -450,8 +450,8 @@ func rotateOIakCert(ctx context.Context, deps EnrollzInfraDeps, sslProfileID str
 }
 
 // IssueAndRotateOwnerCerts issues oIAK and oIDevID certs for each control card and rotates them on the device.
-func IssueAndRotateOwnerCerts(ctx context.Context, deps EnrollzInfraDeps, cardDataList []ControlCardCertData, sslProfileID string, skipOidevidRotate bool, atomicCertRotationSupported bool) error {
-	if len(cardDataList) == 0 {
+func IssueAndRotateOwnerCerts(ctx context.Context, deps EnrollzInfraDeps, certDataList []ControlCardCertData, sslProfileID string, skipOidevidRotate bool, atomicCertRotationSupported bool) error {
+	if len(certDataList) == 0 {
 		return fmt.Errorf("%w: %s", ErrEmptyField, "card data list")
 	}
 	if deps == nil {
@@ -460,7 +460,7 @@ func IssueAndRotateOwnerCerts(ctx context.Context, deps EnrollzInfraDeps, cardDa
 
 	// Issue oIAK and oIDevID certs for each control card.
 	var controlCardCerts []*epb.ControlCardCertUpdate
-	for _, certData := range cardDataList {
+	for _, certData := range certDataList {
 		var validationErrs []string
 		if certData.ControlCardID == nil {
 			validationErrs = append(validationErrs, "ControlCardID")
