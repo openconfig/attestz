@@ -422,7 +422,7 @@ func TestEnrollControlCard(t *testing.T) {
 			got := EnrollControlCard(ctx, req)
 
 			// Verify that EnrollControlCard returned expected error/no-error response.
-			if test.wantErrResp != nil && errors.Is(got, test.wantErrResp) {
+			if test.wantErrResp != nil && errors.Is(got, errors.Unwrap(test.wantErrResp)) {
 				t.Errorf("Expected error response %v, but got error response %v", test.wantErrResp, errors.Unwrap(got))
 			} else if test.wantErrResp == nil && got != nil {
 				t.Errorf("Expected no-error response %v, but got error response %v", test.wantErrResp, got)
@@ -619,7 +619,7 @@ func TestRotateOwnerIakCert(t *testing.T) {
 			got := RotateOwnerIakCert(ctx, req)
 
 			// Verify that RotateOwnerIakCertReq returned expected error/no-error response.
-			if test.wantErrResp != nil && errors.Is(got, test.wantErrResp) {
+			if test.wantErrResp != nil && errors.Is(got, errors.Unwrap(test.wantErrResp)) {
 				t.Errorf("Expected error response %v, but got error response %v", test.wantErrResp, errors.Unwrap(got))
 			} else if test.wantErrResp == nil && got != nil {
 				t.Errorf("Expected no-error response %v, but got error response %v", test.wantErrResp, got)
