@@ -937,18 +937,21 @@ func EnrollSwitchWithHMACChallenge(ctx context.Context, req *EnrollSwitchWithHMA
 			return errMsg
 		}
 
+		var errs []error
 		iakPubPem, err := req.Deps.TPMTPublicToPEM(iakPubKey)
 		if err != nil {
-			errMsg := fmt.Errorf("failed to convert IAK public key to PEM: %w", err)
-			log.ErrorContext(ctx, errMsg)
-			return errMsg
+			errs = append(errs, fmt.Errorf("failed to convert IAK public key to PEM: %w", err))
 		}
 		idevidPubPem, err := req.Deps.TPMTPublicToPEM(idevidPubKey)
 		if err != nil {
-			errMsg := fmt.Errorf("failed to convert IDevID public key to PEM: %w", err)
+			errs = append(errs, fmt.Errorf("failed to convert IDevID public key to PEM: %w", err))
+		}
+		if len(errs) > 0 {
+			errMsg := errors.Join(errs...)
 			log.ErrorContext(ctx, errMsg)
 			return errMsg
 		}
+
 		controlCardCertUpdates = append(controlCardCertUpdates, ControlCardCertData{
 			ControlCardSelections: controlCardSelection,
 			ControlCardID:         cardID,

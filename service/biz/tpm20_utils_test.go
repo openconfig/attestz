@@ -1028,32 +1028,32 @@ func TestTPMTPublicToPEM(t *testing.T) {
 	}
 
 	failureTests := []struct {
-		name       string
-		pubKey     *tpm20.TPMTPublic
-		wantErrStr string
+		name    string
+		pubKey  *tpm20.TPMTPublic
+		wantErr error
 	}{
 		{
-			name:       "Nil TPMTPublic input",
-			pubKey:     nil,
-			wantErrStr: ErrInputNil.Error(),
+			name:    "Nil TPMTPublic input",
+			pubKey:  nil,
+			wantErr: ErrInputNil,
 		},
 		{
-			name:       "tpm20.Pub failure with mismatched unique",
-			pubKey:     &pubKeyInvalidUnique,
-			wantErrStr: "failed to parse and retrieve the RSA modulus",
+			name:    "tpm20.Pub failure with mismatched unique",
+			pubKey:  &pubKeyInvalidUnique,
+			wantErr: ErrInvalidArgument,
 		},
 		{
-			name:       "tpm20.Pub failure with unsupported type",
-			pubKey:     unsupportedAlgoPubKey,
-			wantErrStr: "unsupported public key type",
+			name:    "tpm20.Pub failure with unsupported type",
+			pubKey:  unsupportedAlgoPubKey,
+			wantErr: ErrInvalidArgument,
 		},
 	}
 
 	for _, tc := range failureTests {
 		t.Run(tc.name, func(t *testing.T) {
 			gotPem, err := u.TPMTPublicToPEM(tc.pubKey)
-			if err == nil || !strings.Contains(err.Error(), tc.wantErrStr) {
-				t.Errorf("TPMTPublicToPEM() got error %v, want error containing %q", err, tc.wantErrStr)
+			if !errors.Is(err, tc.wantErr) {
+				t.Errorf("TPMTPublicToPEM() got error %v, want error containing %q", err, tc.wantErr)
 			}
 			if gotPem != "" {
 				t.Errorf("TPMTPublicToPEM() got non-empty PEM string %q, wanted empty", gotPem)
