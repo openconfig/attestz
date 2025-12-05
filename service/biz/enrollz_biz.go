@@ -316,54 +316,19 @@ func EnrollControlCard(ctx context.Context, req *EnrollControlCardReq) error {
 	}
 
 	// 3. Call Switch Owner CA to issue oIAK and oIDevID certs.
-	issueOwnerIakCertReq := &IssueOwnerIakCertReq{
-		CardID:    getIakCertResp.ControlCardId,
-		IakPubPem: tpmCertVerifierResp.IakPubPem,
-	}
-	issueOwnerIakCertResp, err := req.Deps.IssueOwnerIakCert(ctx, issueOwnerIakCertReq)
+	err = IssueAndRotateOwnerCerts(ctx, req.Deps, []ControlCardCertData{
+		{
+			ControlCardSelections: req.ControlCardSelection,
+			ControlCardID:         getIakCertResp.ControlCardId,
+			IAKPubPem:             tpmCertVerifierResp.IakPubPem,
+			IDevIDPubPem:          tpmCertVerifierResp.IDevIDPubPem,
+		},
+	}, req.SSLProfileID, req.SkipOidevidRotate, false)
 	if err != nil {
-		err = fmt.Errorf("failed to execute Switch Owner CA IssueOwnerIakCert() with control_card_id=%s IAK_pub_pem=%s: %w",
-			prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.IakPubPem, err)
+		err = fmt.Errorf("failed to issue and rotate owner certs: %w", err)
 		log.ErrorContext(ctx, err)
 		return err
 	}
-	log.InfoContextf(ctx, "Successfully received Switch Owner CA IssueOwnerIakCert() resp=%s for control_card_id=%s IAK_pub_pem=%s",
-		issueOwnerIakCertResp.OwnerIakCertPem, prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.IakPubPem)
-
-	issueOwnerIDevIDCertReq := &IssueOwnerIDevIDCertReq{
-		CardID:       getIakCertResp.ControlCardId,
-		IDevIDPubPem: tpmCertVerifierResp.IDevIDPubPem,
-	}
-	issueOwnerIDevIDCertResp, err := req.Deps.IssueOwnerIDevIDCert(ctx, issueOwnerIDevIDCertReq)
-
-	if err != nil {
-		err = fmt.Errorf("failed to execute Switch Owner CA IssueOwnerIDevIDCert() with control_card_id=%s IDevID_pub_pem=%s: %w",
-			prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.IDevIDPubPem, err)
-		log.ErrorContext(ctx, err)
-		return err
-	}
-	log.InfoContextf(ctx, "Successfully received Switch Owner CA IssueOwnerIDevIDCert() resp=%s for control_card_id=%s IDevID_pub_pem=%s",
-		issueOwnerIDevIDCertResp.OwnerIDevIDCertPem, prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.IDevIDPubPem)
-
-	// 4. Call device's RotateOIakCert for the specified card to persist oIAK and oIDevID certs.
-	rotateOIakCertReq := &epb.RotateOIakCertRequest{
-		ControlCardSelection: req.ControlCardSelection,
-		OiakCert:             issueOwnerIakCertResp.OwnerIakCertPem,
-		OidevidCert:          issueOwnerIDevIDCertResp.OwnerIDevIDCertPem,
-		SslProfileId:         req.SSLProfileID,
-	}
-	if req.SkipOidevidRotate {
-		rotateOIakCertReq.OidevidCert = ""
-	}
-	rotateOIakCertResp, err := req.Deps.RotateOIakCert(ctx, rotateOIakCertReq)
-	if err != nil {
-		err = fmt.Errorf("failed to rotate oIAK and oIDevID certs from the device with req=%s: %w",
-			prototext.Format(rotateOIakCertReq), err)
-		log.ErrorContext(ctx, err)
-		return err
-	}
-	log.InfoContextf(ctx, "Successfully received from device RotateOIakCert() resp=%s for req=%s",
-		prototext.Format(rotateOIakCertResp), prototext.Format(rotateOIakCertReq))
 
 	// Return a successful (no-error) response.
 	return nil
@@ -598,35 +563,19 @@ func RotateOwnerIakCert(ctx context.Context, req *RotateOwnerIakCertReq) error {
 		}
 	}
 
-	// 3. Call Switch Owner CA to issue a new oIAK cert.
-	issueOwnerIakCertReq := &IssueOwnerIakCertReq{
-		CardID:    getIakCertResp.ControlCardId,
-		IakPubPem: tpmCertVerifierResp.PubPem,
-	}
-	issueOwnerIakCertResp, err := req.Deps.IssueOwnerIakCert(ctx, issueOwnerIakCertReq)
+	// 3. Issue and rotate a new oIAK cert.
+	err = IssueAndRotateOwnerCerts(ctx, req.Deps, []ControlCardCertData{
+		{
+			ControlCardID:         getIakCertResp.ControlCardId,
+			ControlCardSelections: req.ControlCardSelection,
+			IAKPubPem:             tpmCertVerifierResp.PubPem,
+		},
+	}, "", true, false)
 	if err != nil {
-		err = fmt.Errorf("failed to execute Switch Owner CA IssueOwnerIakCert() with control_card_id=%s IAK_pub_pem=%s: %w",
-			prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.PubPem, err)
+		err = fmt.Errorf("failed to issue and rotate owner IAK cert: %w", err)
 		log.ErrorContext(ctx, err)
 		return err
 	}
-	log.InfoContextf(ctx, "Successfully received Switch Owner CA IssueOwnerIakCert() resp=%s for control_card_id=%s IAK_pub_pem=%s",
-		issueOwnerIakCertResp.OwnerIakCertPem, prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.PubPem)
-
-	// 4. Call device's RotateOIakCert for the specified card to persist a new (rotate an existing) oIAK cert.
-	rotateOIakCertReq := &epb.RotateOIakCertRequest{
-		ControlCardSelection: req.ControlCardSelection,
-		OiakCert:             issueOwnerIakCertResp.OwnerIakCertPem,
-	}
-	rotateOIakCertResp, err := req.Deps.RotateOIakCert(ctx, rotateOIakCertReq)
-	if err != nil {
-		err = fmt.Errorf("failed to rotate oIAK cert from the device with req=%s: %w",
-			prototext.Format(rotateOIakCertReq), err)
-		log.ErrorContext(ctx, err)
-		return err
-	}
-	log.InfoContextf(ctx, "Successfully received from device RotateOIakCert() resp=%s for req=%s",
-		prototext.Format(rotateOIakCertResp), prototext.Format(rotateOIakCertReq))
 
 	// Return a successful (no-error) response.
 	return nil

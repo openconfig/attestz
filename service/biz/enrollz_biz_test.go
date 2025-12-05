@@ -311,7 +311,8 @@ func TestEnrollControlCard(t *testing.T) {
 				IakPubPem:    iakPub,
 				IDevIDPubPem: iDevIDPub,
 			},
-			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
+			issueOwnerIDevIDCertResp: &IssueOwnerIDevIDCertResp{OwnerIDevIDCertPem: oIdevIDCert},
+			wantGetIakCertReq:        &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 			wantVerifyIakAndIDevIDCertsReq: &VerifyIakAndIDevIDCertsReq{
 				ControlCardID:        vendorID,
 				IakCertPem:           iakCert,
@@ -321,6 +322,10 @@ func TestEnrollControlCard(t *testing.T) {
 			wantIssueOwnerIakCertReq: &IssueOwnerIakCertReq{
 				CardID:    vendorID,
 				IakPubPem: iakPub,
+			},
+			wantIssueOwnerIDevIDCertReq: &IssueOwnerIDevIDCertReq{
+				CardID:       vendorID,
+				IDevIDPubPem: iDevIDPub,
 			},
 		},
 		{
@@ -347,10 +352,6 @@ func TestEnrollControlCard(t *testing.T) {
 				IakCertPem:           iakCert,
 				IDevIDCertPem:        iDevIDCert,
 				CertVerificationOpts: certVerificationOpts,
-			},
-			wantIssueOwnerIakCertReq: &IssueOwnerIakCertReq{
-				CardID:    vendorID,
-				IakPubPem: iakPub,
 			},
 			wantIssueOwnerIDevIDCertReq: &IssueOwnerIDevIDCertReq{
 				CardID:       vendorID,
@@ -421,7 +422,7 @@ func TestEnrollControlCard(t *testing.T) {
 			got := EnrollControlCard(ctx, req)
 
 			// Verify that EnrollControlCard returned expected error/no-error response.
-			if test.wantErrResp != nil && test.wantErrResp != errors.Unwrap(got) {
+			if test.wantErrResp != nil && errors.Is(test.wantErrResp, got) {
 				t.Errorf("Expected error response %v, but got error response %v", test.wantErrResp, errors.Unwrap(got))
 			} else if test.wantErrResp == nil && got != nil {
 				t.Errorf("Expected no-error response %v, but got error response %v", test.wantErrResp, got)
@@ -618,7 +619,7 @@ func TestRotateOwnerIakCert(t *testing.T) {
 			got := RotateOwnerIakCert(ctx, req)
 
 			// Verify that RotateOwnerIakCertReq returned expected error/no-error response.
-			if test.wantErrResp != nil && test.wantErrResp != errors.Unwrap(got) {
+			if test.wantErrResp != nil && errors.Is(test.wantErrResp, got) {
 				t.Errorf("Expected error response %v, but got error response %v", test.wantErrResp, errors.Unwrap(got))
 			} else if test.wantErrResp == nil && got != nil {
 				t.Errorf("Expected no-error response %v, but got error response %v", test.wantErrResp, got)
