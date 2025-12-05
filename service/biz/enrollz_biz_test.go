@@ -297,7 +297,7 @@ func TestEnrollControlCard(t *testing.T) {
 		},
 		{
 			desc:        "SwitchOwnerCaClient.IssueOwnerIakCert() failure causes overall EnrollControlCard failure",
-			wantErrResp: errorResp,
+			wantErrResp: ErrFailedToIssueOwnerCert,
 			// Stubbed deps called:
 			// * GetIakCert => Success
 			// * VerifyIakAndIDevIDCerts => Success
@@ -330,7 +330,7 @@ func TestEnrollControlCard(t *testing.T) {
 		},
 		{
 			desc:        "SwitchOwnerCaClient.IssueOwnerIDevIDCert() failure causes overall EnrollControlCard failure",
-			wantErrResp: errorResp,
+			wantErrResp: ErrFailedToIssueOwnerCert,
 			// Stubbed deps called:
 			// * GetIakCert => Success
 			// * VerifyIakAndIDevIDCerts => Success
@@ -360,7 +360,7 @@ func TestEnrollControlCard(t *testing.T) {
 		},
 		{
 			desc:        "EnrollzDeviceClient.RotateOIakCert() failure causes overall EnrollControlCard failure",
-			wantErrResp: errorResp,
+			wantErrResp: ErrRotateOIakCert,
 			// Stubbed deps called:
 			// * GetIakCert => Success
 			// * VerifyIakAndIDevIDCerts => Success
@@ -422,10 +422,8 @@ func TestEnrollControlCard(t *testing.T) {
 			got := EnrollControlCard(ctx, req)
 
 			// Verify that EnrollControlCard returned expected error/no-error response.
-			if test.wantErrResp != nil && errors.Is(got, errors.Unwrap(test.wantErrResp)) {
+			if !errors.Is(got, test.wantErrResp) {
 				t.Errorf("Expected error response %v, but got error response %v", test.wantErrResp, errors.Unwrap(got))
-			} else if test.wantErrResp == nil && got != nil {
-				t.Errorf("Expected no-error response %v, but got error response %v", test.wantErrResp, got)
 			}
 
 			// Verify that all stubbed dependencies were called with the right params.
@@ -545,7 +543,7 @@ func TestRotateOwnerIakCert(t *testing.T) {
 		},
 		{
 			desc:        "SwitchOwnerCaClient.IssueOwnerIakCert() failure causes overall RotateOwnerIakCert failure",
-			wantErrResp: errorResp,
+			wantErrResp: ErrFailedToIssueOwnerCert,
 			// Stubbed deps called:
 			// * GetIakCert => Success
 			// * VerifyTpmCert => Success
@@ -570,7 +568,7 @@ func TestRotateOwnerIakCert(t *testing.T) {
 		},
 		{
 			desc:        "EnrollzDeviceClient.RotateOIakCert() failure causes overall RotateOwnerIakCert failure",
-			wantErrResp: errorResp,
+			wantErrResp: ErrRotateOIakCert,
 			// Stubbed deps called:
 			// * GetIakCert => Success
 			// * VerifyTpmCert => Success
@@ -619,10 +617,8 @@ func TestRotateOwnerIakCert(t *testing.T) {
 			got := RotateOwnerIakCert(ctx, req)
 
 			// Verify that RotateOwnerIakCertReq returned expected error/no-error response.
-			if test.wantErrResp != nil && errors.Is(got, errors.Unwrap(test.wantErrResp)) {
+			if !errors.Is(errors.Unwrap(got), test.wantErrResp) {
 				t.Errorf("Expected error response %v, but got error response %v", test.wantErrResp, errors.Unwrap(got))
-			} else if test.wantErrResp == nil && got != nil {
-				t.Errorf("Expected no-error response %v, but got error response %v", test.wantErrResp, got)
 			}
 
 			// Verify that all stubbed dependencies were called with the right params.
