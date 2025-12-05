@@ -1600,7 +1600,7 @@ func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
 				verifyTPMTSignatureErr:       tc.verifyTPMTSignatureErr,
 				verifyIDevIDAttributesErr:    tc.verifyIDevIDAttributesErr,
 			}
-			err := VerifyIdentityWithHMACChallenge(context.Background(), controlCardSelection, deps)
+			_, _, _, err := VerifyIdentityWithHMACChallenge(context.Background(), controlCardSelection, deps)
 			if tc.wantErr != nil {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr.Error()) {
 					t.Errorf("VerifyIdentityWithHmacChallenge() returned unexpected error: got %v, want %v", err, tc.wantErr)
