@@ -951,6 +951,117 @@ func TestRSAEKPublicKeyToTPMTPublic_Failure(t *testing.T) {
 	}
 }
 
+func TestTPMTPublicToPEM(t *testing.T) {
+	u := DefaultTPM20Utils{}
+	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate RSA key for testing: %v", err)
+	}
+
+	// Create a TPMT_PUBLIC from the RSA public key
+	pubKeyTPM, err := u.RSAEKPublicKeyToTPMTPublic(&privKey.PublicKey)
+	if err != nil {
+		t.Fatalf("Failed to convert RSA public key to TPMT_PUBLIC: %v", err)
+	}
+
+	// Create a TPMT_PUBLIC with an invalid Unique field for its Type to cause tpm20.Pub to fail.
+	pubKeyInvalidUnique := *pubKeyTPM
+	pubKeyInvalidUnique.Unique = tpm20.NewTPMUPublicID(tpm20.TPMAlgECC, &tpm20.TPMSECCPoint{
+		X: tpm20.TPM2BECCParameter{Buffer: make([]byte, 32)},
+		Y: tpm20.TPM2BECCParameter{Buffer: make([]byte, 32)},
+	})
+
+	// Create a TPMT_PUBLIC with an unsupported algorithm to cause tpm20.Pub to fail.
+	unsupportedAlgoPubKey := &tpm20.TPMTPublic{
+		Type:    tpm20.TPMAlgXMSS, // Using a value that is not TPMAlgRSA or TPMAlgECC
+		NameAlg: tpm20.TPMAlgSHA256,
+		Parameters: tpm20.NewTPMUPublicParms(
+			tpm20.TPMAlgECC,
+			&tpm20.TPMSECCParms{
+				CurveID: tpm20.TPMECCNistP256,
+			},
+		),
+		Unique: tpm20.NewTPMUPublicID(
+			tpm20.TPMAlgECC,
+			&tpm20.TPMSECCPoint{
+				X: tpm20.TPM2BECCParameter{Buffer: make([]byte, 32)},
+				Y: tpm20.TPM2BECCParameter{Buffer: make([]byte, 32)},
+			},
+		),
+	}
+
+	successTests := []struct {
+		name   string
+		pubKey *tpm20.TPMTPublic
+	}{
+		{
+			name:   "Successful conversion",
+			pubKey: pubKeyTPM,
+		},
+	}
+	for _, tc := range successTests {
+		t.Run(tc.name, func(t *testing.T) {
+			gotPem, err := u.TPMTPublicToPEM(tc.pubKey)
+			if err != nil {
+				t.Fatalf("TPMTPublicToPEM() got unexpected error: %v", err)
+			}
+			if gotPem == "" {
+				t.Fatal("TPMTPublicToPEM() got empty PEM string, wanted non-empty")
+			}
+			// Further validate the PEM content
+			block, _ := pem.Decode([]byte(gotPem))
+			if block == nil {
+				t.Fatalf("Failed to decode PEM block from generated string: %s", gotPem)
+			}
+			pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+			if err != nil {
+				t.Errorf("Failed to parse PKIX public key from PEM block: %v", err)
+			}
+			rsaPub, ok := pub.(*rsa.PublicKey)
+			if !ok {
+				t.Errorf("Expected RSA public key, got %T", pub)
+			}
+			if diff := cmp.Diff(rsaPub, &privKey.PublicKey); diff != "" {
+				t.Errorf("TPMTPublicToPEM() returned an unexpected result: diff (-want +got):\n%s", diff)
+			}
+		})
+	}
+
+	failureTests := []struct {
+		name    string
+		pubKey  *tpm20.TPMTPublic
+		wantErr error
+	}{
+		{
+			name:    "Nil TPMTPublic input",
+			pubKey:  nil,
+			wantErr: ErrInputNil,
+		},
+		{
+			name:    "tpm20.Pub failure with mismatched unique",
+			pubKey:  &pubKeyInvalidUnique,
+			wantErr: ErrInvalidArgument,
+		},
+		{
+			name:    "tpm20.Pub failure with unsupported type",
+			pubKey:  unsupportedAlgoPubKey,
+			wantErr: ErrInvalidArgument,
+		},
+	}
+
+	for _, tc := range failureTests {
+		t.Run(tc.name, func(t *testing.T) {
+			gotPem, err := u.TPMTPublicToPEM(tc.pubKey)
+			if !errors.Is(err, tc.wantErr) {
+				t.Errorf("TPMTPublicToPEM() got error %v, want error containing %q", err, tc.wantErr)
+			}
+			if gotPem != "" {
+				t.Errorf("TPMTPublicToPEM() got non-empty PEM string %q, wanted empty", gotPem)
+			}
+		})
+	}
+}
+
 func TestWrapHMACKeytoRSAPublicKey_Success(t *testing.T) {
 	u := &DefaultTPM20Utils{}
 	hmacPub, hmacSensitive, err := u.GenerateRestrictedHMACKey()

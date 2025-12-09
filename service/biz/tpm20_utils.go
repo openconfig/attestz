@@ -67,6 +67,8 @@ var (
 	ErrHashNotAvailable = errors.New("hash not available")
 	// ErrSignatureVerificationFailed is returned when the signature verification fails.
 	ErrSignatureVerificationFailed = errors.New("signature verification failed")
+	// ErrInvalidArgument is returned when the provided arguments are invalid.
+	ErrInvalidArgument = errors.New("invalid argument")
 )
 
 // TCGCSRIDevIDContents is the contents of the TCG_CSR_IDEVID_CONTENT structure.
@@ -88,6 +90,7 @@ type TCGCSRIDevIDContents struct {
 // since it is not possible to test the TPM 2.0  no-IDevID flow with stubbed data.
 type TPM20Utils interface {
 	ParseTCGCSRIDevIDContent(csrBytes []byte) (*TCGCSRIDevIDContents, error)
+	TPMTPublicToPEM(pubKey *tpm20.TPMTPublic) (string, error)
 	RSAEKPublicKeyToTPMTPublic(rsaPublicKey *rsa.PublicKey) (*tpm20.TPMTPublic, error)
 	GenerateRestrictedHMACKey() (*tpm20.TPMTPublic, *tpm20.TPMTSensitive, error)
 	WrapHMACKeytoRSAPublicKey(rsaPub *rsa.PublicKey, hmacPub *tpm20.TPMTPublic,
@@ -243,6 +246,27 @@ func (u *DefaultTPM20Utils) GenerateRestrictedHMACKey() (*tpm20.TPMTPublic, *tpm
 	}
 
 	return pub, priv, nil
+}
+
+// TPMTPublicToPEM converts a TPMT_PUBLIC struct to a PEM string.
+func (u *DefaultTPM20Utils) TPMTPublicToPEM(pubKey *tpm20.TPMTPublic) (string, error) {
+	if pubKey == nil {
+		return "", fmt.Errorf("%w: pubKey cannot be empty", ErrInputNil)
+	}
+	pubKeyCrypto, err := tpm20.Pub(*pubKey)
+	if err != nil {
+		return "", fmt.Errorf("%w: failed to encode public key to PEM: %v", ErrInvalidArgument, err)
+	}
+	pubKeyPkix, err := x509.MarshalPKIXPublicKey(pubKeyCrypto)
+	if err != nil {
+		return "", fmt.Errorf("%w: failed to marshal public key to PKIX: %v", ErrInvalidArgument, err)
+	}
+	pemBlock := &pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: pubKeyPkix,
+	}
+	pubKeyPem := pem.EncodeToMemory(pemBlock)
+	return string(pubKeyPem), nil
 }
 
 // RSAEKPublicKeyToTPMTPublic converts an RSA public key to a TPMT_PUBLIC struct.
