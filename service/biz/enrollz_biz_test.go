@@ -1600,7 +1600,7 @@ func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
 				verifyTPMTSignatureErr:       tc.verifyTPMTSignatureErr,
 				verifyIDevIDAttributesErr:    tc.verifyIDevIDAttributesErr,
 			}
-			_, _, _, err := VerifyIdentityWithHMACChallenge(context.Background(), controlCardSelection, deps)
+			_, _, _, err := verifyIdentityWithHMACChallenge(context.Background(), controlCardSelection, deps)
 			if tc.wantErr != nil {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr.Error()) {
 					t.Errorf("VerifyIdentityWithHmacChallenge() returned unexpected error: got %v, want %v", err, tc.wantErr)
@@ -2452,7 +2452,7 @@ func TestIssueAndRotateOwnerCerts(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			gotErr := IssueAndRotateOwnerCerts(ctx, test.deps, test.cardDataList, test.sslProfileID, test.skipOidevidRotate, test.atomicCertRotationSupported)
+			gotErr := issueAndRotateOwnerCerts(ctx, test.deps, test.cardDataList, test.sslProfileID, test.skipOidevidRotate, test.atomicCertRotationSupported)
 
 			if !errors.Is(gotErr, test.wantErr) {
 				t.Errorf("IssueAndRotateOwnerCerts() got error %v, want error %v", gotErr, test.wantErr)
