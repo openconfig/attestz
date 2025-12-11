@@ -346,12 +346,12 @@ func TestEnrollControlCard(t *testing.T) {
 			}},
 		},
 		{
-			desc:                  "EnrollControlCard failure (0 cards)",
+			desc:                  "EnrollControlCard failure (too few cards)",
 			controlCardSelections: []*cpb.ControlCardSelection{},
 			wantErrResp:           ErrInvalidRequest,
 		},
 		{
-			desc:                  "EnrollControlCard failure (3 cards)",
+			desc:                  "EnrollControlCard failure (too many cards)",
 			controlCardSelections: []*cpb.ControlCardSelection{controlCardSelection1, controlCardSelection2, controlCardSelection3},
 			wantErrResp:           ErrInvalidRequest,
 		},
@@ -858,12 +858,12 @@ func TestRotateOwnerIakCert(t *testing.T) {
 			}},
 		},
 		{
-			desc:                  "RotateOwnerIakCert failure (0 cards)",
+			desc:                  "RotateOwnerIakCert failure (too few cards)",
 			controlCardSelections: []*cpb.ControlCardSelection{},
 			wantErrResp:           ErrInvalidRequest,
 		},
 		{
-			desc:                  "RotateOwnerIakCert failure (3 cards)",
+			desc:                  "RotateOwnerIakCert failure (too many cards)",
 			controlCardSelections: []*cpb.ControlCardSelection{controlCardSelection1, controlCardSelection2, controlCardSelection3},
 			wantErrResp:           ErrInvalidRequest,
 		},
