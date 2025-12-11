@@ -47,6 +47,22 @@ var (
 	ErrEmptyField = errors.New("empty required field(s)")
 	// ErrRotateOIakCert is returned when the device fails to rotate the oIAK and oIDevID certificates.
 	ErrRotateOIakCert = errors.New("failed to rotate oIAK and oIDevID certs")
+	// ErrNonceGeneration is returned when nonce generation fails.
+	ErrNonceGeneration = errors.New("failed to generate nonce")
+	// ErrNonceVerification is returned when nonce signature verification fails.
+	ErrNonceVerification = errors.New("nonce verification failed")
+	// ErrGetIakCert is returned when retrieving the IAK cert from the device fails.
+	ErrGetIakCert = errors.New("failed to get IAK cert")
+	// ErrCertVerification is returned when IAK or IDevID certificate verification fails.
+	ErrCertVerification = errors.New("cert verification failed")
+	// ErrInvalidRequest is returned when a request is invalid.
+	ErrInvalidRequest = errors.New("invalid request")
+	// ErrAtomicRotationMismatch is returned when atomic cert rotation supported flag differs between control cards.
+	ErrAtomicRotationMismatch = errors.New("atomic cert rotation supported flag differs between control cards")
+	// ErrVerifyIdentity is returned when identity verification fails.
+	ErrVerifyIdentity = errors.New("failed to verify identity")
+	// ErrIssueAndRotateOwnerCerts is returned when issuing and rotating owner certs fails.
+	ErrIssueAndRotateOwnerCerts = errors.New("failed to issue and rotate oIAK and oIDevID certs")
 )
 
 // RSAkeySize2048 is the size of the RSA key used for TPM enrollment.
@@ -254,75 +270,15 @@ func EnrollControlCard(ctx context.Context, req *EnrollControlCardReq) error {
 		return err
 	}
 
-	// 1. Call device's GetIakCert API for the specified control card.
-	getIakCertReq := &epb.GetIakCertRequest{ControlCardSelection: req.ControlCardSelection}
-	// Generate a nonce.
-	if req.SkipNonceExchange != nil && !*req.SkipNonceExchange {
-		nonce := make([]byte, 16)
-		if _, err := rand.Read(nonce); err != nil {
-			err = fmt.Errorf("failed to generate nonce: %w", err)
-			log.ErrorContext(ctx, err)
-			return err
-		}
-		getIakCertReq.Nonce = nonce
-		getIakCertReq.HashAlgo = cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256.Enum()
-	}
-	getIakCertResp, err := req.Deps.GetIakCert(ctx, getIakCertReq)
+	cardData, _, err := verifyIdentityWithVendorCerts(ctx, req.ControlCardSelection, req.Deps, req.CertVerificationOpts, req.SkipNonceExchange, true)
 	if err != nil {
-		err = fmt.Errorf("failed to retrieve IAK cert from the device with req=%s: %w",
-			prototext.Format(getIakCertReq), err)
+		err = fmt.Errorf("%w for control card %s: %w", ErrVerifyIdentity, prototext.Format(req.ControlCardSelection), err)
 		log.ErrorContext(ctx, err)
 		return err
 	}
-	log.InfoContextf(ctx, "Successfully received from device GetIakCert() resp=%s for req=%s",
-		prototext.Format(getIakCertResp), prototext.Format(getIakCertReq))
 
-	// 2. Validate and parse IDevID and IAK certs.
-	tpmCertVerifierReq := &VerifyIakAndIDevIDCertsReq{
-		ControlCardID:        getIakCertResp.ControlCardId,
-		IakCertPem:           getIakCertResp.IakCert,
-		IDevIDCertPem:        getIakCertResp.IdevidCert,
-		CertVerificationOpts: req.CertVerificationOpts,
-	}
-	tpmCertVerifierResp, err := req.Deps.VerifyIakAndIDevIDCerts(ctx, tpmCertVerifierReq)
-	if err != nil {
-		err = fmt.Errorf("failed to verify IAK_cert_pem=%s and IDevID_cert_pem=%s: %w",
-			tpmCertVerifierReq.IakCertPem, tpmCertVerifierReq.IDevIDCertPem, err)
-		log.ErrorContext(ctx, err)
-		return err
-	}
-	log.InfoContextf(ctx, "Successfully verified IAK and IDevID certs and parsed IAK_pub_pem=%s and IDevID_pub_pem=%s",
-		tpmCertVerifierResp.IakPubPem, tpmCertVerifierResp.IDevIDPubPem)
-
-	// Verify nonce signature if present.
-	if len(getIakCertResp.NonceSignature) > 0 {
-		resp, err := req.Deps.VerifyNonceSignature(
-			ctx, &VerifyNonceSignatureReq{
-				Nonce:     getIakCertReq.Nonce,
-				Signature: getIakCertResp.NonceSignature,
-				HashAlgo:  *getIakCertReq.HashAlgo,
-				IAKPubPem: tpmCertVerifierResp.IakPubPem,
-			})
-		if err != nil {
-			err = fmt.Errorf("failed to verify nonce signature: %w", err)
-			log.ErrorContext(ctx, err)
-			return err
-		}
-		if !resp.IsValid {
-			err = fmt.Errorf("nonce signature verification failed")
-			log.ErrorContext(ctx, err)
-			return err
-		}
-	}
-
-	// 3. Call Switch Owner CA to issue oIAK and oIDevID certs.
 	err = issueAndRotateOwnerCerts(ctx, req.Deps, []ControlCardCertData{
-		{
-			ControlCardSelections: req.ControlCardSelection,
-			ControlCardID:         getIakCertResp.ControlCardId,
-			IAKPubPem:             tpmCertVerifierResp.IakPubPem,
-			IDevIDPubPem:          tpmCertVerifierResp.IDevIDPubPem,
-		},
+		*cardData,
 	}, req.SSLProfileID, req.SkipOidevidRotate, false)
 	if err != nil {
 		err = fmt.Errorf("failed to issue and rotate owner certs: %w", err)
@@ -339,6 +295,87 @@ type ControlCardCertData struct {
 	ControlCardID         *cpb.ControlCardVendorId
 	IAKPubPem             string
 	IDevIDPubPem          string
+}
+
+// verifyIdentityWithVendorCerts verifies the device's identity using vendor-issued certificates.
+// It calls the device's GetIakCert method, validates the received IAK and optionally IDevID certificates,
+// and verifies the nonce signature if provided. It returns the verified control card certificate
+// data and the GetIakCertResponse from the device.
+func verifyIdentityWithVendorCerts(ctx context.Context, controlCardSelection *cpb.ControlCardSelection, deps EnrollzInfraDeps, certVerificationOpts x509.VerifyOptions, skipNonceExchange *bool, verifyIDevID bool) (*ControlCardCertData, *epb.GetIakCertResponse, error) { //nolint:unparam
+	getIakCertReq := &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection}
+	// Generate a nonce.
+	if skipNonceExchange != nil && !*skipNonceExchange {
+		nonce := make([]byte, 16)
+		if _, err := rand.Read(nonce); err != nil {
+			return nil, nil, fmt.Errorf("%w: %v", ErrNonceGeneration, err)
+		}
+		getIakCertReq.Nonce = nonce
+		getIakCertReq.HashAlgo = cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256.Enum()
+	}
+	getIakCertResp, err := deps.GetIakCert(ctx, getIakCertReq)
+	if err != nil {
+		return nil, nil, fmt.Errorf("%w with req=%s: %v", ErrGetIakCert, prototext.Format(getIakCertReq), err)
+	}
+	log.InfoContextf(ctx, "Successfully received from device GetIakCert() resp=%s for req=%s",
+		prototext.Format(getIakCertResp), prototext.Format(getIakCertReq))
+
+	// Validate and parse IDevID and IAK certs.
+	var iakPubPem, idevidPubPem string
+	if verifyIDevID {
+		tpmCertVerifierReq := &VerifyIakAndIDevIDCertsReq{
+			ControlCardID:        getIakCertResp.ControlCardId,
+			IakCertPem:           getIakCertResp.IakCert,
+			IDevIDCertPem:        getIakCertResp.IdevidCert,
+			CertVerificationOpts: certVerificationOpts,
+		}
+		tpmCertVerifierResp, err := deps.VerifyIakAndIDevIDCerts(ctx, tpmCertVerifierReq)
+		if err != nil {
+			return nil, nil, fmt.Errorf("%w for IAK_cert_pem=%s and IDevID_cert_pem=%s: %v", ErrCertVerification, tpmCertVerifierReq.IakCertPem, tpmCertVerifierReq.IDevIDCertPem, err)
+		}
+		iakPubPem = tpmCertVerifierResp.IakPubPem
+		idevidPubPem = tpmCertVerifierResp.IDevIDPubPem
+		log.InfoContextf(ctx, "Successful TpmCertVerifier.VerifyIakAndIDevIDCerts() for control_card_id=%s, resp with IAK_pub_pem=%s and IDevID_pub_pem=%s",
+			prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.IakPubPem, tpmCertVerifierResp.IDevIDPubPem)
+	} else {
+		tpmCertVerifierReq := &VerifyTpmCertReq{
+			ControlCardID:        getIakCertResp.ControlCardId,
+			CertPem:              getIakCertResp.IakCert,
+			CertVerificationOpts: certVerificationOpts,
+		}
+		tpmCertVerifierResp, err := deps.VerifyTpmCert(ctx, tpmCertVerifierReq)
+		if err != nil {
+			return nil, nil, fmt.Errorf("%w for IAK_cert_pem=%s: %v", ErrCertVerification, tpmCertVerifierReq.CertPem, err)
+		}
+		log.InfoContextf(ctx, "Successful TpmCertVerifier.VerifyTpmCert() for control_card_id=%s, resp with IAK_pub_pem=%s",
+			prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.PubPem)
+		iakPubPem = tpmCertVerifierResp.PubPem
+	}
+
+	// Verify nonce signature if present.
+	if len(getIakCertResp.NonceSignature) > 0 {
+		resp, err := deps.VerifyNonceSignature(
+			ctx, &VerifyNonceSignatureReq{
+				Nonce:     getIakCertReq.Nonce,
+				Signature: getIakCertResp.NonceSignature,
+				HashAlgo:  *getIakCertReq.HashAlgo,
+				IAKPubPem: iakPubPem,
+			})
+		if err != nil {
+			return nil, nil, fmt.Errorf("%w: %v", ErrNonceVerification, err)
+		}
+		if !resp.IsValid {
+			return nil, nil, ErrNonceVerification
+		}
+	}
+
+	controlCardCertData := ControlCardCertData{
+		ControlCardSelections: controlCardSelection,
+		ControlCardID:         getIakCertResp.ControlCardId,
+		IAKPubPem:             iakPubPem,
+		IDevIDPubPem:          idevidPubPem,
+	}
+
+	return &controlCardCertData, getIakCertResp, nil
 }
 
 func issueOwnerIakCert(ctx context.Context, deps EnrollzInfraDeps, certData ControlCardCertData) (string, error) {
@@ -503,73 +540,16 @@ func RotateOwnerIakCert(ctx context.Context, req *RotateOwnerIakCertReq) error {
 		return err
 	}
 
-	// 1. Call device's GetIakCert API for the specified control card.
-	getIakCertReq := &epb.GetIakCertRequest{ControlCardSelection: req.ControlCardSelection}
-	// Generate a nonce.
-	if req.SkipNonceExchange != nil && !*req.SkipNonceExchange {
-		nonce := make([]byte, 16)
-		if _, err := rand.Read(nonce); err != nil {
-			err = fmt.Errorf("failed to generate nonce: %w", err)
-			log.ErrorContext(ctx, err)
-			return err
-		}
-		getIakCertReq.Nonce = nonce
-		getIakCertReq.HashAlgo = cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256.Enum()
-	}
-	getIakCertResp, err := req.Deps.GetIakCert(ctx, getIakCertReq)
+	cardData, _, err := verifyIdentityWithVendorCerts(ctx, req.ControlCardSelection, req.Deps, req.CertVerificationOpts, req.SkipNonceExchange, false)
 	if err != nil {
-		err = fmt.Errorf("failed to retrieve IAK cert from the device with req=%s: %w",
-			prototext.Format(getIakCertReq), err)
+		err = fmt.Errorf("%w for control card %s: %w", ErrVerifyIdentity, prototext.Format(req.ControlCardSelection), err)
 		log.ErrorContext(ctx, err)
 		return err
-	}
-	log.InfoContextf(ctx, "Successfully received from device GetIakCert() resp=%s for req=%s",
-		prototext.Format(getIakCertResp), prototext.Format(getIakCertReq))
-
-	// 2. Validate and parse IAK cert.
-	tpmCertVerifierReq := &VerifyTpmCertReq{
-		ControlCardID:        getIakCertResp.ControlCardId,
-		CertPem:              getIakCertResp.IakCert,
-		CertVerificationOpts: req.CertVerificationOpts,
-	}
-	tpmCertVerifierResp, err := req.Deps.VerifyTpmCert(ctx, tpmCertVerifierReq)
-	if err != nil {
-		err = fmt.Errorf("failed to verify IAK_cert_pem=%s: %w",
-			tpmCertVerifierReq.CertPem, err)
-		log.ErrorContext(ctx, err)
-		return err
-	}
-	log.InfoContextf(ctx, "Successfully verified IAK cert and parsed IAK_pub_pem=%s",
-		tpmCertVerifierResp.PubPem)
-
-	// Verify nonce signature if present.
-	if len(getIakCertResp.NonceSignature) > 0 {
-		resp, err := req.Deps.VerifyNonceSignature(
-			ctx, &VerifyNonceSignatureReq{
-				Nonce:     getIakCertReq.Nonce,
-				Signature: getIakCertResp.NonceSignature,
-				HashAlgo:  *getIakCertReq.HashAlgo,
-				IAKPubPem: tpmCertVerifierResp.PubPem,
-			})
-		if err != nil {
-			err = fmt.Errorf("failed to verify nonce signature: %w", err)
-			log.ErrorContext(ctx, err)
-			return err
-		}
-		if !resp.IsValid {
-			err = fmt.Errorf("nonce signature verification failed")
-			log.ErrorContext(ctx, err)
-			return err
-		}
 	}
 
 	// 3. Issue and rotate a new oIAK cert.
 	err = issueAndRotateOwnerCerts(ctx, req.Deps, []ControlCardCertData{
-		{
-			ControlCardID:         getIakCertResp.ControlCardId,
-			ControlCardSelections: req.ControlCardSelection,
-			IAKPubPem:             tpmCertVerifierResp.PubPem,
-		},
+		*cardData,
 	}, "", true, false)
 	if err != nil {
 		err = fmt.Errorf("failed to issue and rotate owner IAK cert: %w", err)

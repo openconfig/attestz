@@ -206,7 +206,6 @@ func TestEnrollControlCard(t *testing.T) {
 	iDevIDPub := "Some IDevID pub PEM"
 	oIakCert := "Some Owner IAK cert PEM"
 	oIdevIDCert := "Some Owner IDevID cert PEM"
-	errorResp := errors.New("Some error")
 
 	tests := []struct {
 		// Test description.
@@ -271,14 +270,14 @@ func TestEnrollControlCard(t *testing.T) {
 		},
 		{
 			desc:        "EnrollzDeviceClient.GetIakCert() failure causes overall EnrollControlCard failure",
-			wantErrResp: errorResp,
+			wantErrResp: ErrGetIakCert,
 			// Stubbed deps called:
 			// * GetIakCert => Fail
 			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 		},
 		{
 			desc:        "TpmCertVerifier.VerifyIakAndIDevIDCerts() failure causes overall EnrollControlCard failure",
-			wantErrResp: errorResp,
+			wantErrResp: ErrCertVerification,
 			// Stubbed deps called:
 			// * GetIakCert => Success
 			// * VerifyIakAndIDevIDCerts => Fail
@@ -421,7 +420,6 @@ func TestEnrollControlCard(t *testing.T) {
 			ctx := context.Background()
 			got := EnrollControlCard(ctx, req)
 
-			// Verify that EnrollControlCard returned expected error/no-error response.
 			if !errors.Is(got, test.wantErrResp) {
 				t.Errorf("Expected error response %v, but got error response %v", test.wantErrResp, errors.Unwrap(got))
 			}
@@ -467,7 +465,6 @@ func TestRotateOwnerIakCert(t *testing.T) {
 	iakCert := "Some IAK cert PEM"
 	iakPub := "Some IAK pub PEM"
 	oIakCert := "Some Owner IAK cert PEM"
-	errorResp := errors.New("Some error")
 
 	tests := []struct {
 		// Test description.
@@ -519,14 +516,14 @@ func TestRotateOwnerIakCert(t *testing.T) {
 		},
 		{
 			desc:        "EnrollzDeviceClient.GetIakCert() failure causes overall RotateOwnerIakCert failure",
-			wantErrResp: errorResp,
+			wantErrResp: ErrGetIakCert,
 			// Stubbed deps called:
 			// * GetIakCert => Fail
 			wantGetIakCertReq: &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection},
 		},
 		{
 			desc:        "TpmCertVerifier.VerifyTpmCert() failure causes overall RotateOwnerIakCert failure",
-			wantErrResp: errorResp,
+			wantErrResp: ErrCertVerification,
 			// Stubbed deps called:
 			// * GetIakCert => Success
 			// * VerifyTpmCert => Fail
@@ -617,7 +614,7 @@ func TestRotateOwnerIakCert(t *testing.T) {
 			got := RotateOwnerIakCert(ctx, req)
 
 			// Verify that RotateOwnerIakCertReq returned expected error/no-error response.
-			if !errors.Is(errors.Unwrap(got), test.wantErrResp) {
+			if !errors.Is(got, test.wantErrResp) {
 				t.Errorf("Expected error response %v, but got error response %v", test.wantErrResp, errors.Unwrap(got))
 			}
 
@@ -667,7 +664,6 @@ func TestNonceVerification(t *testing.T) {
 	iDevIDPub := "Some IDevID pub PEM"
 	oIakCert := "Some Owner IAK cert PEM"
 	oIdevIDCert := "Some Owner IDevID cert PEM"
-	errorResp := errors.New("Some error")
 	validNonceSignature := []byte("some-nonce-signature")
 
 	tests := []struct {
@@ -703,7 +699,7 @@ func TestNonceVerification(t *testing.T) {
 		{
 			desc:             "Failed nonce verification",
 			isEnrollmentTest: true,
-			wantErrResp:      errorResp,
+			wantErrResp:      ErrVerifyIdentity,
 			getIakCertResp: &epb.GetIakCertResponse{
 				ControlCardId:  vendorID,
 				IakCert:        iakCert,
@@ -754,7 +750,7 @@ func TestNonceVerification(t *testing.T) {
 		{
 			desc:             "Failed nonce verification for RotateOwnerIakCert",
 			isEnrollmentTest: false,
-			wantErrResp:      errorResp,
+			wantErrResp:      ErrVerifyIdentity,
 			getIakCertResp: &epb.GetIakCertResponse{
 				ControlCardId:  vendorID,
 				IakCert:        iakCert,
@@ -811,10 +807,8 @@ func TestNonceVerification(t *testing.T) {
 			}
 
 			// Verify that EnrollControlCard returned expected error/no-error response.
-			if test.wantErrResp != nil && test.wantErrResp != errors.Unwrap(got) {
-				t.Errorf("Expected error response %v, but got error response %v", test.wantErrResp, errors.Unwrap(got))
-			} else if test.wantErrResp == nil && got != nil {
-				t.Errorf("Expected no-error response, but got error response %v", got)
+			if !errors.Is(got, test.wantErrResp) {
+				t.Errorf("Expected error response %v, but got error response %v", test.wantErrResp, got)
 			}
 
 			// Verify that GetIakCertReq was called with a nonce if SkipNonceExchange is false.
