@@ -49,12 +49,12 @@ var (
 	ErrRotateOIakCert = errors.New("failed to rotate oIAK and oIDevID certs")
 	// ErrNonceGeneration is returned when nonce generation fails.
 	ErrNonceGeneration = errors.New("failed to generate nonce")
+	// ErrNonceVerification is returned when nonce signature verification fails.
+	ErrNonceVerification = errors.New("nonce verification failed")
 	// ErrGetIakCert is returned when retrieving the IAK cert from the device fails.
 	ErrGetIakCert = errors.New("failed to get IAK cert")
 	// ErrCertVerification is returned when IAK or IDevID certificate verification fails.
 	ErrCertVerification = errors.New("cert verification failed")
-	// ErrNonceVerification is returned when nonce signature verification fails.
-	ErrNonceVerification = errors.New("nonce verification failed")
 	// ErrInvalidRequest is returned when a request is invalid.
 	ErrInvalidRequest = errors.New("invalid request")
 	// ErrAtomicRotationMismatch is returned when atomic cert rotation supported flag differs between control cards.
@@ -277,7 +277,6 @@ func EnrollControlCard(ctx context.Context, req *EnrollControlCardReq) error {
 		return err
 	}
 
-	// 3. Call Switch Owner CA to issue oIAK and oIDevID certs.
 	err = issueAndRotateOwnerCerts(ctx, req.Deps, []ControlCardCertData{
 		*cardData,
 	}, req.SSLProfileID, req.SkipOidevidRotate, false)
@@ -324,7 +323,7 @@ func verifyIdentityWithVendorCerts(ctx context.Context, controlCardSelection *cp
 	log.InfoContextf(ctx, "Successfully received from device GetIakCert() resp=%s for req=%s",
 		prototext.Format(getIakCertResp), prototext.Format(getIakCertReq))
 
-	// 2. Validate and parse IDevID and IAK certs.
+	// Validate and parse IDevID and IAK certs.
 	var iakPubPem, idevidPubPem string
 	if verifyIDevID {
 		tpmCertVerifierReq := &VerifyIakAndIDevIDCertsReq{
