@@ -1058,7 +1058,7 @@ func verifyIdentityWithHMACChallenge(ctx context.Context, controlCardSelection *
 	}
 
 	// Verify IDevID Public Key and CSR.
-	idevidPubKey, err := verifyIdevidKey(ctx, deps, fetchEKResp, iakPubKey, getIDevIDCSRResp.GetCsrResponse(), keyTemplate)
+	idevidPubKey, err := verifyIdevidKeyAndCsr(ctx, deps, fetchEKResp, iakPubKey, getIDevIDCSRResp, keyTemplate)
 	if err != nil {
 		errMsg := fmt.Errorf("failed to verify IDevID key and CSR: %w", err)
 		log.ErrorContext(ctx, errMsg)
@@ -1160,9 +1160,21 @@ func verifyIAKKey(ctx context.Context, deps TPM20Utils, hmacChallengeResp *epb.H
 }
 
 // verifyIdevidKey verifies the IDevID Certify Info, IDevID Attributes, and the IDevID CSR signature.
-func verifyIdevidKey(ctx context.Context, deps TPM20Utils, fetchEKResp *FetchEKResp, iakPubKey *tpm20.TPMTPublic, csrResponse *epb.CsrResponse, keyTemplate epb.KeyTemplate) (*tpm20.TPMTPublic, error) {
+func verifyIdevidKeyAndCsr(ctx context.Context, deps TPM20Utils, fetchEKResp *FetchEKResp, iakPubKey *tpm20.TPMTPublic, getIdevidCsrResponse *epb.GetIdevidCsrResponse, keyTemplate epb.KeyTemplate) (*tpm20.TPMTPublic, error) {
+	if getIdevidCsrResponse == nil {
+		errMsg := fmt.Errorf("getIdevidCsrResponse cannot be nil")
+		log.ErrorContext(ctx, errMsg)
+		return nil, errMsg
+	}
+	csrResponse := getIdevidCsrResponse.GetCsrResponse()
 	if csrResponse == nil {
 		errMsg := fmt.Errorf("csrResponse cannot be nil")
+		log.ErrorContext(ctx, errMsg)
+		return nil, errMsg
+	}
+	controlCardID := getIdevidCsrResponse.GetControlCardId()
+	if csrResponse == nil {
+		errMsg := fmt.Errorf("controlCardID cannot be nil")
 		log.ErrorContext(ctx, errMsg)
 		return nil, errMsg
 	}
@@ -1213,9 +1225,15 @@ func verifyIdevidKey(ctx context.Context, deps TPM20Utils, fetchEKResp *FetchEKR
 		return nil, errMsg
 	}
 
-	// TODO: do validation on EK and Serial Number obtained from the CSR.
+	// TODO: do validation on EK obtained from the CSR.
 	if fetchEKResp == nil {
 		errMsg := fmt.Errorf("fetchEKResp cannot be nil")
+		log.ErrorContext(ctx, errMsg)
+		return nil, errMsg
+	}
+
+	if idevidCsrContents.ProdSerial != controlCardID.ControlCardSerial {
+		errMsg := fmt.Errorf("Serial number in CSR (%s) does not match the serial number provided in control_card_id (%s)", idevidCsrContents.ProdSerial, controlCardID.ControlCardSerial)
 		log.ErrorContext(ctx, errMsg)
 		return nil, errMsg
 	}
