@@ -224,8 +224,8 @@ type EnrollSwitchWithHMACChallengeInfraDeps interface {
 
 // EnrollControlCardReq is the request to EnrollControlCard().
 type EnrollControlCardReq struct {
-	// Selection of a specific switch control card.
-	ControlCardSelection *cpb.ControlCardSelection
+	// Selections of the switch control cards to enroll.
+	ControlCardSelections []*cpb.ControlCardSelection
 	// Infra-specific wired dependencies.
 	Deps EnrollzInfraDeps
 	// Verification options for IAK and IDevID certs.
@@ -243,6 +243,12 @@ func validateEnrollControlCardReq(req *EnrollControlCardReq) error {
 	if req == nil {
 		return fmt.Errorf("request EnrollControlCardReq is nil")
 	}
+	if len(req.ControlCardSelections) == 0 {
+		return fmt.Errorf("field ControlCardSelections in EnrollControlCardReq request cannot be empty")
+	}
+	if len(req.ControlCardSelections) > 2 {
+		return fmt.Errorf("field ControlCardSelections in EnrollControlCardReq request must have at most 2 control cards")
+	}
 	if req.Deps == nil {
 		return fmt.Errorf("field Deps in EnrollControlCardReq request is nil")
 	}
@@ -254,7 +260,7 @@ func validateEnrollControlCardReq(req *EnrollControlCardReq) error {
 // is part of the switch owner infra/service and is expected to communicate with a device/switch (hosting
 // enrollz gRPC endpoints) to verify its TPM-based identity and provision it with the switch-owner-issued,
 // TPM-based attestation and TLS certs: Owner IAK and Owner IDevID certs, respectively. Switch owner is
-// expected to TPM-enroll one switch control card at a time, starting with an active card.
+// expected to TPM-enroll one or more switch control cards at a time, starting with an active card.
 //
 // More specifically, this function targets initial install/enrollment of the device. This means that the
 // switch is expected to rely on the IDevID cert for establishing a secure TLS connection. Consumers
@@ -265,23 +271,34 @@ func validateEnrollControlCardReq(req *EnrollControlCardReq) error {
 func EnrollControlCard(ctx context.Context, req *EnrollControlCardReq) error {
 	err := validateEnrollControlCardReq(req)
 	if err != nil {
-		err = fmt.Errorf("invalid request EnrollControlCardReq to EnrollControlCard(): %v", err)
+		err = fmt.Errorf("%w: invalid request EnrollControlCardReq to EnrollControlCard(): %v", ErrInvalidRequest, err)
 		log.ErrorContext(ctx, err)
 		return err
 	}
 
-	cardData, _, err := verifyIdentityWithVendorCerts(ctx, req.ControlCardSelection, req.Deps, req.CertVerificationOpts, req.SkipNonceExchange, true)
-	if err != nil {
-		err = fmt.Errorf("%w for control card %s: %w", ErrVerifyIdentity, prototext.Format(req.ControlCardSelection), err)
-		log.ErrorContext(ctx, err)
-		return err
+	var cardDataList []ControlCardCertData
+	var getIakCertRespList []*epb.GetIakCertResponse
+	for _, selection := range req.ControlCardSelections {
+		cardData, getIakCertResp, err := verifyIdentityWithVendorCerts(ctx, selection, req.Deps, req.CertVerificationOpts, req.SkipNonceExchange, true)
+		if err != nil {
+			err = fmt.Errorf("%w for control card %s: %w", ErrVerifyIdentity, prototext.Format(selection), err)
+			log.ErrorContext(ctx, err)
+			return err
+		}
+		cardDataList = append(cardDataList, *cardData)
+		getIakCertRespList = append(getIakCertRespList, getIakCertResp)
 	}
 
-	err = issueAndRotateOwnerCerts(ctx, req.Deps, []ControlCardCertData{
-		*cardData,
-	}, req.SSLProfileID, req.SkipOidevidRotate, false)
+	if len(getIakCertRespList) == 2 {
+		if getIakCertRespList[0].GetAtomicCertRotationSupported() != getIakCertRespList[1].GetAtomicCertRotationSupported() {
+			return ErrAtomicRotationMismatch
+		}
+	}
+
+	err = issueAndRotateOwnerCerts(ctx, req.Deps, cardDataList, req.SSLProfileID, req.SkipOidevidRotate,
+		getIakCertRespList[0].GetAtomicCertRotationSupported())
 	if err != nil {
-		err = fmt.Errorf("failed to issue and rotate owner certs: %w", err)
+		err = fmt.Errorf("%w: %w", ErrIssueAndRotateOwnerCerts, err)
 		log.ErrorContext(ctx, err)
 		return err
 	}
@@ -301,7 +318,7 @@ type ControlCardCertData struct {
 // It calls the device's GetIakCert method, validates the received IAK and optionally IDevID certificates,
 // and verifies the nonce signature if provided. It returns the verified control card certificate
 // data and the GetIakCertResponse from the device.
-func verifyIdentityWithVendorCerts(ctx context.Context, controlCardSelection *cpb.ControlCardSelection, deps EnrollzInfraDeps, certVerificationOpts x509.VerifyOptions, skipNonceExchange *bool, verifyIDevID bool) (*ControlCardCertData, *epb.GetIakCertResponse, error) { //nolint:unparam
+func verifyIdentityWithVendorCerts(ctx context.Context, controlCardSelection *cpb.ControlCardSelection, deps EnrollzInfraDeps, certVerificationOpts x509.VerifyOptions, skipNonceExchange *bool, verifyIDevID bool) (*ControlCardCertData, *epb.GetIakCertResponse, error) {
 	getIakCertReq := &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection}
 	// Generate a nonce.
 	if skipNonceExchange != nil && !*skipNonceExchange {
@@ -498,7 +515,7 @@ func issueAndRotateOwnerCerts(ctx context.Context, deps EnrollzInfraDeps, certDa
 // RotateOwnerIakCertReq is the request to RotateOwnerIakCert().
 type RotateOwnerIakCertReq struct {
 	// Selection of a specific switch control card.
-	ControlCardSelection *cpb.ControlCardSelection
+	ControlCardSelections []*cpb.ControlCardSelection
 	// Infra-specific wired dependencies.
 	Deps EnrollzInfraDeps
 	// Verification options for IAK cert.
@@ -514,6 +531,12 @@ func validateRotateOwnerIakCert(req *RotateOwnerIakCertReq) error {
 	}
 	if req.Deps == nil {
 		return fmt.Errorf("field Deps in RotateOwnerIakCertReq request is nil")
+	}
+	if len(req.ControlCardSelections) == 0 {
+		return fmt.Errorf("field ControlCardSelections in RotateOwnerIakCertReq request cannot be empty")
+	}
+	if len(req.ControlCardSelections) > 2 {
+		return fmt.Errorf("field ControlCardSelections in RotateOwnerIakCertReq request must have at most 2 control cards")
 	}
 
 	return nil
@@ -535,24 +558,34 @@ func validateRotateOwnerIakCert(req *RotateOwnerIakCertReq) error {
 func RotateOwnerIakCert(ctx context.Context, req *RotateOwnerIakCertReq) error {
 	err := validateRotateOwnerIakCert(req)
 	if err != nil {
-		err = fmt.Errorf("invalid request RotateOwnerIakCertReq to RotateOwnerIakCert(): %v", err)
+		err = fmt.Errorf("%w: invalid request to RotateOwnerIakCert(): %v", ErrInvalidRequest, err)
 		log.ErrorContext(ctx, err)
 		return err
 	}
 
-	cardData, _, err := verifyIdentityWithVendorCerts(ctx, req.ControlCardSelection, req.Deps, req.CertVerificationOpts, req.SkipNonceExchange, false)
-	if err != nil {
-		err = fmt.Errorf("%w for control card %s: %w", ErrVerifyIdentity, prototext.Format(req.ControlCardSelection), err)
-		log.ErrorContext(ctx, err)
-		return err
+	var cardDataList []ControlCardCertData
+	var getIakCertRespList []*epb.GetIakCertResponse
+	for _, selection := range req.ControlCardSelections {
+		cardData, getIakCertResp, err := verifyIdentityWithVendorCerts(ctx, selection, req.Deps, req.CertVerificationOpts, req.SkipNonceExchange, false)
+		if err != nil {
+			err = fmt.Errorf("%w for control card %s: %w", ErrVerifyIdentity, prototext.Format(selection), err)
+			log.ErrorContext(ctx, err)
+			return err
+		}
+		cardDataList = append(cardDataList, *cardData)
+		getIakCertRespList = append(getIakCertRespList, getIakCertResp)
 	}
 
-	// 3. Issue and rotate a new oIAK cert.
-	err = issueAndRotateOwnerCerts(ctx, req.Deps, []ControlCardCertData{
-		*cardData,
-	}, "", true, false)
+	if len(getIakCertRespList) == 2 {
+		if getIakCertRespList[0].GetAtomicCertRotationSupported() != getIakCertRespList[1].GetAtomicCertRotationSupported() {
+			log.ErrorContext(ctx, ErrAtomicRotationMismatch)
+			return ErrAtomicRotationMismatch
+		}
+	}
+
+	err = issueAndRotateOwnerCerts(ctx, req.Deps, cardDataList, "", true, getIakCertRespList[0].GetAtomicCertRotationSupported())
 	if err != nil {
-		err = fmt.Errorf("failed to issue and rotate owner IAK cert: %w", err)
+		err = fmt.Errorf("%w: %w", ErrIssueAndRotateOwnerCerts, err)
 		log.ErrorContext(ctx, err)
 		return err
 	}
