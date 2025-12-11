@@ -307,18 +307,14 @@ func verifyIdentityWithVendorCerts(ctx context.Context, controlCardSelection *cp
 	if skipNonceExchange != nil && !*skipNonceExchange {
 		nonce := make([]byte, 16)
 		if _, err := rand.Read(nonce); err != nil {
-			err = fmt.Errorf("%w: %v", ErrNonceGeneration, err)
-			log.ErrorContext(ctx, err)
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("%w: %v", ErrNonceGeneration, err)
 		}
 		getIakCertReq.Nonce = nonce
 		getIakCertReq.HashAlgo = cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256.Enum()
 	}
 	getIakCertResp, err := deps.GetIakCert(ctx, getIakCertReq)
 	if err != nil {
-		err = fmt.Errorf("%w with req=%s: %v", ErrGetIakCert, prototext.Format(getIakCertReq), err)
-		log.ErrorContext(ctx, err)
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("%w with req=%s: %v", ErrGetIakCert, prototext.Format(getIakCertReq), err)
 	}
 	log.InfoContextf(ctx, "Successfully received from device GetIakCert() resp=%s for req=%s",
 		prototext.Format(getIakCertResp), prototext.Format(getIakCertReq))
@@ -334,11 +330,8 @@ func verifyIdentityWithVendorCerts(ctx context.Context, controlCardSelection *cp
 		}
 		tpmCertVerifierResp, err := deps.VerifyIakAndIDevIDCerts(ctx, tpmCertVerifierReq)
 		if err != nil {
-			err = fmt.Errorf("%w for IAK_cert_pem=%s and IDevID_cert_pem=%s: %v", ErrCertVerification, tpmCertVerifierReq.IakCertPem, tpmCertVerifierReq.IDevIDCertPem, err)
-			log.ErrorContext(ctx, err)
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("%w for IAK_cert_pem=%s and IDevID_cert_pem=%s: %v", ErrCertVerification, tpmCertVerifierReq.IakCertPem, tpmCertVerifierReq.IDevIDCertPem, err)
 		}
-		log.InfoContextf(ctx, "tpmCertVerifierResp: %+v, err: %v", tpmCertVerifierResp, err)
 		iakPubPem = tpmCertVerifierResp.IakPubPem
 		idevidPubPem = tpmCertVerifierResp.IDevIDPubPem
 		log.InfoContextf(ctx, "Successful TpmCertVerifier.VerifyIakAndIDevIDCerts() for control_card_id=%s, resp with IAK_pub_pem=%s and IDevID_pub_pem=%s",
@@ -351,9 +344,7 @@ func verifyIdentityWithVendorCerts(ctx context.Context, controlCardSelection *cp
 		}
 		tpmCertVerifierResp, err := deps.VerifyTpmCert(ctx, tpmCertVerifierReq)
 		if err != nil {
-			err = fmt.Errorf("%w for IAK_cert_pem=%s: %v", ErrCertVerification, tpmCertVerifierReq.CertPem, err)
-			log.ErrorContext(ctx, err)
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("%w for IAK_cert_pem=%s: %v", ErrCertVerification, tpmCertVerifierReq.CertPem, err)
 		}
 		log.InfoContextf(ctx, "Successful TpmCertVerifier.VerifyTpmCert() for control_card_id=%s, resp with IAK_pub_pem=%s",
 			prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.PubPem)
@@ -370,14 +361,10 @@ func verifyIdentityWithVendorCerts(ctx context.Context, controlCardSelection *cp
 				IAKPubPem: iakPubPem,
 			})
 		if err != nil {
-			err = fmt.Errorf("%w: %v", ErrNonceVerification, err)
-			log.ErrorContext(ctx, err)
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("%w: %v", ErrNonceVerification, err)
 		}
 		if !resp.IsValid {
-			err = ErrNonceVerification
-			log.ErrorContext(ctx, err)
-			return nil, nil, err
+			return nil, nil, ErrNonceVerification
 		}
 	}
 
