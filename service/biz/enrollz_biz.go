@@ -930,7 +930,7 @@ func EnrollSwitchWithHMACChallenge(ctx context.Context, req *EnrollSwitchWithHMA
 		log.ErrorContext(ctx, err)
 		return err
 	}
-	if len(req.ControlCardSelections) == 0 || len(req.ControlCardSelections) > 2 {
+	if len(req.ControlCardSelections) < 1 || len(req.ControlCardSelections) > 2 {
 		err := fmt.Errorf("%w: field ControlCardSelections in EnrollSwitchWithHMACChallengeReq request must have 1 or 2 control cards, got %d", ErrInvalidRequest, len(req.ControlCardSelections))
 		log.ErrorContext(ctx, err)
 		return err
