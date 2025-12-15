@@ -1854,29 +1854,51 @@ func TestRotateAIKCert(t *testing.T) {
 	}
 }
 
-type stubVerifyIdentityWithHMACChallengeInfraDeps struct {
-	EnrollzInfraDeps
+type stubEnrollSwitchWithHMACChallengeInfraDeps struct {
+	*stubEnrollzInfraDeps
 	ROTDBClient
 	TPM20Utils
 
+	// Request params captured in function calls.
+	getControlCardVendorIDReqs []*epb.GetControlCardVendorIDRequest
+	fetchEKReqs                []*FetchEKReq
+	challengeReqs              []*epb.ChallengeRequest
+	getIdevidCsrReqs           []*epb.GetIdevidCsrRequest
+
 	// Specific errors for each stubbed method. If nil, a default success value is returned.
-	getControlCardVendorIDErr    error
-	fetchEKErr                   error
-	wrapHMACKeytoRSAPublicKeyErr error
-	challengeErr                 error
-	verifyHMACErr                error
-	verifyCertifyInfoErr         error
-	verifyIAKAttributesErr       error
-	getIdevidCsrErr              error
-	parseTCGCSRIDevIDContentErr  error
-	verifyTPMTSignatureErr       error
-	verifyIDevIDAttributesErr    error
+	getControlCardVendorIDErrs    []error
+	fetchEKErrs                   []error
+	wrapHMACKeytoRSAPublicKeyErrs []error
+	challengeErrs                 []error
+	verifyHMACErrs                []error
+	verifyCertifyInfoErrs         []error
+	verifyIAKAttributesErrs       []error
+	getIdevidCsrErrs              []error
+	parseTCGCSRIDevIDContentErrs  []error
+	verifyTPMTSignatureErrs       []error
+	verifyIDevIDAttributesErrs    []error
+
+	// Counters
+	// Since the utility methods (e.g. VerifyHMAC, VerifyCertifyInfo) do not take a
+	// request object that we can capture to determine the call index (like we do
+	// for the other methods), we use explicit counters to track the number of calls
+	// and return the appropriate error from the list.
+	verifyHMACCount               int
+	wrapHMACKeyCount              int
+	verifyCertifyInfoCount        int
+	verifyIAKAttributesCount      int
+	parseTCGCSRIDevIDContentCount int
+	verifyTPMTSignatureCount      int
+	verifyIDevIDAttributesCount   int
 }
 
-func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) GetControlCardVendorID(ctx context.Context, req *epb.GetControlCardVendorIDRequest) (*epb.GetControlCardVendorIDResponse, error) {
-	if s.getControlCardVendorIDErr != nil {
-		return nil, s.getControlCardVendorIDErr
+func (s *stubEnrollSwitchWithHMACChallengeInfraDeps) GetControlCardVendorID(ctx context.Context, req *epb.GetControlCardVendorIDRequest) (*epb.GetControlCardVendorIDResponse, error) {
+	s.getControlCardVendorIDReqs = append(s.getControlCardVendorIDReqs, req)
+	idx := len(s.getControlCardVendorIDReqs) - 1
+	if idx < len(s.getControlCardVendorIDErrs) && s.getControlCardVendorIDErrs[idx] != nil {
+		return nil, s.getControlCardVendorIDErrs[idx]
 	}
+
 	return &epb.GetControlCardVendorIDResponse{
 		ControlCardId: &cpb.ControlCardVendorId{
 			ChassisSerialNumber: "test-serial",
@@ -1885,29 +1907,37 @@ func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) GetControlCardVendorID(ct
 	}, nil
 }
 
-func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) FetchEK(ctx context.Context, req *FetchEKReq) (*FetchEKResp, error) {
-	if s.fetchEKErr != nil {
-		return nil, s.fetchEKErr
+func (s *stubEnrollSwitchWithHMACChallengeInfraDeps) FetchEK(ctx context.Context, req *FetchEKReq) (*FetchEKResp, error) {
+	s.fetchEKReqs = append(s.fetchEKReqs, req)
+	idx := len(s.fetchEKReqs) - 1
+	if idx < len(s.fetchEKErrs) && s.fetchEKErrs[idx] != nil {
+		return nil, s.fetchEKErrs[idx]
 	}
+
 	return &FetchEKResp{EkPublicKey: &rsa.PublicKey{}, KeyType: epb.Key_KEY_EK}, nil
 }
 
-func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) GenerateRestrictedHMACKey() (*tpm20.TPMTPublic, *tpm20.TPMTSensitive, error) {
+func (s *stubEnrollSwitchWithHMACChallengeInfraDeps) GenerateRestrictedHMACKey() (*tpm20.TPMTPublic, *tpm20.TPMTSensitive, error) {
 	pub := validTPMTPublic
 	return &pub, &tpm20.TPMTSensitive{}, nil
 }
 
-func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) WrapHMACKeytoRSAPublicKey(rsaPub *rsa.PublicKey, hmacPub *tpm20.TPMTPublic, hmacSensitive *tpm20.TPMTSensitive) ([]byte, []byte, error) {
-	if s.wrapHMACKeytoRSAPublicKeyErr != nil {
-		return nil, nil, s.wrapHMACKeytoRSAPublicKeyErr
+func (s *stubEnrollSwitchWithHMACChallengeInfraDeps) WrapHMACKeytoRSAPublicKey(rsaPub *rsa.PublicKey, hmacPub *tpm20.TPMTPublic, hmacSensitive *tpm20.TPMTSensitive) ([]byte, []byte, error) {
+	idx := s.wrapHMACKeyCount
+	s.wrapHMACKeyCount++
+	if idx < len(s.wrapHMACKeytoRSAPublicKeyErrs) && s.wrapHMACKeytoRSAPublicKeyErrs[idx] != nil {
+		return nil, nil, s.wrapHMACKeytoRSAPublicKeyErrs[idx]
 	}
 	return []byte("duplicate"), []byte("inSymSeed"), nil
 }
 
-func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) Challenge(ctx context.Context, req *epb.ChallengeRequest) (*epb.ChallengeResponse, error) {
-	if s.challengeErr != nil {
-		return nil, s.challengeErr
+func (s *stubEnrollSwitchWithHMACChallengeInfraDeps) Challenge(ctx context.Context, req *epb.ChallengeRequest) (*epb.ChallengeResponse, error) {
+	s.challengeReqs = append(s.challengeReqs, req)
+	idx := len(s.challengeReqs) - 1
+	if idx < len(s.challengeErrs) && s.challengeErrs[idx] != nil {
+		return nil, s.challengeErrs[idx]
 	}
+
 	iakPub := validTPMTPublic
 	iakCertifyInfo := validTPMSAttest
 	return &epb.ChallengeResponse{
@@ -1919,22 +1949,41 @@ func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) Challenge(ctx context.Con
 	}, nil
 }
 
-func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) VerifyHMAC(message []byte, signature []byte, hmacSensitive *tpm20.TPMTSensitive) error {
-	return s.verifyHMACErr
-}
-
-func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) VerifyCertifyInfo(certifyInfo *tpm20.TPMSAttest, certifiedKey *tpm20.TPMTPublic) error {
-	return s.verifyCertifyInfoErr
-}
-
-func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) VerifyIAKAttributes(iakPub []byte) (*tpm20.TPMTPublic, error) {
-	return &tpm20.TPMTPublic{}, s.verifyIAKAttributesErr
-}
-
-func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) GetIdevidCsr(ctx context.Context, req *epb.GetIdevidCsrRequest) (*epb.GetIdevidCsrResponse, error) {
-	if s.getIdevidCsrErr != nil {
-		return nil, s.getIdevidCsrErr
+func (s *stubEnrollSwitchWithHMACChallengeInfraDeps) VerifyHMAC(message []byte, signature []byte, hmacSensitive *tpm20.TPMTSensitive) error {
+	idx := s.verifyHMACCount
+	s.verifyHMACCount++
+	if idx < len(s.verifyHMACErrs) && s.verifyHMACErrs[idx] != nil {
+		return s.verifyHMACErrs[idx]
 	}
+
+	return nil
+}
+
+func (s *stubEnrollSwitchWithHMACChallengeInfraDeps) VerifyCertifyInfo(certifyInfo *tpm20.TPMSAttest, certifiedKey *tpm20.TPMTPublic) error {
+	idx := s.verifyCertifyInfoCount
+	s.verifyCertifyInfoCount++
+	if idx < len(s.verifyCertifyInfoErrs) && s.verifyCertifyInfoErrs[idx] != nil {
+		return s.verifyCertifyInfoErrs[idx]
+	}
+	return nil
+}
+
+func (s *stubEnrollSwitchWithHMACChallengeInfraDeps) VerifyIAKAttributes(iakPub []byte) (*tpm20.TPMTPublic, error) {
+	idx := s.verifyIAKAttributesCount
+	s.verifyIAKAttributesCount++
+	if idx < len(s.verifyIAKAttributesErrs) && s.verifyIAKAttributesErrs[idx] != nil {
+		return &tpm20.TPMTPublic{}, s.verifyIAKAttributesErrs[idx]
+	}
+	return &tpm20.TPMTPublic{}, nil
+}
+
+func (s *stubEnrollSwitchWithHMACChallengeInfraDeps) GetIdevidCsr(ctx context.Context, req *epb.GetIdevidCsrRequest) (*epb.GetIdevidCsrResponse, error) {
+	s.getIdevidCsrReqs = append(s.getIdevidCsrReqs, req)
+	idx := len(s.getIdevidCsrReqs) - 1
+	if idx < len(s.getIdevidCsrErrs) && s.getIdevidCsrErrs[idx] != nil {
+		return nil, s.getIdevidCsrErrs[idx]
+	}
+
 	idevidSignatureCsr := validTPMTSignature
 	return &epb.GetIdevidCsrResponse{
 		CsrResponse: &epb.CsrResponse{
@@ -1944,9 +1993,11 @@ func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) GetIdevidCsr(ctx context.
 	}, nil
 }
 
-func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) ParseTCGCSRIDevIDContent(csrBytes []byte) (*TCGCSRIDevIDContents, error) {
-	if s.parseTCGCSRIDevIDContentErr != nil {
-		return nil, s.parseTCGCSRIDevIDContentErr
+func (s *stubEnrollSwitchWithHMACChallengeInfraDeps) ParseTCGCSRIDevIDContent(csrBytes []byte) (*TCGCSRIDevIDContents, error) {
+	idx := s.parseTCGCSRIDevIDContentCount
+	s.parseTCGCSRIDevIDContentCount++
+	if idx < len(s.parseTCGCSRIDevIDContentErrs) && s.parseTCGCSRIDevIDContentErrs[idx] != nil {
+		return nil, s.parseTCGCSRIDevIDContentErrs[idx]
 	}
 	csrContents := TCGCSRIDevIDContents{
 		IDevIDPub:                validTPMTPublic,
@@ -1955,12 +2006,205 @@ func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) ParseTCGCSRIDevIDContent(
 	}
 	return &csrContents, nil
 }
-func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) VerifyTPMTSignature(data []byte, signature *tpm20.TPMTSignature, pubKey *tpm20.TPMTPublic) error {
-	return s.verifyTPMTSignatureErr
+func (s *stubEnrollSwitchWithHMACChallengeInfraDeps) VerifyTPMTSignature(data []byte, signature *tpm20.TPMTSignature, pubKey *tpm20.TPMTPublic) error {
+	idx := s.verifyTPMTSignatureCount
+	s.verifyTPMTSignatureCount++
+	if idx < len(s.verifyTPMTSignatureErrs) && s.verifyTPMTSignatureErrs[idx] != nil {
+		return s.verifyTPMTSignatureErrs[idx]
+	}
+	return nil
 }
 
-func (s *stubVerifyIdentityWithHMACChallengeInfraDeps) VerifyIdevidAttributes(idevidPub *tpm20.TPMTPublic, keyTemplate epb.KeyTemplate) error {
-	return s.verifyIDevIDAttributesErr
+func (s *stubEnrollSwitchWithHMACChallengeInfraDeps) VerifyIdevidAttributes(idevidPub *tpm20.TPMTPublic, keyTemplate epb.KeyTemplate) error {
+	idx := s.verifyIDevIDAttributesCount
+	s.verifyIDevIDAttributesCount++
+	if idx < len(s.verifyIDevIDAttributesErrs) && s.verifyIDevIDAttributesErrs[idx] != nil {
+		return s.verifyIDevIDAttributesErrs[idx]
+	}
+	return nil
+}
+
+func (s *stubEnrollSwitchWithHMACChallengeInfraDeps) TPMTPublicToPEM(pubKey *tpm20.TPMTPublic) (string, error) {
+	return "pem-key", nil
+}
+
+func TestEnrollSwitchWithHMACChallenge(t *testing.T) {
+	controlCardSelection1 := &cpb.ControlCardSelection{
+		ControlCardId: &cpb.ControlCardSelection_Role{
+			Role: cpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE,
+		},
+	}
+	controlCardSelection2 := &cpb.ControlCardSelection{
+		ControlCardId: &cpb.ControlCardSelection_Role{
+			Role: cpb.ControlCardRole_CONTROL_CARD_ROLE_STANDBY,
+		},
+	}
+	controlCardSelection3 := &cpb.ControlCardSelection{
+		ControlCardId: &cpb.ControlCardSelection_Role{
+			Role: cpb.ControlCardRole_CONTROL_CARD_ROLE_STANDBY,
+		},
+	}
+	sslProfileID := "Some SSL profile ID"
+	errorResp := errors.New("some error")
+
+	tests := []struct {
+		desc                              string
+		controlCardSelections             []*cpb.ControlCardSelection
+		mockGetControlCardVendorIDErrList []error
+		mockFetchEKErrList                []error
+		mockChallengeErrList              []error
+		mockVerifyHMACErrList             []error
+		mockGetIdevidCsrErrList           []error
+		mockIssueOwnerIakCertErrs         []error
+		mockIssueOwnerIDevIDCertErrs      []error
+		mockRotateOIakCertErrs            []error
+		wantErr                           error
+	}{
+		{
+			desc:                  "Successful enrollment (single card)",
+			controlCardSelections: []*cpb.ControlCardSelection{controlCardSelection1},
+		},
+		{
+			desc:                  "Successful enrollment (multiple cards)",
+			controlCardSelections: []*cpb.ControlCardSelection{controlCardSelection1, controlCardSelection2},
+		},
+		{
+			desc:                  "Invalid request (no cards)",
+			controlCardSelections: []*cpb.ControlCardSelection{},
+			wantErr:               ErrInvalidRequest,
+		},
+		{
+			desc:                  "Invalid request (too many cards)",
+			controlCardSelections: []*cpb.ControlCardSelection{controlCardSelection1, controlCardSelection2, controlCardSelection3},
+			wantErr:               ErrInvalidRequest,
+		},
+		{
+			desc:                              "GetControlCardVendorID failure (single card)",
+			controlCardSelections:             []*cpb.ControlCardSelection{controlCardSelection1},
+			mockGetControlCardVendorIDErrList: []error{errorResp},
+			wantErr:                           ErrVerifyIdentity,
+		},
+		{
+			desc:                              "GetControlCardVendorID failure on second card (multiple cards)",
+			controlCardSelections:             []*cpb.ControlCardSelection{controlCardSelection1, controlCardSelection2},
+			mockGetControlCardVendorIDErrList: []error{nil, errorResp},
+			wantErr:                           ErrVerifyIdentity,
+		},
+		{
+			desc:                  "FetchEK failure (single card)",
+			controlCardSelections: []*cpb.ControlCardSelection{controlCardSelection1},
+			mockFetchEKErrList:    []error{errorResp},
+			wantErr:               ErrVerifyIdentity,
+		},
+		{
+			desc:                  "FetchEK failure on second card (multiple cards)",
+			controlCardSelections: []*cpb.ControlCardSelection{controlCardSelection1, controlCardSelection2},
+			mockFetchEKErrList:    []error{nil, errorResp},
+			wantErr:               ErrVerifyIdentity,
+		},
+		{
+			desc:                  "Challenge failure (single card)",
+			controlCardSelections: []*cpb.ControlCardSelection{controlCardSelection1},
+			mockChallengeErrList:  []error{errorResp},
+			wantErr:               ErrVerifyIdentity,
+		},
+		{
+			desc:                  "Challenge failure on second card (multiple cards)",
+			controlCardSelections: []*cpb.ControlCardSelection{controlCardSelection1, controlCardSelection2},
+			mockChallengeErrList:  []error{nil, errorResp},
+			wantErr:               ErrVerifyIdentity,
+		},
+		{
+			desc:                  "VerifyHMAC failure (single card)",
+			controlCardSelections: []*cpb.ControlCardSelection{controlCardSelection1},
+			mockVerifyHMACErrList: []error{errorResp},
+			wantErr:               ErrVerifyIdentity,
+		},
+		{
+			desc:                  "VerifyHMAC failure on second card (multiple cards)",
+			controlCardSelections: []*cpb.ControlCardSelection{controlCardSelection1, controlCardSelection2},
+			mockVerifyHMACErrList: []error{nil, errorResp},
+			wantErr:               ErrVerifyIdentity,
+		},
+		{
+			desc:                    "GetIdevidCsr failure (single card)",
+			controlCardSelections:   []*cpb.ControlCardSelection{controlCardSelection1},
+			mockGetIdevidCsrErrList: []error{errorResp},
+			wantErr:                 ErrVerifyIdentity,
+		},
+		{
+			desc:                    "GetIdevidCsr failure on second card (multiple cards)",
+			controlCardSelections:   []*cpb.ControlCardSelection{controlCardSelection1, controlCardSelection2},
+			mockGetIdevidCsrErrList: []error{nil, errorResp},
+			wantErr:                 ErrVerifyIdentity,
+		},
+		{
+			desc:                      "IssueOwnerIakCert failure",
+			controlCardSelections:     []*cpb.ControlCardSelection{controlCardSelection1},
+			mockIssueOwnerIakCertErrs: []error{errorResp},
+			wantErr:                   ErrIssueAndRotateOwnerCerts,
+		},
+		{
+			desc:                      "IssueOwnerIakCert failure on second card",
+			controlCardSelections:     []*cpb.ControlCardSelection{controlCardSelection1, controlCardSelection2},
+			mockIssueOwnerIakCertErrs: []error{nil, errorResp},
+			wantErr:                   ErrIssueAndRotateOwnerCerts,
+		},
+		{
+			desc:                         "IssueOwnerIDevIDCert failure",
+			controlCardSelections:        []*cpb.ControlCardSelection{controlCardSelection1},
+			mockIssueOwnerIDevIDCertErrs: []error{errorResp},
+			wantErr:                      ErrIssueAndRotateOwnerCerts,
+		},
+		{
+			desc:                         "IssueOwnerIDevIDCert failure on second card",
+			controlCardSelections:        []*cpb.ControlCardSelection{controlCardSelection1, controlCardSelection2},
+			mockIssueOwnerIDevIDCertErrs: []error{nil, errorResp},
+			wantErr:                      ErrIssueAndRotateOwnerCerts,
+		},
+		{
+			desc:                   "RotateOIakCert failure",
+			controlCardSelections:  []*cpb.ControlCardSelection{controlCardSelection1},
+			mockRotateOIakCertErrs: []error{errorResp},
+			wantErr:                ErrIssueAndRotateOwnerCerts,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			stub := &stubEnrollSwitchWithHMACChallengeInfraDeps{
+				stubEnrollzInfraDeps: &stubEnrollzInfraDeps{
+					issueOwnerIakCertResps:    []*IssueOwnerIakCertResp{{OwnerIakCertPem: "oiak-cert"}, {OwnerIakCertPem: "oiak-cert-2"}},
+					issueOwnerIDevIDCertResps: []*IssueOwnerIDevIDCertResp{{OwnerIDevIDCertPem: "oidevid-cert"}, {OwnerIDevIDCertPem: "oidevid-cert-2"}},
+					// RotateOIakCert responses will be populated based on calls.
+					rotateOIakCertResps: []*epb.RotateOIakCertResponse{{}},
+				},
+				getControlCardVendorIDErrs: test.mockGetControlCardVendorIDErrList,
+				fetchEKErrs:                test.mockFetchEKErrList,
+				challengeErrs:              test.mockChallengeErrList,
+				verifyHMACErrs:             test.mockVerifyHMACErrList,
+				getIdevidCsrErrs:           test.mockGetIdevidCsrErrList,
+			}
+			stub.issueOwnerIakCertErrs = test.mockIssueOwnerIakCertErrs
+			stub.issueOwnerIDevIDCertErrs = test.mockIssueOwnerIDevIDCertErrs
+			stub.rotateOIakCertErrs = test.mockRotateOIakCertErrs
+
+			req := &EnrollSwitchWithHMACChallengeReq{
+				ControlCardSelections: test.controlCardSelections,
+				Deps:                  stub,
+				SSLProfileID:          sslProfileID,
+			}
+			ctx := context.Background()
+			err := EnrollSwitchWithHMACChallenge(ctx, req)
+			if test.wantErr != nil {
+				if !errors.Is(err, test.wantErr) {
+					t.Errorf("EnrollSwitchWithHMACChallenge() error = %v, wantErr %v", err, test.wantErr)
+				}
+			} else if err != nil {
+				t.Errorf("EnrollSwitchWithHMACChallenge() unexpected error: %v", err)
+			}
+		})
+	}
 }
 
 func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
@@ -2048,18 +2292,19 @@ func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
-			deps := &stubVerifyIdentityWithHMACChallengeInfraDeps{
-				getControlCardVendorIDErr:    tc.getControlCardVendorIDErr,
-				fetchEKErr:                   tc.fetchEKErr,
-				wrapHMACKeytoRSAPublicKeyErr: tc.wrapHMACKeytoRSAPublicKeyErr,
-				challengeErr:                 tc.challengeErr,
-				verifyHMACErr:                tc.verifyHMACErr,
-				verifyCertifyInfoErr:         tc.verifyCertifyInfoErr,
-				verifyIAKAttributesErr:       tc.verifyIAKAttributesErr,
-				getIdevidCsrErr:              tc.getIdevidCsrErr,
-				parseTCGCSRIDevIDContentErr:  tc.parseTCGCSRIDevIDContentErr,
-				verifyTPMTSignatureErr:       tc.verifyTPMTSignatureErr,
-				verifyIDevIDAttributesErr:    tc.verifyIDevIDAttributesErr,
+			deps := &stubEnrollSwitchWithHMACChallengeInfraDeps{
+				stubEnrollzInfraDeps:          &stubEnrollzInfraDeps{},
+				getControlCardVendorIDErrs:    []error{tc.getControlCardVendorIDErr},
+				fetchEKErrs:                   []error{tc.fetchEKErr},
+				wrapHMACKeytoRSAPublicKeyErrs: []error{tc.wrapHMACKeytoRSAPublicKeyErr},
+				challengeErrs:                 []error{tc.challengeErr},
+				verifyHMACErrs:                []error{tc.verifyHMACErr},
+				verifyCertifyInfoErrs:         []error{tc.verifyCertifyInfoErr},
+				verifyIAKAttributesErrs:       []error{tc.verifyIAKAttributesErr},
+				getIdevidCsrErrs:              []error{tc.getIdevidCsrErr},
+				parseTCGCSRIDevIDContentErrs:  []error{tc.parseTCGCSRIDevIDContentErr},
+				verifyTPMTSignatureErrs:       []error{tc.verifyTPMTSignatureErr},
+				verifyIDevIDAttributesErrs:    []error{tc.verifyIDevIDAttributesErr},
 			}
 			_, _, _, err := verifyIdentityWithHMACChallenge(context.Background(), controlCardSelection, deps)
 			if tc.wantErr != nil {
@@ -3127,4 +3372,4 @@ func TestVerifyIdentityWithVendorCerts(t *testing.T) {
 	}
 }
 
-// TODO: Add tests for  EnrollWithHMACChallenge, VerifyIdentityWithHMACChallenge, VerifyIAKKey and VerifyIdevidKey with test vectors
+// TODO: Add tests for  verifyIdentityWithHMACChallenge, verifyIAKKey and verifyIdevidKey with test vectors
