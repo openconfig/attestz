@@ -63,6 +63,8 @@ var (
 	ErrVerifyIdentity = errors.New("failed to verify identity")
 	// ErrIssueAndRotateOwnerCerts is returned when issuing and rotating owner certs fails.
 	ErrIssueAndRotateOwnerCerts = errors.New("failed to issue and rotate oIAK and oIDevID certs")
+	// ErrKeyConversion is returned when key conversion fails.
+	ErrKeyConversion = errors.New("failed to convert key")
 )
 
 // RSAkeySize2048 is the size of the RSA key used for TPM enrollment.
@@ -924,19 +926,19 @@ type EnrollSwitchWithHMACChallengeReq struct {
 func EnrollSwitchWithHMACChallenge(ctx context.Context, req *EnrollSwitchWithHMACChallengeReq) error {
 	// validate the request
 	if req == nil {
-		errMsg := fmt.Errorf("request EnrollWithHMACChallengeReq is nil")
-		log.ErrorContext(ctx, errMsg)
-		return errMsg
+		err := fmt.Errorf("%w: request EnrollWithHMACChallengeReq is nil", ErrInvalidRequest)
+		log.ErrorContext(ctx, err)
+		return err
 	}
-	if req.ControlCardSelections == nil {
-		errMsg := fmt.Errorf("field ControlCardSelections in EnrollWithHMACChallengeReq request cannot be nil")
-		log.ErrorContext(ctx, errMsg)
-		return errMsg
+	if len(req.ControlCardSelections) < 1 || len(req.ControlCardSelections) > 2 {
+		err := fmt.Errorf("%w: field ControlCardSelections in EnrollSwitchWithHMACChallengeReq request must have 1 or 2 control cards, got %d", ErrInvalidRequest, len(req.ControlCardSelections))
+		log.ErrorContext(ctx, err)
+		return err
 	}
 	if req.Deps == nil {
-		errMsg := fmt.Errorf("field Deps in EnrollWithHMACChallengeReq request cannot be nil")
-		log.ErrorContext(ctx, errMsg)
-		return errMsg
+		err := fmt.Errorf("%w: field Deps in EnrollWithHMACChallengeReq request cannot be nil", ErrInvalidRequest)
+		log.ErrorContext(ctx, err)
+		return err
 	}
 
 	var controlCardCertUpdates []ControlCardCertData
@@ -945,24 +947,24 @@ func EnrollSwitchWithHMACChallenge(ctx context.Context, req *EnrollSwitchWithHMA
 	for _, controlCardSelection := range req.ControlCardSelections {
 		cardID, iakPubKey, idevidPubKey, err := verifyIdentityWithHMACChallenge(ctx, controlCardSelection, req.Deps)
 		if err != nil {
-			errMsg := fmt.Errorf("failed to verify Identity with HMAC Challenge: %w", err)
-			log.ErrorContext(ctx, errMsg)
-			return errMsg
+			err = fmt.Errorf("%w: failed to verify Identity with HMAC Challenge: %v", ErrVerifyIdentity, err)
+			log.ErrorContext(ctx, err)
+			return err
 		}
 
 		var errs []error
 		iakPubPem, err := req.Deps.TPMTPublicToPEM(iakPubKey)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("failed to convert IAK public key to PEM: %w", err))
+			errs = append(errs, fmt.Errorf("%w: failed to convert IAK public key to PEM: %v", ErrKeyConversion, err))
 		}
 		idevidPubPem, err := req.Deps.TPMTPublicToPEM(idevidPubKey)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("failed to convert IDevID public key to PEM: %w", err))
+			errs = append(errs, fmt.Errorf("%w: failed to convert IDevID public key to PEM: %v", ErrKeyConversion, err))
 		}
 		if len(errs) > 0 {
-			errMsg := errors.Join(errs...)
-			log.ErrorContext(ctx, errMsg)
-			return errMsg
+			err = errors.Join(errs...)
+			log.ErrorContext(ctx, err)
+			return err
 		}
 
 		controlCardCertUpdates = append(controlCardCertUpdates, ControlCardCertData{
@@ -974,9 +976,9 @@ func EnrollSwitchWithHMACChallenge(ctx context.Context, req *EnrollSwitchWithHMA
 	}
 
 	if err := issueAndRotateOwnerCerts(ctx, req.Deps, controlCardCertUpdates, req.SSLProfileID, false, true); err != nil {
-		errMsg := fmt.Errorf("failed to issue and rotate owner certificates: %w", err)
-		log.ErrorContext(ctx, errMsg)
-		return errMsg
+		err = fmt.Errorf("%w: %v", ErrIssueAndRotateOwnerCerts, err)
+		log.ErrorContext(ctx, err)
+		return err
 	}
 	return nil
 }
