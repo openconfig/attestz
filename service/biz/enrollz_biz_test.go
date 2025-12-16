@@ -1865,6 +1865,10 @@ type stubEnrollSwitchWithHMACChallengeInfraDeps struct {
 	challengeReqs              []*epb.ChallengeRequest
 	getIdevidCsrReqs           []*epb.GetIdevidCsrRequest
 
+	// Stubbed response.
+	getIdevidCsrResps []*epb.GetIdevidCsrResponse
+	fetchEKResps      []*FetchEKResp
+
 	// Specific errors for each stubbed method. If nil, a default success value is returned.
 	getControlCardVendorIDErrs    []error
 	fetchEKErrs                   []error
@@ -1912,6 +1916,9 @@ func (s *stubEnrollSwitchWithHMACChallengeInfraDeps) FetchEK(ctx context.Context
 	idx := len(s.fetchEKReqs) - 1
 	if idx < len(s.fetchEKErrs) && s.fetchEKErrs[idx] != nil {
 		return nil, s.fetchEKErrs[idx]
+	}
+	if idx < len(s.fetchEKResps) {
+		return s.fetchEKResps[idx], nil
 	}
 
 	return &FetchEKResp{EkPublicKey: &rsa.PublicKey{}, KeyType: epb.Key_KEY_EK}, nil
@@ -1983,6 +1990,9 @@ func (s *stubEnrollSwitchWithHMACChallengeInfraDeps) GetIdevidCsr(ctx context.Co
 	if idx < len(s.getIdevidCsrErrs) && s.getIdevidCsrErrs[idx] != nil {
 		return nil, s.getIdevidCsrErrs[idx]
 	}
+	if idx < len(s.getIdevidCsrResps) && s.getIdevidCsrResps[idx] != nil {
+		return s.getIdevidCsrResps[idx], nil
+	}
 
 	idevidSignatureCsr := validTPMTSignature
 	return &epb.GetIdevidCsrResponse{
@@ -1990,6 +2000,7 @@ func (s *stubEnrollSwitchWithHMACChallengeInfraDeps) GetIdevidCsr(ctx context.Co
 			CsrContents:        []byte("csr-contents"),
 			IdevidSignatureCsr: tpm20.Marshal(&idevidSignatureCsr),
 		},
+		ControlCardId: &cpb.ControlCardVendorId{ControlCardSerial: "test-serial"},
 	}, nil
 }
 
@@ -2003,6 +2014,7 @@ func (s *stubEnrollSwitchWithHMACChallengeInfraDeps) ParseTCGCSRIDevIDContent(cs
 		IDevIDPub:                validTPMTPublic,
 		SignCertifyInfo:          validTPMSAttest,
 		SignCertifyInfoSignature: validTPMTSignature,
+		ProdSerial:               "test-serial",
 	}
 	return &csrContents, nil
 }
@@ -2196,12 +2208,8 @@ func TestEnrollSwitchWithHMACChallenge(t *testing.T) {
 			}
 			ctx := context.Background()
 			err := EnrollSwitchWithHMACChallenge(ctx, req)
-			if test.wantErr != nil {
-				if !errors.Is(err, test.wantErr) {
-					t.Errorf("EnrollSwitchWithHMACChallenge() error = %v, wantErr %v", err, test.wantErr)
-				}
-			} else if err != nil {
-				t.Errorf("EnrollSwitchWithHMACChallenge() unexpected error: %v", err)
+			if !errors.Is(err, test.wantErr) {
+				t.Errorf("EnrollSwitchWithHMACChallenge() error = %v, wantErr %v", err, test.wantErr)
 			}
 		})
 	}
@@ -2218,6 +2226,9 @@ func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
 	tests := []struct {
 		desc                         string
 		wantErr                      error
+		useNilDeps                   bool
+		getIdevidCsrResp             *epb.GetIdevidCsrResponse
+		fetchEKResp                  *FetchEKResp
 		getControlCardVendorIDErr    error
 		fetchEKErr                   error
 		wrapHMACKeytoRSAPublicKeyErr error
@@ -2234,6 +2245,11 @@ func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
 			desc: "Successful verification",
 		},
 		{
+			desc:       "Nil deps",
+			useNilDeps: true,
+			wantErr:    ErrInvalidRequest,
+		},
+		{
 			desc:                      "GetControlCardVendorID error",
 			getControlCardVendorIDErr: errorResp,
 			wantErr:                   errorResp,
@@ -2242,6 +2258,11 @@ func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
 			desc:       "FetchEK error",
 			fetchEKErr: errorResp,
 			wantErr:    errorResp,
+		},
+		{
+			desc:        "FetchEK nil response",
+			fetchEKResp: nil,
+			wantErr:     ErrInvalidResponse,
 		},
 		{
 			desc:                         "WrapHMACKeytoRSAPublicKey error",
@@ -2288,12 +2309,24 @@ func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
 			verifyIDevIDAttributesErr: errorResp,
 			wantErr:                   errorResp,
 		},
+		{
+			desc: "Prod serial mismatch",
+			getIdevidCsrResp: &epb.GetIdevidCsrResponse{
+				CsrResponse: &epb.CsrResponse{
+					CsrContents:        []byte("csr-contents"),
+					IdevidSignatureCsr: tpm20.Marshal(&validTPMTSignature),
+				},
+				ControlCardId: &cpb.ControlCardVendorId{ControlCardSerial: "serial-1"},
+			},
+			wantErr: ErrSerialMismatch,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
 			deps := &stubEnrollSwitchWithHMACChallengeInfraDeps{
 				stubEnrollzInfraDeps:          &stubEnrollzInfraDeps{},
+				getIdevidCsrResps:             []*epb.GetIdevidCsrResponse{tc.getIdevidCsrResp},
 				getControlCardVendorIDErrs:    []error{tc.getControlCardVendorIDErr},
 				fetchEKErrs:                   []error{tc.fetchEKErr},
 				wrapHMACKeytoRSAPublicKeyErrs: []error{tc.wrapHMACKeytoRSAPublicKeyErr},
@@ -2306,13 +2339,18 @@ func TestVerifyIdentityWithHMACChallenge(t *testing.T) {
 				verifyTPMTSignatureErrs:       []error{tc.verifyTPMTSignatureErr},
 				verifyIDevIDAttributesErrs:    []error{tc.verifyIDevIDAttributesErr},
 			}
-			_, _, _, err := verifyIdentityWithHMACChallenge(context.Background(), controlCardSelection, deps)
-			if tc.wantErr != nil {
-				if err == nil || !strings.Contains(err.Error(), tc.wantErr.Error()) {
-					t.Errorf("VerifyIdentityWithHmacChallenge() returned unexpected error: got %v, want %v", err, tc.wantErr)
-				}
-			} else if err != nil {
-				t.Errorf("VerifyIdentityWithHmacChallenge() returned unexpected error: %v", err)
+			if tc.fetchEKResp != nil || tc.desc == "FetchEK nil response" {
+				deps.fetchEKResps = []*FetchEKResp{tc.fetchEKResp}
+			}
+
+			var depsInfra EnrollSwitchWithHMACChallengeInfraDeps = deps
+			if tc.useNilDeps {
+				depsInfra = nil
+			}
+
+			_, _, _, err := verifyIdentityWithHMACChallenge(context.Background(), controlCardSelection, depsInfra)
+			if !errors.Is(err, tc.wantErr) {
+				t.Errorf("VerifyIdentityWithHmacChallenge() returned unexpected error: got %v, want %v", err, tc.wantErr)
 			}
 		})
 	}
