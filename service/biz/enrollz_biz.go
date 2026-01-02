@@ -1123,9 +1123,14 @@ func verifyIAKKey(deps TPM20Utils, hmacChallengeResp *epb.HMACChallengeResponse)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify IAK attributes: %w", err)
 	}
-	iakCertifyInfo, err := tpm20.Unmarshal[tpm20.TPMSAttest](hmacChallengeResp.IakCertifyInfo)
+
+	certifyInfo, err := tpm20.Unmarshal[tpm20.TPM2BAttest](hmacChallengeResp.IakCertifyInfo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal IAK Certify Info: %w", err)
+	}
+	iakCertifyInfo, err := certifyInfo.Contents()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get IAK Certify Info contents: %w", err)
 	}
 	// Verify IAK Certify Info.
 	err = deps.VerifyCertifyInfo(iakCertifyInfo, iakPubKey)

@@ -221,6 +221,10 @@ func TestVerifyTPMTPublicAttributes_Failure(t *testing.T) {
 	}
 }
 
+func convertToTPM2BPublic(pub tpm20.TPMTPublic) []byte {
+	return tpm20.Marshal(tpm20.BytesAs2B[tpm20.TPMTPublic](tpm20.Marshal(pub)))
+}
+
 func TestVerifyIAKAttributes_Success(t *testing.T) {
 	u := DefaultTPM20Utils{}
 
@@ -236,11 +240,11 @@ func TestVerifyIAKAttributes_Success(t *testing.T) {
 		AdminWithPolicy:     true,
 	}
 	validIAKPub.NameAlg = tpm20.TPMAlgSHA256
-	validIAKPubBytes := tpm20.Marshal(validIAKPub)
+	validIAKPubBytes := convertToTPM2BPublic(validIAKPub)
 
 	pubWithSHA384 := validIAKPub
 	pubWithSHA384.NameAlg = tpm20.TPMAlgSHA384
-	pubWithSHA384Bytes := tpm20.Marshal(pubWithSHA384)
+	pubWithSHA384Bytes := convertToTPM2BPublic(pubWithSHA384)
 
 	tests := []struct {
 		name   string
@@ -292,19 +296,19 @@ func TestVerifyIAKAttributes_Failure(t *testing.T) {
 
 	pubWithBadAttr := validIAKPub
 	pubWithBadAttr.ObjectAttributes.FixedTPM = false
-	pubWithBadAttrBytes := tpm20.Marshal(pubWithBadAttr)
+	pubWithBadAttrBytes := convertToTPM2BPublic(pubWithBadAttr)
 
 	pubWithBadUserWithAuth := validIAKPub
 	pubWithBadUserWithAuth.ObjectAttributes.UserWithAuth = false
-	pubWithBadUserWithAuthBytes := tpm20.Marshal(pubWithBadUserWithAuth)
+	pubWithBadUserWithAuthBytes := convertToTPM2BPublic(pubWithBadUserWithAuth)
 
 	pubWithBadAdminWithPolicy := validIAKPub
 	pubWithBadAdminWithPolicy.ObjectAttributes.AdminWithPolicy = false
-	pubWithBadAdminWithPolicyBytes := tpm20.Marshal(pubWithBadAdminWithPolicy)
+	pubWithBadAdminWithPolicyBytes := convertToTPM2BPublic(pubWithBadAdminWithPolicy)
 
 	pubWithBadNameAlg := validIAKPub
 	pubWithBadNameAlg.NameAlg = tpm20.TPMAlgSHA1
-	pubWithBadNameAlgBytes := tpm20.Marshal(pubWithBadNameAlg)
+	pubWithBadNameAlgBytes := convertToTPM2BPublic(pubWithBadNameAlg)
 
 	tests := []struct {
 		name   string
