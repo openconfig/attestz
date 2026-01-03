@@ -435,9 +435,13 @@ func verifyTPMTPublicAttributes(pubKey tpm20.TPMTPublic, expectedObjAttributes t
 
 // VerifyIAKAttributes verifies the IAK attributes.
 func (u *DefaultTPM20Utils) VerifyIAKAttributes(iakPub []byte) (*tpm20.TPMTPublic, error) {
-	iakPubKey, err := tpm20.Unmarshal[tpm20.TPMTPublic](iakPub)
+	pub, err := tpm20.Unmarshal[tpm20.TPM2BPublic](iakPub)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal IAK public key: %w", err)
+	}
+	iakPubKey, err := pub.Contents()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get IAK public key contents: %w", err)
 	}
 
 	// expectedObjAttributes defines the required properties for a TPM-based Attestation Key (IAK).

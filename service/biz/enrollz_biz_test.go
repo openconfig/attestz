@@ -1949,8 +1949,8 @@ func (s *stubEnrollSwitchWithHMACChallengeInfraDeps) Challenge(ctx context.Conte
 	iakCertifyInfo := validTPMSAttest
 	return &epb.ChallengeResponse{
 		ChallengeResp: &epb.HMACChallengeResponse{
-			IakPub:                  tpm20.Marshal(&iakPub),
-			IakCertifyInfo:          tpm20.Marshal(&iakCertifyInfo),
+			IakPub:                  tpm20.Marshal(tpm20.BytesAs2B[tpm20.TPMTPublic](tpm20.Marshal(&iakPub))),
+			IakCertifyInfo:          tpm20.Marshal(tpm20.BytesAs2B[tpm20.TPMSAttest](tpm20.Marshal(&iakCertifyInfo))),
 			IakCertifyInfoSignature: []byte{},
 		},
 	}, nil
