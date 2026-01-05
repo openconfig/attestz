@@ -245,7 +245,7 @@ message HMACChallengeResponse {
   // The attestation structure for Certify (TPM2B_ATTEST contents)
   bytes iak_certify_info = 2;
   // The signature over the iak_certify_info using HMAC 
-  // (TPM2B_SIGNATURE contents)
+  // (TPMT_SIGNATURE contents)
   bytes iak_certify_info_signature = 3;
 }
 
