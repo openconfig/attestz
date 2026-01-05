@@ -18,6 +18,7 @@ import (
 	"context"
 	"crypto/rsa"
 	"crypto/x509"
+	"embed"
 	"errors"
 	"fmt"
 	"io"
@@ -35,6 +36,9 @@ import (
 	cpb "github.com/openconfig/attestz/proto/common_definitions"
 	epb "github.com/openconfig/attestz/proto/tpm_enrollz"
 )
+
+//go:embed hmac_challenge_test_data
+var challengeDataFS embed.FS
 
 type stubEnrollzInfraDeps struct {
 	SwitchOwnerCaClient
@@ -3410,4 +3414,68 @@ func TestVerifyIdentityWithVendorCerts(t *testing.T) {
 	}
 }
 
-// TODO: Add tests for  verifyIdentityWithHMACChallenge, verifyIAKKey and verifyIdevidKey with test vectors
+func readChallengeData(t *testing.T, filename string) []byte {
+	t.Helper()
+	path := "hmac_challenge_test_data/" + filename
+	data, err := challengeDataFS.ReadFile(path)
+	if err != nil {
+		t.Fatalf("Failed to read file %s: %v", path, err)
+	}
+	return data
+}
+
+func TestVerifyHMACWithFileData(t *testing.T) {
+	u := &DefaultTPM20Utils{}
+	certifyInfo := readChallengeData(t, "challengeResp-iak_certify_info")
+	certifyInfoSignature := readChallengeData(t, "challengeResp-iak_certify_info_signature")
+	hmacKey := readChallengeData(t, "sensitive")
+	sensitive, err := tpm20.Unmarshal[tpm20.TPMTSensitive](hmacKey)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal sensitive: %v", err)
+	}
+	// The signature is over TPMS_ATTEST, but certifyInfo is TPM2B_ATTEST,
+	// which contains a 2-byte size prefix. We skip that prefix.
+	if err := u.VerifyHMAC(certifyInfo[2:], certifyInfoSignature, sensitive); err != nil {
+		t.Errorf("TestVerifyHMAC() returned an unexpected error %v", err)
+	}
+}
+
+func TestVerifyIAKKeyWithFileData(t *testing.T) {
+	iakPub := readChallengeData(t, "challengeResp-iak_pub")
+	iakCertifyInfo := readChallengeData(t, "challengeResp-iak_certify_info")
+
+	hmacResp := &epb.HMACChallengeResponse{
+		IakPub:         iakPub,
+		IakCertifyInfo: iakCertifyInfo,
+	}
+	deps := &DefaultTPM20Utils{}
+	_, err := verifyIAKKey(deps, hmacResp)
+	if err != nil {
+		t.Errorf("verifyIAKKey() returned unexpected error: %v", err)
+	}
+}
+
+func TestVerifyIdevidKeyAndCsrWithFileData(t *testing.T) {
+	iakPubBytes := readChallengeData(t, "iak-TPMT_PUBLIC")
+	iakPubKey, err := tpm20.Unmarshal[tpm20.TPMTPublic](iakPubBytes)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal iakPubKey: %v", err)
+	}
+	csrRespContents := readChallengeData(t, "csrResponse-csr_contents")
+	csrRespIdevidSignatureCSR := readChallengeData(t, "csrResponse-idevid_signature_csr")
+	getIdevidCsrResp := &epb.GetIdevidCsrResponse{
+		CsrResponse: &epb.CsrResponse{
+			CsrContents:        csrRespContents,
+			IdevidSignatureCsr: csrRespIdevidSignatureCSR,
+		},
+		ControlCardId: &cpb.ControlCardVendorId{ControlCardSerial: "JPN2517P064"},
+	}
+
+	deps := &DefaultTPM20Utils{}
+	fetchEKResp := &FetchEKResp{} // dummy non-nil
+	keyTemplate := epb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384
+	_, err = verifyIdevidKeyAndCsr(deps, fetchEKResp, iakPubKey, getIdevidCsrResp, keyTemplate)
+	if err != nil {
+		t.Errorf("verifyIdevidKeyAndCsr() returned unexpected error: %v", err)
+	}
+}
