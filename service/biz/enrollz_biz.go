@@ -1035,8 +1035,17 @@ func verifyIdentityWithHMACChallenge(ctx context.Context, controlCardSelection *
 	}
 	hmacResp := challengeResp.GetChallengeResp()
 
+	certifyInfo2B, err := tpm20.Unmarshal[tpm20.TPM2BAttest](hmacResp.GetIakCertifyInfo())
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to unmarshal IAK Certify Info into TPM2B_ATTEST: %w", err)
+	}
+	iakCertifyInfo, err := certifyInfo2B.Contents()
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to get IAK Certify Info contents: %w", err)
+	}
+
 	// Verify HMAC Challenge response from the TPM.
-	err = deps.VerifyHMAC(hmacResp.GetIakCertifyInfo(), hmacResp.GetIakCertifyInfoSignature(), hmacSensitive)
+	err = deps.VerifyHMAC(tpm20.Marshal(iakCertifyInfo), hmacResp.GetIakCertifyInfoSignature(), hmacSensitive)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to verify HMAC Challenge response: %w", err)
 	}
