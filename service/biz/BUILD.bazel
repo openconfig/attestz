@@ -40,6 +40,9 @@ go_test(
     name = "enrollz_biz_test",
     srcs = ["enrollz_biz_test.go"],
     embed = [":enrollz_biz", ":test_utils"],
+    embedsrcs = [
+        "//service/biz/hmac_challenge_test_data:hmac_challenge_data",
+    ],
     deps = [
         "//proto:common_definitions_go_proto",
         "//proto:tpm_attestz_go_proto",

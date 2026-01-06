@@ -1,0 +1,15 @@
+
+
+filegroup(
+    name = "hmac_challenge_data",
+    srcs = [
+        "challengeResp-iak_certify_info",
+        "challengeResp-iak_certify_info_signature",
+        "challengeResp-iak_pub",
+        "csrResponse-csr_contents",
+        "csrResponse-idevid_signature_csr",
+        "iak-TPMT_PUBLIC",
+        "sensitive",
+    ],
+    visibility = ["//service/biz:__pkg__"],
+)
