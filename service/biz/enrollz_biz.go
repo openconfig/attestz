@@ -827,20 +827,11 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	}
 
 	// Get EK Public Key from RoT database.
-	fetchEKResp, err := req.Deps.FetchEK(ctx, &FetchEKReq{
-		Serial:   resp.GetControlCardId().GetChassisSerialNumber(),
-		Supplier: resp.GetControlCardId().GetChassisManufacturer(),
-	})
+	fetchEKResp, err := fetchEK(ctx, req.Deps, resp.GetControlCardId())
 	if err != nil {
-		err = fmt.Errorf("failed to fetch EK public key for control card %s: %w", prototext.Format(resp.GetControlCardId()), err)
-		log.ErrorContext(ctx, err)
-		return err
+		return fmt.Errorf("failed to fetch EK: %w", err)
 	}
-	if fetchEKResp == nil {
-		err = fmt.Errorf("failed to fetch EK public key: RoT database returned an empty response")
-		log.ErrorContext(ctx, err)
-		return err
-	}
+
 	ekPublicKey := fetchEKResp.EkPublicKey
 	ekAlgo := tpm12.AlgRSA
 	ekEncScheme := EsRSAEsOAEPSHA1MGF1
@@ -1017,10 +1008,10 @@ func verifyIdentityWithHMACChallenge(ctx context.Context, controlCardSelection *
 		return nil, nil, nil, fmt.Errorf("failed to get control card vendor ID: %w", err)
 	}
 
-	// Get EK Public Key (or PPK) from RoT database.
-	fetchEKResp, err := fetchEKPublicKey(ctx, deps, controlCardVendorID.GetControlCardId())
+	// Get EK (or PPK) from RoT database.
+	fetchEKResp, err := fetchEK(ctx, deps, controlCardVendorID.GetControlCardId())
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to fetch EK: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to fetch EK/PPK: %w", err)
 	}
 
 	// Create HMAC Challenge request.
@@ -1075,14 +1066,14 @@ func verifyIdentityWithHMACChallenge(ctx context.Context, controlCardSelection *
 	return controlCardVendorID.GetControlCardId(), iakPubKey, idevidPubKey, nil
 }
 
-// fetchEKPublicKey fetches the EK Public Key from the RoT database.
-func fetchEKPublicKey(ctx context.Context, client ROTDBClient, cardID *cpb.ControlCardVendorId) (*FetchEKResp, error) {
+// fetchEK fetches the stored EK or PPK from the RoT database.
+func fetchEK(ctx context.Context, client ROTDBClient, cardID *cpb.ControlCardVendorId) (*FetchEKResp, error) {
 	fetchEKResp, err := client.FetchEK(ctx, &FetchEKReq{
-		Serial:   cardID.GetChassisSerialNumber(),
+		Serial:   cardID.GetControlCardSerial(),
 		Supplier: cardID.GetChassisManufacturer(),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch EK public key for control card %s: %w", prototext.Format(cardID), err)
+		return nil, fmt.Errorf("failed to fetch EK/PPK for control card %s: %w", prototext.Format(cardID), err)
 	}
 	if fetchEKResp == nil {
 		return nil, fmt.Errorf("%w: RoT database returned an empty FetchEKResp for control card %s", ErrInvalidResponse, prototext.Format(cardID))
