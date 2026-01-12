@@ -942,7 +942,7 @@ func EnrollSwitchWithHMACChallenge(ctx context.Context, req *EnrollSwitchWithHMA
 	for _, controlCardSelection := range req.ControlCardSelections {
 		cardID, iakPubKey, idevidPubKey, err := verifyIdentityWithHMACChallenge(ctx, controlCardSelection, req.Deps)
 		if err != nil {
-			err = fmt.Errorf("%w: failed to verify Identity with HMAC Challenge: %v", ErrVerifyIdentity, err)
+			err = fmt.Errorf("%w: failed to verify Identity with HMAC Challenge for control card %s: %v", ErrVerifyIdentity, prototext.Format(controlCardSelection), err)
 			log.ErrorContext(ctx, err)
 			return err
 		}
@@ -1102,9 +1102,9 @@ func createHMACChallenge(deps TPM20Utils, fetchEKResp *FetchEKResp) (*epb.HMACCh
 	}
 
 	challengeReq := &epb.HMACChallenge{
-		HmacPubKey: tpm20.Marshal(hmacPub),
-		Duplicate:  duplicate,
-		InSymSeed:  inSymSeed,
+		HmacPubKey: tpm20.Marshal(tpm20.BytesAs2B[tpm20.TPMTPublic](tpm20.Marshal(hmacPub))),
+		Duplicate:  tpm20.Marshal(&tpm20.TPM2BPrivate{Buffer: duplicate}),
+		InSymSeed:  tpm20.Marshal(&tpm20.TPM2BEncryptedSecret{Buffer: inSymSeed}),
 	}
 
 	return challengeReq, hmacSensitive, nil
