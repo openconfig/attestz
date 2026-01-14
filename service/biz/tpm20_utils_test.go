@@ -636,6 +636,23 @@ func generateCsrBytes(options CsrOptions) []byte {
 }
 
 func TestParseTCGCSRIDevIDContent(t *testing.T) {
+	u := DefaultTPM20Utils{}
+	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate RSA key for testing: %v", err)
+	}
+	tpmtPub, err := u.RSAEKPublicKeyToTPMTPublic(&privKey.PublicKey)
+	if err != nil {
+		t.Fatalf("Failed to create TPMT Public for testing: %v", err)
+	}
+	tpmtPubPEM, err := u.TPMTPublicToPEM(tpmtPub)
+	if err != nil {
+		t.Fatalf("Failed to convert TPMT Public to PEM for testing: %v", err)
+	}
+	tpmtPubBytes := tpm20.Marshal(tpmtPub)
+
+	validCSRWithTPMTPub := *validCSR
+	validCSRWithTPMTPub.EKCert = tpmtPubPEM
 	// Define test cases
 	tests := []struct {
 		name           string
@@ -736,7 +753,7 @@ func TestParseTCGCSRIDevIDContent(t *testing.T) {
 		{
 			name:          "Invalid EK Cert",
 			csrBytes:      generateCsrBytes(CsrOptions{EKCert: []byte("invalid-ek-cert")}),
-			expectedError: errors.New("failed to convert EK Cert to PEM"),
+			expectedError: errors.New("ailed to parse ekCert as X509 certificate"),
 		},
 		{
 			name:          "Invalid Attest Pub Bytes",
@@ -762,6 +779,12 @@ func TestParseTCGCSRIDevIDContent(t *testing.T) {
 			name:          "Invalid Extra bytes at the end of CSR",
 			csrBytes:      generateCsrBytes(CsrOptions{AddExtraBytesToEnd: true}),
 			expectedError: errors.New("leftover bytes in TCG_CSR_IDEVID_CONTENT block after parsing"),
+		},
+		{
+			name:           "Valid CSR bytes: PPK in EkCert field as TPMTPublic",
+			csrBytes:       generateCsrBytes(CsrOptions{EKCert: tpmtPubBytes}),
+			expectedError:  nil,
+			expectedResult: &validCSRWithTPMTPub,
 		},
 	}
 
