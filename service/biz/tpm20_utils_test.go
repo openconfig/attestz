@@ -753,7 +753,7 @@ func TestParseTCGCSRIDevIDContent(t *testing.T) {
 		{
 			name:          "Invalid EK Cert",
 			csrBytes:      generateCsrBytes(CsrOptions{EKCert: []byte("invalid-ek-cert")}),
-			expectedError: errors.New("ailed to parse ekCert as X509 certificate"),
+			expectedError: errors.New("failed to parse ekCert as X509 certificate"),
 		},
 		{
 			name:          "Invalid Attest Pub Bytes",
