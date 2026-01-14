@@ -827,8 +827,18 @@ func (u *DefaultTPM20Utils) ParseTCGCSRIDevIDContent(csrBytes []byte) (*TCGCSRID
 	}
 	ekCert, err := certificateDerToPem(ekCertBytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert EK Cert to PEM: %w", err)
+		pub, tpmErr := tpm20.Unmarshal[tpm20.TPMTPublic](ekCertBytes)
+		if tpmErr != nil {
+			return nil, fmt.Errorf("failed to parse ekCert as X509 certificate (%v) or TPMTPublic (%v)", err, tpmErr)
+		}
+
+		log.Infof("Successfully parsed ekCertBytes as TPMTPublic structure. Converting to PEM.")
+		ekCert, err = u.TPMTPublicToPEM(pub)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert TPMTPublic to PEM: %w", err)
+		}
 	}
+
 	result.EKCert = ekCert
 
 	// attestPub - Attestation Key public key (IAK)
