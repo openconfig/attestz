@@ -281,30 +281,69 @@ func (tcv *DefaultTpmCertVerifier) VerifyTpmCert(ctx context.Context, req *Verif
 
 // VerifyAndParsePemCert parses PEM (IAK or IDevID) cert, verifies it and returns the parsed x509 structure.
 func VerifyAndParsePemCert(ctx context.Context, certPem string, certVerificationOpts x509.VerifyOptions) (*x509.Certificate, error) {
-	// Convert PEM to DER.
-	certDer, _ := pem.Decode([]byte(certPem))
-	if certDer == nil {
-		err := fmt.Errorf("failed to decode cert PEM into DER cert_pem=%s", certPem)
-		log.ErrorContext(ctx, err)
-		return nil, err
-
-	}
-	// Parse DER cert into structured x509 object.
-	x509CertParsed, err := x509.ParseCertificate(certDer.Bytes)
+	certs, err := parseCertChain(ctx, certPem)
 	if err != nil {
-		err = fmt.Errorf("failed to parse cert DER into x509 structure cert_pem=%s: %v", certPem, err)
-		log.ErrorContext(ctx, err)
-		return nil, err
+		return nil, fmt.Errorf("failed to parse cert chain: %v", err)
+	}
+	leafCert := certs[0]
+	// If the PEM string contained more than one cert, treat others as intermediates.
+	if len(certs) > 1 {
+		if certVerificationOpts.Intermediates == nil {
+			certVerificationOpts.Intermediates = x509.NewCertPool()
+		}
+		for _, cert := range certs[1:] {
+			certVerificationOpts.Intermediates.AddCert(cert)
+		}
+		certVerificationOpts.KeyUsages = []x509.ExtKeyUsage{x509.ExtKeyUsageAny}
 	}
 
 	// Validate cert expiration and verify signature using provided options.
-	if _, err := x509CertParsed.Verify(certVerificationOpts); err != nil {
+	if _, err := leafCert.Verify(certVerificationOpts); err != nil {
 		err = fmt.Errorf("failed to verify certificate_pem=%s: %v", certPem, err)
 		log.ErrorContext(ctx, err)
 		return nil, err
 	}
 
-	return x509CertParsed, nil
+	return leafCert, nil
+}
+
+// parseCertChain parses the cert chain PEM data into leaf and intermediate *x509.Certificate
+// objects and returns them in the order of leaf -> intermediate -> root.
+func parseCertChain(ctx context.Context, certChainPem string) ([]*x509.Certificate, error) {
+	var certs []*x509.Certificate
+
+	pemData := []byte(certChainPem)
+	if len(pemData) == 0 {
+		return nil, fmt.Errorf("no certificate found in provided PEM data")
+	}
+
+	for len(pemData) > 0 {
+		var block *pem.Block
+		block, pemData = pem.Decode(pemData)
+		if block == nil {
+			break
+		}
+
+		if block.Type != "CERTIFICATE" || len(block.Headers) != 0 {
+			log.InfoContextf(ctx, "Skipping non-certificate PEM block: %v", block.Type)
+			continue
+		}
+
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			// This could happen if the PEM block is malformed.
+			return nil, fmt.Errorf("PEM block is malformed: %w", err)
+		}
+
+		log.InfoContextf(ctx, "Parsed certificate: %+v", cert)
+		certs = append(certs, cert)
+	}
+
+	if len(certs) == 0 {
+		return nil, fmt.Errorf("no certificates found in provided PEM data")
+	}
+
+	return certs, nil
 }
 
 // VerifyAndSerializePubKey fetches (IAK or IDevID) public key from x509 cert, validates the key and returns it in the PEM format.
