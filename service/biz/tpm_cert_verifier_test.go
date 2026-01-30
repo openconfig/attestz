@@ -681,13 +681,14 @@ func TestVerifyTpmCert(t *testing.T) {
 
 	tests := []struct {
 		// Test description.
-		desc              string
-		wantError         bool
-		certAsymAlgo      asymAlgo
-		certSubjectSerial string
-		certNotBefore     time.Time
-		certNotAfter      time.Time
-		useIntermediateCA bool
+		desc               string
+		wantError          bool
+		certAsymAlgo       asymAlgo
+		certSubjectSerial  string
+		certNotBefore      time.Time
+		certNotAfter       time.Time
+		useIntermediateCA  bool
+		includeRootInChain bool
 		// To test against malformed PEM certs.
 		customCertPem string
 		// To simulate cert signature validation failure.
@@ -803,6 +804,27 @@ func TestVerifyTpmCert(t *testing.T) {
 			useIntermediateCA: true,
 		},
 		{
+			desc:               "Success: ECC P384 cert with intermediate and root CA in chain",
+			wantError:          false,
+			certAsymAlgo:       eccP384Algo,
+			certSubjectSerial:  cardSerial,
+			certNotBefore:      time.Now(),
+			certNotAfter:       time.Now().AddDate(1, 0, 0),
+			useIntermediateCA:  true,
+			includeRootInChain: true,
+		},
+		{
+			desc:               "Failure: Leaf to root cert chain is provided, but root does not match CA in trusted roots pool",
+			wantError:          true,
+			certAsymAlgo:       eccP384Algo,
+			certSubjectSerial:  cardSerial,
+			certNotBefore:      time.Now(),
+			certNotAfter:       time.Now().AddDate(1, 0, 0),
+			useIntermediateCA:  true,
+			includeRootInChain: true,
+			customCaRootPem:    unknownCaCert.certPem,
+		},
+		{
 			desc:              "Failure: Cert subject serial does not match expected control card serial in request",
 			wantError:         true,
 			certAsymAlgo:      eccP384Algo,
@@ -842,6 +864,10 @@ func TestVerifyTpmCert(t *testing.T) {
 					notAfter:          test.certNotAfter,
 				})
 				certPemReq = genTpmCert.certPem
+			}
+
+			if test.includeRootInChain {
+				certPemReq += genCaCert.certPem
 			}
 
 			// Expected cert pub key PEMs if cert validation passes.
