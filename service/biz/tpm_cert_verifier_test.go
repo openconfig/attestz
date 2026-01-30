@@ -621,6 +621,50 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 	}
 }
 
+// Simulates simplified switch vendor intermediate CA cert.
+func generateInterCaCert(t *testing.T, issuerCert *x509.Certificate, issuerPrivKey any) *caCert {
+	t.Helper()
+	certSerial, err := rand.Int(rand.Reader, big.NewInt(100000))
+	if err != nil {
+		t.Fatal(fmt.Errorf("failed to generate rand int for cert serial: %v", err))
+	}
+	certX509 := &x509.Certificate{
+		SerialNumber:          certSerial,
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().AddDate(5, 0, 0),
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+	}
+
+	privKey, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	if err != nil {
+		t.Fatal(fmt.Errorf("failed to generate a ECC P384 priv key for CA cert: %v", err))
+	}
+
+	certDer, err := x509.CreateCertificate(rand.Reader, certX509, issuerCert, &privKey.PublicKey, issuerPrivKey)
+	if err != nil {
+		t.Fatal(fmt.Errorf("failed to create x509 intermediate CA cert: %v", err))
+	}
+
+	// PEM encode the cert.
+	certPem := pem.EncodeToMemory(
+		&pem.Block{
+			Type:  "CERTIFICATE",
+			Bytes: certDer,
+		})
+
+	parsedCert, err := x509.ParseCertificate(certDer)
+	if err != nil {
+		t.Fatal(fmt.Errorf("failed to parse generated intermediate CA cert: %v", err))
+	}
+
+	return &caCert{
+		certX509: parsedCert,
+		certPem:  string(certPem),
+		privKey:  privKey,
+	}
+}
+
 func TestVerifyTpmCert(t *testing.T) {
 	// Handy to simulate cert signature validation failure.
 	unknownCaCert := generateCaCert(t)
@@ -637,102 +681,70 @@ func TestVerifyTpmCert(t *testing.T) {
 
 	tests := []struct {
 		// Test description.
-		desc string
-
-		wantError bool
-
-		cardID *cpb.ControlCardVendorId
-
-		certAsymAlgo      asymAlgo
-		certSubjectSerial string
-		certNotBefore     time.Time
-		certNotAfter      time.Time
-
+		desc               string
+		wantError          bool
+		certAsymAlgo       asymAlgo
+		certSubjectSerial  string
+		certNotBefore      time.Time
+		certNotAfter       time.Time
+		useIntermediateCA  bool
+		includeRootInChain bool
 		// To test against malformed PEM certs.
 		customCertPem string
-
 		// To simulate cert signature validation failure.
 		customCaRootPem string
 	}{
 		{
-			desc: "Success: RSA 4096 cert",
-
-			wantError: false,
-
-			cardID: cardID,
-
+			desc:              "Success: RSA 4096 cert",
+			wantError:         false,
 			certAsymAlgo:      rsa4096Algo,
 			certSubjectSerial: cardSerial,
 			certNotBefore:     time.Now(),
 			certNotAfter:      time.Now().AddDate(0, 0, 10),
 		},
 		{
-			desc: "Success: RSA 2048 cert",
-
-			wantError: false,
-
-			cardID: cardID,
-
+			desc:              "Success: RSA 2048 cert",
+			wantError:         false,
 			certAsymAlgo:      rsa2048Algo,
 			certSubjectSerial: cardSerial,
 			certNotBefore:     time.Now(),
 			certNotAfter:      time.Now().AddDate(0, 1, 0),
 		},
 		{
-			desc: "Success: ECC P384 cert",
-
-			wantError: false,
-
-			cardID: cardID,
-
+			desc:              "Success: ECC P384 cert",
+			wantError:         false,
 			certAsymAlgo:      eccP384Algo,
 			certSubjectSerial: cardSerial,
 			certNotBefore:     time.Now(),
 			certNotAfter:      time.Now().AddDate(1, 0, 0),
 		},
 		{
-			desc: "Success: ECC P521 cert",
-
-			wantError: false,
-
-			cardID: cardID,
-
+			desc:              "Success: ECC P521 cert",
+			wantError:         false,
 			certAsymAlgo:      eccP521Algo,
 			certSubjectSerial: cardSerial,
 			certNotBefore:     time.Now(),
 			certNotAfter:      time.Now().AddDate(0, 0, 10),
 		},
 		{
-			desc: "Failure: unsupported ED25519 algo",
-
-			wantError: true,
-
-			cardID: cardID,
-
+			desc:              "Failure: unsupported ED25519 algo",
+			wantError:         true,
 			certAsymAlgo:      ed25519Algo,
 			certSubjectSerial: cardSerial,
 			certNotBefore:     time.Now(),
 			certNotAfter:      time.Now().AddDate(0, 0, 10),
 		},
 		{
-			desc: "Failure: RSA key length lower than 2048",
-
-			wantError: true,
-
-			cardID: cardID,
-
+			desc:              "Failure: RSA key length lower than 2048",
+			wantError:         true,
 			certAsymAlgo:      rsa1024Algo,
 			certSubjectSerial: cardSerial,
 			certNotBefore:     time.Now(),
 			certNotAfter:      time.Now().AddDate(0, 0, 10),
 		},
 		{
-			desc: "Failure: ECC key length lower than 384",
-
-			wantError: true,
-
-			cardID: cardID,
-
+			desc:              "Failure: ECC key length lower than 384",
+			wantError:         true,
 			certAsymAlgo:      eccP256Algo,
 			certSubjectSerial: cardSerial,
 			certNotBefore:     time.Now(),
@@ -740,78 +752,81 @@ func TestVerifyTpmCert(t *testing.T) {
 		},
 
 		{
-			desc: "Failure: malformed PEM cert",
-
-			wantError: true,
-
-			cardID: cardID,
-
+			desc:              "Failure: malformed PEM cert",
+			wantError:         true,
 			certAsymAlgo:      eccP384Algo,
 			certSubjectSerial: cardSerial,
 			certNotBefore:     time.Now(),
 			certNotAfter:      time.Now().AddDate(0, 0, 10),
-
-			customCertPem: "BAD HEADER\nsome payload\nBAD FOOTER\n",
+			customCertPem:     "BAD HEADER\nsome payload\nBAD FOOTER\n",
 		},
 		{
-			desc: "Failure: malformed x509 cert",
-
-			wantError: true,
-
-			cardID: cardID,
-
+			desc:              "Failure: malformed x509 cert",
+			wantError:         true,
 			certAsymAlgo:      eccP384Algo,
 			certSubjectSerial: cardSerial,
 			certNotBefore:     time.Now(),
 			certNotAfter:      time.Now().AddDate(0, 0, 10),
-
-			customCertPem: "-----BEGIN CERTIFICATE-----\nMIIBRTCBzaADAgECAgMAgXswCgYIKoZIzj0EAwMwADAeFw0yNTAyMTUyMTAxNTBa\n-----END CERTIFICATE-----\n",
+			customCertPem:     "-----BEGIN CERTIFICATE-----\nMIIBRTCBzaADAgECAgMAgXswCgYIKoZIzj0EAwMwADAeFw0yNTAyMTUyMTAxNTBa\n-----END CERTIFICATE-----\n",
 		},
 		{
-			desc: "Failure: cert is not yet valid",
-
-			wantError: true,
-
-			cardID: cardID,
-
+			desc:              "Failure: cert is not yet valid",
+			wantError:         true,
 			certAsymAlgo:      eccP384Algo,
 			certSubjectSerial: cardSerial,
 			certNotBefore:     time.Now().AddDate(0, 0, 10),
 			certNotAfter:      time.Now().AddDate(0, 0, 20),
 		},
 		{
-			desc: "Failure: cert is expired",
-
-			wantError: true,
-
-			cardID: cardID,
-
+			desc:              "Failure: cert is expired",
+			wantError:         true,
 			certAsymAlgo:      eccP384Algo,
 			certSubjectSerial: cardSerial,
 			certNotBefore:     time.Now().AddDate(0, 0, -20),
 			certNotAfter:      time.Now().AddDate(0, 0, -10),
 		},
 		{
-			desc: "Failure: cannot validate cert signature",
-
-			wantError: true,
-
-			cardID: cardID,
-
+			desc:              "Failure: cannot validate cert signature",
+			wantError:         true,
 			certAsymAlgo:      rsa4096Algo,
 			certSubjectSerial: cardSerial,
 			certNotBefore:     time.Now(),
 			certNotAfter:      time.Now().AddDate(0, 0, 10),
-
-			customCaRootPem: unknownCaCert.certPem,
+			customCaRootPem:   unknownCaCert.certPem,
 		},
 		{
-			desc: "Failure: Cert subject serial does not match expected control card serial in request",
-
-			wantError: true,
-
-			cardID: cardID,
-
+			desc:              "Success: ECC P384 cert with intermediate CA",
+			wantError:         false,
+			certAsymAlgo:      eccP384Algo,
+			certSubjectSerial: cardSerial,
+			certNotBefore:     time.Now(),
+			certNotAfter:      time.Now().AddDate(1, 0, 0),
+			useIntermediateCA: true,
+		},
+		{
+			desc:               "Success: ECC P384 cert with intermediate and root CA in chain",
+			wantError:          false,
+			certAsymAlgo:       eccP384Algo,
+			certSubjectSerial:  cardSerial,
+			certNotBefore:      time.Now(),
+			certNotAfter:       time.Now().AddDate(1, 0, 0),
+			useIntermediateCA:  true,
+			includeRootInChain: true,
+		},
+		{
+			desc:               "Failure: Leaf to root cert chain is provided, but root does not match CA in trusted roots pool",
+			wantError:          true,
+			certAsymAlgo:       eccP384Algo,
+			certSubjectSerial:  cardSerial,
+			certNotBefore:      time.Now(),
+			certNotAfter:       time.Now().AddDate(1, 0, 0),
+			useIntermediateCA:  true,
+			includeRootInChain: true,
+			customCaRootPem:    unknownCaCert.certPem,
+		},
+		{
+			desc:              "Failure: Cert subject serial does not match expected control card serial in request",
+			wantError:         true,
 			certAsymAlgo:      eccP384Algo,
 			certSubjectSerial: "AN0TH3RS3R1ALNUMB3R",
 			certNotBefore:     time.Now(),
@@ -824,21 +839,41 @@ func TestVerifyTpmCert(t *testing.T) {
 			// Generate switch vendor CA cert.
 			genCaCert := generateCaCert(t)
 
-			// Generate switch's cert signed by switch vendor CA.
-			genTpmCert := generateSignedCert(t, &certCreationParams{
-				asymAlgo:          test.certAsymAlgo,
-				certSubjectSerial: test.certSubjectSerial,
-				signingCert:       genCaCert.certX509,
-				signingPrivKey:    genCaCert.privKey,
-				notBefore:         test.certNotBefore,
-				notAfter:          test.certNotAfter,
-			})
+			var genTpmCert *signedTpmCert
+			var certPemReq string
+
+			if test.useIntermediateCA {
+				interCa := generateInterCaCert(t, genCaCert.certX509, genCaCert.privKey)
+				genTpmCert = generateSignedCert(t, &certCreationParams{
+					asymAlgo:          test.certAsymAlgo,
+					certSubjectSerial: test.certSubjectSerial,
+					signingCert:       interCa.certX509,
+					signingPrivKey:    interCa.privKey,
+					notBefore:         test.certNotBefore,
+					notAfter:          test.certNotAfter,
+				})
+				certPemReq = genTpmCert.certPem + interCa.certPem
+			} else {
+				// Generate switch's cert signed by switch vendor CA.
+				genTpmCert = generateSignedCert(t, &certCreationParams{
+					asymAlgo:          test.certAsymAlgo,
+					certSubjectSerial: test.certSubjectSerial,
+					signingCert:       genCaCert.certX509,
+					signingPrivKey:    genCaCert.privKey,
+					notBefore:         test.certNotBefore,
+					notAfter:          test.certNotAfter,
+				})
+				certPemReq = genTpmCert.certPem
+			}
+
+			if test.includeRootInChain {
+				certPemReq += genCaCert.certPem
+			}
 
 			// Expected cert pub key PEMs if cert validation passes.
 			wantCertPubPem := genTpmCert.pubKeyPem
 
 			// If a custom/malformed PEM is set, then use that.
-			certPemReq := genTpmCert.certPem
 			if test.customCertPem != "" {
 				certPemReq = test.customCertPem
 			}
@@ -860,7 +895,7 @@ func TestVerifyTpmCert(t *testing.T) {
 
 			// Call TpmCertVerifier's default impl of VerifyTpmCert().
 			req := &VerifyTpmCertReq{
-				ControlCardID:        test.cardID,
+				ControlCardID:        cardID,
 				CertPem:              certPemReq,
 				CertVerificationOpts: certVerificationOptsReq,
 			}
