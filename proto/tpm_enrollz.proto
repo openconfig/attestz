@@ -204,12 +204,9 @@ enum Status {
 
 // Response containing the TCG-CSR-IDEVID structure.
 message GetIdevidCsrResponse {
+  reserved 2,3;
   // Vendor identity fields of the selected control card.
   ControlCardVendorId control_card_id = 1;
-  // DEPRECATED: Use csr_response instead.
-  bytes csr_contents = 2 [deprecated = true];
-  // DEPRECATED: Use csr_response instead.
-  bytes idevid_signature_csr = 3 [deprecated = true];
   // CSR response contents.
   CsrResponse csr_response = 4;
   // Response status.
@@ -229,10 +226,9 @@ message HMACChallenge {
 
 // Request to challenge the TPM with an HMAC wrapped to the EK public key.
 message ChallengeRequest {
+  reserved 2;
   // Switch control card selected identifier.
   ControlCardSelection control_card_selection = 1;
-  // DEPRECATED: Use challenge instead.
-  bytes encrypted_nonce = 2 [deprecated = true];
   // Type of key device must decrypt encrypted_nonce with.
   Key key = 3;
   // HMAC challenge parameters
@@ -251,10 +247,9 @@ message HMACChallengeResponse {
 
 // Response containing the IAK pub key and HMAC-signed Certification of IAK.
 message ChallengeResponse {
+  reserved 2;
   // HMAC challenge response.
   HMACChallengeResponse challenge_resp = 1;
-  // DEPRECATED: Use challenge_resp instead.
-  bytes nonce = 2 [deprecated = true];
 }
 
 // The service is responsible for TPM enrollment workflow on the network device
