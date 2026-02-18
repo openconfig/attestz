@@ -175,10 +175,22 @@ In this workflow switch owner verifies that the device's end-to-end boot state (
 
 #### General Guidelines on What to Attest
 
-This section is out of scope of the broader openconfig initiative and instead serves more as a guideline. The general question one should ask when thinking of what to attest is "does changing X on the device change the fundamental boot posture of the device?". If the answer is yes, then attest it, otherwise it is not required. The recommended scope of attestation measurements is from the first instruction up to, but not including, runtime. That is, the scope for attestation covers the static boot process up to and including the root filesystem (rootfs), excluding runtime. The attestation strategy mandates a sequential measurement process, prioritizing the lowest layers first to guarantee that the initial instruction is protected and the device establishes a genuine Root of Trust. Measurements then proceed incrementally up the stack to achieve complete coverage up to and including the static root filesystem. Based on this strategy, the specific measurements required to validate device integrity are:
-   - **Boot Chain Coverage**: PCRs must cover the entire boot process, from the initial hardware boot stages up to the static operating system.
-   - **Filesystem Integrity**: The measurements include critical parts of the root filesystem. In general, we require a static root filesystem to be covered.
-   - **Security Configuration**: Secure boot configuration and policies are included in the measured state, while runtime data is excluded.
+This section is out of scope of the broader openconfig initiative and instead
+serves more as a guideline. The general question one should ask when thinking of
+what to attest is "does changing X on the device change the fundamental boot
+posture of the device?". If the answer is yes, then attest it, otherwise it is
+not required. The recommended scope of attestation measurements is from the
+first instruction up to, but not including, runtime. That is, the scope for
+attestation covers the static boot process up to and including the root
+filesystem (rootfs), excluding runtime. The attestation strategy mandates a
+sequential measurement process, prioritizing the lowest layers first to
+guarantee that the initial instruction is protected and the device establishes a genuine Root of Trust. Measurements then proceed incrementally up the stack to achieve complete coverage up to and including the static root filesystem. Based
+on this strategy, the specific measurements required to validate device
+integrity are:
+
+- **Boot Chain Coverage**: PCRs must cover the entire boot process, from the initial hardware boot stages up to the static operating system.
+- **Filesystem Integrity**: The measurements include critical parts of the root filesystem. In general, we require a static root filesystem to be covered.
+- **Security Configuration**: Secure boot configuration and policies are included in the measured state, while runtime data is excluded.
 
 Similarly, TCG discourages attesting device-specific configurations/software or things that may change after a reboot. In section [3.3.4.2](https://trustedcomputinggroup.org/wp-content/uploads/TCG_PCClient_PFP_r1p05_v23_pub.pdf#page=40) and 3.3.4.4 for PCR [1] and PCR[3] (both of which measure configuration related data) TCG spec states:
 *"Entities that MUST NOT be measured as part of the above measurements: System-unique information such as asset, serial numbers, etc., as they would prevent sealing to PCR[3] with a common configuration in a fleet of devices"* and *"The event data MUST not vary across boot cycles if the set of potential PCR[1] measurements measured does not vary"*.
@@ -205,12 +217,17 @@ Finally, although the exact PCR allocation may vary across vendors, the expectat
 
 #### Conceptual Flow for *Offline* PCR Precomputation
 
-The core concept of offline precomputation is to optimize the attestation process by utilizing final expected PCR values provided by the vendor. Instead of recomputing PCRs from the boot log for every attestation, the AttestZ service compares the actual PCRs reported by the device against pre-ingested, expected values. This applies specifically to PCRs that are consistent across a given product model and software version (e.g., BIOS image, bootloader image, OS image, and secure boot policy).
+The core concept of offline precomputation is to optimize the attestation
+process by utilizing final expected PCR values provided by the vendor. Instead
+of recomputing PCRs from the boot log for every attestation, the AttestZ
+service compares the actual PCRs reported by the device against pre-ingested, expected values. This applies specifically to PCRs that are consistent across a given product model and software version (e.g., BIOS image, bootloader image,
+OS image, and secure boot policy).
 
 To implement this workflow effectively, the following operational aspects are considered:
-   - **PCR Acquisition Method:** Expected PCR values are primarily provided by the device vendor. The ideal and expected method is for these values to be delivered via a secure mechanism, such as an API endpoint or by being included within the firmware/software image bundle using the structured, cryptographically signed format defined by OpenConfig.
-   - **Timing:** The expected reference values are ideally obtained *before the devices are shipped to the switch owner*. They are typically acquired or updated whenever a new software/firmware image version is qualified.
-   - **Staging Phase:** Once acquired, the expected reference values are ingested and stored in a dedicated internal database. This system acts as the central source of truth for expected device security measurements (TPM PCR values) during the verification process.
+
+- **PCR Acquisition Method**: Expected PCR values are primarily provided by the device vendor. The ideal and expected method is for these values to be delivered via a secure mechanism, such as an API endpoint or by being included within the firmware/software image bundle using the structured, cryptographically signed format defined by OpenConfig.
+- **Timing**: The expected reference values are ideally obtained *before the devices are shipped to the switch owner*. They are typically acquired or updated whenever a new software/firmware image version is qualified.
+- **Staging Phase**: Once acquired, the expected reference values are ingested and stored in a dedicated internal database. This system acts as the central source of truth for expected device security measurements (TPM PCR values) during the verification process.
 
 
 #### TPM 2.0 Attestation Workflow Steps
