@@ -192,11 +192,11 @@ Finally, although the exact PCR allocation may vary across vendors, the expectat
 | **PCR Index** | **PCR Usage** |
 | :--- | :---- |
 | 0 | SRTM, BIOS, Host Platform Extensions, Embedded Option ROMs and PI Drivers |
-| 1 | Host Platform Configuration |ßß
+| 1 | Host Platform Configuration |
 | 2 | UEFI driver and application Code |
 | 3 | UEFI driver and application Configuration and Data |
 | 4 | UEFI Boot Manager Code (usually the MBR) and Boot Attempts |
-| 5 | Boot Manager Code Configuration and Data (for use by the Boot Manager Code) and GPT/Partition Table
+| 5 | Boot Manager Code Configuration and Data (for use by the Boot Manager Code) and GPT/Partition Table |
 | 6 | Host Platform Manufacturer Specific |
 | 7 | Secure Boot Policy |
 | 8-15 | Defined for use by the Static OS |
@@ -209,7 +209,7 @@ The core concept of offline precomputation is to optimize the attestation proces
 
 To implement this workflow effectively, the following operational aspects are considered:
    - **PCR Acquisition Method:** Expected PCR values are primarily provided by the device vendor. The ideal and expected method is for these values to be delivered via a secure mechanism, such as an API endpoint or by being included within the firmware/software image bundle using the structured, cryptographically signed format defined by OpenConfig.
-   - **Timing:** The expected reference values are ideally obtained *before the devices are shipped to the switch owner*. They are typically acquired or updated whenever a new software/firmware image version is qualified for deployment in the network.
+   - **Timing:** The expected reference values are ideally obtained *before the devices are shipped to the switch owner*. They are typically acquired or updated whenever a new software/firmware image version is qualified.
    - **Staging Phase:** Once acquired, the expected reference values are ingested and stored in a dedicated internal database. This system acts as the central source of truth for expected device security measurements (TPM PCR values) during the verification process.
 
 
