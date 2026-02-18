@@ -346,19 +346,17 @@ This diagram highlights various use cases for different packages.
 
 ### Handy Commands
 
-```bash
-# Completely remove the entire working tree created by a Bazel instance.
-bazel clean --expunge
+    # Completely remove the entire working tree created by a Bazel instance.
+    bazel clean --expunge
 
-# Regenerate Go protobuf and gRPC client/service files.
-sh regenerate-files.sh
+    # Regenerate Go protobuf and gRPC client/service files.
+    sh regenerate-files.sh
 
-# Build all targets.
-bazel build //...
+    # Build all targets.
+    bazel build //...
 
-# Update Go dependencies in go.mod and go.sum.
-go mod tidy
+    # Update Go dependencies in go.mod and go.sum.
+    go mod tidy
 
-# Run a specific test.
-go test -v ./service/biz -run TestVerifyAndParseIakAndIDevIdCerts --alsologtostderr
-```
+    # Run a specific test.
+    go test -v ./service/biz -run TestVerifyAndParseIakAndIDevIdCerts --alsologtostderr
