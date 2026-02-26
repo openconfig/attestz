@@ -354,7 +354,7 @@ func VerifyAndSerializePubKey(ctx context.Context, cert *x509.Certificate) (stri
 	if cert.PublicKey == nil {
 		return "", fmt.Errorf("invalid request to VerifyAndSerializePubKey(): x509.Certificate.PublicKey is nil")
 	}
-	// Verify the underlying pub key is ECC P384 (or higher) or RSA 2048 (or higher).
+	// Verify the underlying pub key is ECC P256 (or higher) or RSA 2048 (or higher).
 	switch certPubKey := cert.PublicKey.(type) {
 	case *rsa.PublicKey:
 		pubKeyLen := certPubKey.Size() * 8
@@ -364,8 +364,8 @@ func VerifyAndSerializePubKey(ctx context.Context, cert *x509.Certificate) (stri
 		log.InfoContextf(ctx, "pub key algorithm is %s %d", cert.PublicKeyAlgorithm, pubKeyLen)
 	case *ecdsa.PublicKey:
 		pubKeyLen := certPubKey.Curve.Params().BitSize
-		if pubKeyLen < 384 {
-			return "", fmt.Errorf("pub ECC key must be 384 bits or higher, but was %d", pubKeyLen)
+		if pubKeyLen < 256 {
+			return "", fmt.Errorf("pub ECC key must be 256 bits or higher, but was %d", pubKeyLen)
 		}
 		log.InfoContextf(ctx, "pub key algorithm is %s %d", cert.PublicKeyAlgorithm, pubKeyLen)
 	default:
