@@ -176,9 +176,9 @@ In this workflow switch owner verifies that the device's end-to-end boot state (
 #### General Guidelines on What to Attest
 
 This section is out of scope of the broader openconfig initiative and instead serves more as a guideline. The general question one should ask when thinking of what to attest is "does changing X on the device change the fundamental boot posture of the device?".
-If the answer is yes, then attest it, otherwise it is not required. The recommended scope of attestation measurements is from the first instruction up to, but not including, runtime. That is, the scope for attestation covers the static boot process up to and including the root filesystem (rootfs), excluding runtime.
-The attestation strategy mandates a sequential measurement process, prioritizing the lowest layers first to guarantee that the initial instruction is protected and the device establishes a genuine Root of Trust. Measurements then proceed incrementally up the stack to achieve complete coverage up to and including the static root filesystem.
-Based on this strategy, the specific measurements required to validate device integrity are:
+If the answer is yes, then attest it, otherwise it is not required. The recommended scope of attestation measurements is from the first instruction up to and including rootfs. That is, the scope for attestation covers the static boot process up to and including the root filesystem (rootfs), excluding runtime.
+Device attestation relies on building a chain of trust. The trust in the measurements of higher layers of the boot chain is dependent on the successful verification and established trust of each preceding stage, starting from the initial instruction. This sequential verification process ensures a chain of trust from the hardware Root of Trust (RoT) up to the static root filesystem.
+Based on this approach, the specific measurements required to validate device integrity are:
 
 - **Boot Chain Coverage**: PCRs must cover the entire boot process, from the initial hardware boot stages up to the static operating system.
 - **Filesystem Integrity**: The measurements include critical parts of the root filesystem. In general, we require a static root filesystem to be covered.
