@@ -354,7 +354,10 @@ func VerifyAndSerializePubKey(ctx context.Context, cert *x509.Certificate) (stri
 	if cert.PublicKey == nil {
 		return "", fmt.Errorf("invalid request to VerifyAndSerializePubKey(): x509.Certificate.PublicKey is nil")
 	}
+
 	// Verify the underlying pub key is ECC P256 (or higher) or RSA 2048 (or higher).
+	// RSA and ECC P256 are supported here for legacy implementations. New
+	// platforms should not support these cryptographic algorithms.
 	switch certPubKey := cert.PublicKey.(type) {
 	case *rsa.PublicKey:
 		pubKeyLen := certPubKey.Size() * 8
