@@ -96,6 +96,7 @@ const (
 	eccP521Algo
 	eccP384Algo
 	eccP256Algo
+	eccP224Algo
 	ed25519Algo
 )
 
@@ -139,6 +140,11 @@ func generateSignedCert(t *testing.T, params *certCreationParams) *signedTpmCert
 		}
 	case rsa1024Algo:
 		certPrivKey, err := rsa.GenerateKey(rand.Reader, 1024)
+		if err == nil {
+			certPubKey = &certPrivKey.PublicKey
+		}
+	case eccP224Algo:
+		certPrivKey, err := ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
 		if err == nil {
 			certPubKey = &certPrivKey.PublicKey
 		}
@@ -272,6 +278,19 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 			noIDevID:             true,
 		},
 		{
+			desc:                    "Success: ECC P256 IAK and IDevID certs",
+			wantError:               false,
+			cardID:                  cardID,
+			iakCertAsymAlgo:         eccP256Algo,
+			iakCertSubjectSerial:    certSerial,
+			iakCertNotBefore:        time.Now(),
+			iakCertNotAfter:         time.Now().AddDate(0, 1, 0),
+			iDevIDCertAsymAlgo:      eccP256Algo,
+			iDevIDCertSubjectSerial: certSerial2,
+			iDevIDCertNotBefore:     time.Now(),
+			iDevIDCertNotAfter:      time.Now().AddDate(0, 0, 10),
+		},
+		{
 			desc:                    "Failure: unsupported ED25519 algo for IAK",
 			wantError:               true,
 			cardID:                  cardID,
@@ -324,10 +343,10 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
 		},
 		{
-			desc:                    "Failure: ECC key length lower than 384 for IAK",
+			desc:                    "Failure: ECC key length lower than 256 for IAK",
 			wantError:               true,
 			cardID:                  cardID,
-			iakCertAsymAlgo:         eccP256Algo,
+			iakCertAsymAlgo:         eccP224Algo,
 			iakCertSubjectSerial:    certSerial,
 			iakCertNotBefore:        time.Now(),
 			iakCertNotAfter:         time.Now().AddDate(0, 0, 10),
@@ -337,14 +356,14 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
 		},
 		{
-			desc:                    "Failure: ECC key length lower than 384 for IDevID",
+			desc:                    "Failure: ECC key length lower than 256 for IDevID",
 			wantError:               true,
 			cardID:                  cardID,
 			iakCertAsymAlgo:         eccP384Algo,
 			iakCertSubjectSerial:    certSerial,
 			iakCertNotBefore:        time.Now(),
 			iakCertNotAfter:         time.Now().AddDate(0, 0, 10),
-			iDevIDCertAsymAlgo:      eccP256Algo,
+			iDevIDCertAsymAlgo:      eccP224Algo,
 			iDevIDCertSubjectSerial: certSerial,
 			iDevIDCertNotBefore:     time.Now(),
 			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
@@ -711,6 +730,14 @@ func TestVerifyTpmCert(t *testing.T) {
 			certNotAfter:      time.Now().AddDate(0, 1, 0),
 		},
 		{
+			desc:              "Success: ECC P256 cert",
+			wantError:         false,
+			certAsymAlgo:      eccP256Algo,
+			certSubjectSerial: cardSerial,
+			certNotBefore:     time.Now(),
+			certNotAfter:      time.Now().AddDate(1, 0, 0),
+		},
+		{
 			desc:              "Success: ECC P384 cert",
 			wantError:         false,
 			certAsymAlgo:      eccP384Algo,
@@ -743,9 +770,9 @@ func TestVerifyTpmCert(t *testing.T) {
 			certNotAfter:      time.Now().AddDate(0, 0, 10),
 		},
 		{
-			desc:              "Failure: ECC key length lower than 384",
+			desc:              "Failure: ECC key length lower than 256",
 			wantError:         true,
-			certAsymAlgo:      eccP256Algo,
+			certAsymAlgo:      eccP224Algo,
 			certSubjectSerial: cardSerial,
 			certNotBefore:     time.Now(),
 			certNotAfter:      time.Now().AddDate(0, 0, 10),
