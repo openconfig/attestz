@@ -242,6 +242,8 @@ type EnrollControlCardReq struct {
 	SkipOidevidRotate bool
 	// Flag used to set the optional nonce and hash algorithm fields for nonce signature verification.
 	SkipNonceExchange *bool
+	// Flag used to skip serial number checks when verifying IAK and IDevID certs.
+	SkipSerialNumberCheck bool
 }
 
 // validateEnrollControlCardReq verifies that EnrollControlCardReq request is valid.
@@ -285,7 +287,7 @@ func EnrollControlCard(ctx context.Context, req *EnrollControlCardReq) error {
 	var cardDataList []ControlCardCertData
 	var getIakCertRespList []*epb.GetIakCertResponse
 	for _, selection := range req.ControlCardSelections {
-		cardData, getIakCertResp, err := verifyIdentityWithVendorCerts(ctx, selection, req.Deps, req.CertVerificationOpts, req.SkipNonceExchange, true)
+		cardData, getIakCertResp, err := verifyIdentityWithVendorCerts(ctx, selection, req.Deps, req.CertVerificationOpts, req.SkipNonceExchange, true, req.SkipSerialNumberCheck)
 		if err != nil {
 			err = fmt.Errorf("%w for control card %s: %w", ErrVerifyIdentity, prototext.Format(selection), err)
 			log.ErrorContext(ctx, err)
@@ -324,7 +326,7 @@ type ControlCardCertData struct {
 // It calls the device's GetIakCert method, validates the received IAK and optionally IDevID certificates,
 // and verifies the nonce signature if provided. It returns the verified control card certificate
 // data and the GetIakCertResponse from the device.
-func verifyIdentityWithVendorCerts(ctx context.Context, controlCardSelection *cpb.ControlCardSelection, deps EnrollzInfraDeps, certVerificationOpts x509.VerifyOptions, skipNonceExchange *bool, verifyIDevID bool) (*ControlCardCertData, *epb.GetIakCertResponse, error) {
+func verifyIdentityWithVendorCerts(ctx context.Context, controlCardSelection *cpb.ControlCardSelection, deps EnrollzInfraDeps, certVerificationOpts x509.VerifyOptions, skipNonceExchange *bool, verifyIDevID bool, skipSerialNumberCheck bool) (*ControlCardCertData, *epb.GetIakCertResponse, error) {
 	getIakCertReq := &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection}
 	// Generate a nonce.
 	if skipNonceExchange != nil && !*skipNonceExchange {
@@ -346,10 +348,11 @@ func verifyIdentityWithVendorCerts(ctx context.Context, controlCardSelection *cp
 	var iakPubPem, idevidPubPem string
 	if verifyIDevID {
 		tpmCertVerifierReq := &VerifyIakAndIDevIDCertsReq{
-			ControlCardID:        getIakCertResp.ControlCardId,
-			IakCertPem:           getIakCertResp.IakCert,
-			IDevIDCertPem:        getIakCertResp.IdevidCert,
-			CertVerificationOpts: certVerificationOpts,
+			ControlCardID:         getIakCertResp.ControlCardId,
+			IakCertPem:            getIakCertResp.IakCert,
+			IDevIDCertPem:         getIakCertResp.IdevidCert,
+			CertVerificationOpts:  certVerificationOpts,
+			SkipSerialNumberCheck: skipSerialNumberCheck,
 		}
 		tpmCertVerifierResp, err := deps.VerifyIakAndIDevIDCerts(ctx, tpmCertVerifierReq)
 		if err != nil {
@@ -528,6 +531,8 @@ type RotateOwnerIakCertReq struct {
 	CertVerificationOpts x509.VerifyOptions
 	// Flag used to set the optional nonce and hash algorithm fields for nonce signature verification.
 	SkipNonceExchange *bool
+	// Flag used to skip serial number checks when verifying IAK and IDevID certs.
+	SkipSerialNumberCheck bool
 }
 
 // validateRotateOwnerIakCert verifies that RotateOwnerIakCertReq request is valid.
@@ -572,7 +577,7 @@ func RotateOwnerIakCert(ctx context.Context, req *RotateOwnerIakCertReq) error {
 	var cardDataList []ControlCardCertData
 	var getIakCertRespList []*epb.GetIakCertResponse
 	for _, selection := range req.ControlCardSelections {
-		cardData, getIakCertResp, err := verifyIdentityWithVendorCerts(ctx, selection, req.Deps, req.CertVerificationOpts, req.SkipNonceExchange, false)
+		cardData, getIakCertResp, err := verifyIdentityWithVendorCerts(ctx, selection, req.Deps, req.CertVerificationOpts, req.SkipNonceExchange, false, req.SkipSerialNumberCheck)
 		if err != nil {
 			err = fmt.Errorf("%w for control card %s: %w", ErrVerifyIdentity, prototext.Format(selection), err)
 			log.ErrorContext(ctx, err)

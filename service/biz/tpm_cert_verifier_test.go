@@ -239,7 +239,8 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 		customIakCaRootPem    string
 		customIDevIDCaRootPem string
 		// To simulate a verifying iak for a secondary control card for which IDevID is optional.
-		noIDevID bool
+		noIDevID              bool
+		skipSerialNumberCheck bool
 	}{
 		{
 			desc:                    "Success: RSA 4096 IAK and ECC P384 IDevID certs",
@@ -289,6 +290,34 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 			iDevIDCertSubjectSerial: certSerial2,
 			iDevIDCertNotBefore:     time.Now(),
 			iDevIDCertNotAfter:      time.Now().AddDate(0, 0, 10),
+		},
+		{
+			desc:                    "Success: IAK & IDevID cert subject serials do not match expected control card serial in request, but check is skipped",
+			wantError:               false,
+			cardID:                  cardID,
+			iakCertAsymAlgo:         eccP384Algo,
+			iakCertSubjectSerial:    "AN0TH3RS3R1ALNUMB3R",
+			iakCertNotBefore:        time.Now(),
+			iakCertNotAfter:         time.Now().AddDate(0, 0, 10),
+			iDevIDCertAsymAlgo:      eccP384Algo,
+			iDevIDCertSubjectSerial: "AN0TH3RS3R1ALNUMB3R",
+			iDevIDCertNotBefore:     time.Now(),
+			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
+			skipSerialNumberCheck:   true,
+		},
+		{
+			desc:                    "Success: IAK cert and IDevID cert subject serials do not match, but check is skipped",
+			wantError:               false,
+			cardID:                  cardID,
+			iakCertAsymAlgo:         eccP384Algo,
+			iakCertSubjectSerial:    certSerial,
+			iakCertNotBefore:        time.Now(),
+			iakCertNotAfter:         time.Now().AddDate(0, 0, 10),
+			iDevIDCertAsymAlgo:      eccP384Algo,
+			iDevIDCertSubjectSerial: "AN0TH3RS3R1ALNUMB3R",
+			iDevIDCertNotBefore:     time.Now(),
+			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
+			skipSerialNumberCheck:   true,
 		},
 		{
 			desc:                    "Failure: unsupported ED25519 algo for IAK",
@@ -610,10 +639,11 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 
 			// Call TpmCertVerifier's default impl of VerifyIakAndIDevIDCerts().
 			req := &VerifyIakAndIDevIDCertsReq{
-				ControlCardID:        test.cardID,
-				IakCertPem:           iakCertPemReq,
-				IDevIDCertPem:        iDevIDCertPemReq,
-				CertVerificationOpts: certVerificationOptsReq,
+				ControlCardID:         test.cardID,
+				IakCertPem:            iakCertPemReq,
+				IDevIDCertPem:         iDevIDCertPemReq,
+				CertVerificationOpts:  certVerificationOptsReq,
+				SkipSerialNumberCheck: test.skipSerialNumberCheck,
 			}
 			ctx := context.Background()
 			defTpmCertVerifier := DefaultTpmCertVerifier{}
