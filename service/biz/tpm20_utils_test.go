@@ -21,7 +21,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	tpm20 "github.com/google/go-tpm/tpm2"
-	epb "github.com/openconfig/attestz/proto/tpm_enrollz"
+	apb "github.com/openconfig/attestz/proto"
 )
 
 var (
@@ -1266,12 +1266,12 @@ func TestVerifyIdevidAttributes(t *testing.T) {
 	successTests := []struct {
 		name        string
 		idevidPub   *tpm20.TPMTPublic
-		keyTemplate epb.KeyTemplate
+		keyTemplate apb.KeyTemplate
 	}{
 		{
 			name:        "Success ECC P384",
 			idevidPub:   &validIdevidPub,
-			keyTemplate: epb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384,
+			keyTemplate: apb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384,
 		},
 	}
 
@@ -1319,55 +1319,55 @@ func TestVerifyIdevidAttributes(t *testing.T) {
 	failureTests := []struct {
 		name        string
 		idevidPub   *tpm20.TPMTPublic
-		keyTemplate epb.KeyTemplate
+		keyTemplate apb.KeyTemplate
 		wantErr     error
 	}{
 		{
 			name:        "Nil idevidPub",
 			idevidPub:   nil,
-			keyTemplate: epb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384,
+			keyTemplate: apb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384,
 			wantErr:     ErrInputNil,
 		},
 		{
 			name:        "Unsupported key template",
 			idevidPub:   &validIdevidPub,
-			keyTemplate: epb.KeyTemplate_KEY_TEMPLATE_UNSPECIFIED,
+			keyTemplate: apb.KeyTemplate_KEY_TEMPLATE_UNSPECIFIED,
 			wantErr:     ErrUnsupportedKeyTemplate,
 		},
 		{
 			name:        "Attribute mismatch",
 			idevidPub:   &pubWithBadAttr,
-			keyTemplate: epb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384,
+			keyTemplate: apb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384,
 			wantErr:     ErrInvalidPubKeyAttributes,
 		},
 		{
 			name:        "Wrong Type",
 			idevidPub:   &pubWithBadType,
-			keyTemplate: epb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384,
+			keyTemplate: apb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384,
 			wantErr:     ErrInvalidPubKeyAttributes,
 		},
 		{
 			name:        "Wrong NameAlg",
 			idevidPub:   &pubWithBadNameAlg,
-			keyTemplate: epb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384,
+			keyTemplate: apb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384,
 			wantErr:     ErrInvalidPubKeyAttributes,
 		},
 		{
 			name:        "Parameters not ECC",
 			idevidPub:   &pubWithMismatchedParams,
-			keyTemplate: epb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384,
+			keyTemplate: apb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384,
 			wantErr:     ErrInvalidPubKeyAttributes,
 		},
 		{
 			name:        "Wrong Curve",
 			idevidPub:   &pubWithBadCurve,
-			keyTemplate: epb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384,
+			keyTemplate: apb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384,
 			wantErr:     ErrInvalidPubKeyAttributes,
 		},
 		{
 			name:        "Wrong Scheme",
 			idevidPub:   &pubWithBadScheme,
-			keyTemplate: epb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384,
+			keyTemplate: apb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384,
 			wantErr:     ErrInvalidPubKeyAttributes,
 		},
 	}

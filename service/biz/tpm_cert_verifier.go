@@ -28,13 +28,13 @@ import (
 	"strings"
 
 	log "github.com/golang/glog"
-	cpb "github.com/openconfig/attestz/proto/common_definitions"
+	apb "github.com/openconfig/attestz/proto"
 )
 
 // VerifyIakAndIDevIDCertsReq is the request to VerifyIakAndIDevIDCerts().
 type VerifyIakAndIDevIDCertsReq struct {
 	// Identity fields of a given switch control card.
-	ControlCardID *cpb.ControlCardVendorId
+	ControlCardID *apb.ControlCardVendorId
 	// Verification options for IAK and IDevID certs.
 	CertVerificationOpts x509.VerifyOptions
 	// PEM-encoded IAK x509 attestation cert.
@@ -54,7 +54,7 @@ type VerifyIakAndIDevIDCertsResp struct {
 // VerifyTpmCertReq is the request to VerifyTpmCert().
 type VerifyTpmCertReq struct {
 	// Identity fields of a given switch control card.
-	ControlCardID *cpb.ControlCardVendorId
+	ControlCardID *apb.ControlCardVendorId
 	// Verification options for a TPM-based cert such as IAK or IDevID.
 	CertVerificationOpts x509.VerifyOptions
 	// PEM-encoded x509 attestation IAK or TLS IDevID cert.
@@ -76,7 +76,7 @@ type VerifyNonceSignatureReq struct {
 	// Nonce to be verified.
 	Nonce []byte
 	// Hash algorithm used to hash the nonce.
-	HashAlgo cpb.Tpm20HashAlgo
+	HashAlgo apb.Tpm20HashAlgo
 }
 
 // VerifyNonceSignatureResp is the response from VerifyNonceSignature().
@@ -390,13 +390,13 @@ func VerifyAndSerializePubKey(ctx context.Context, cert *x509.Certificate) (stri
 	return string(pubKeyPem), nil
 }
 
-func getHashFunctions(hashAlgo cpb.Tpm20HashAlgo) (crypto.Hash, hash.Hash, error) {
+func getHashFunctions(hashAlgo apb.Tpm20HashAlgo) (crypto.Hash, hash.Hash, error) {
 	switch hashAlgo {
-	case cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256:
+	case apb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256:
 		return crypto.SHA256, sha256.New(), nil
-	case cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384:
+	case apb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384:
 		return crypto.SHA384, sha512.New384(), nil
-	case cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA512:
+	case apb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA512:
 		return crypto.SHA512, sha512.New(), nil
 	default:
 		return 0, nil, fmt.Errorf("unsupported hash algorithm: %v", hashAlgo)

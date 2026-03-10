@@ -33,8 +33,7 @@ import (
 	tpm12 "github.com/google/go-tpm/tpm"
 	tpm20 "github.com/google/go-tpm/tpm2"
 
-	cpb "github.com/openconfig/attestz/proto/common_definitions"
-	epb "github.com/openconfig/attestz/proto/tpm_enrollz"
+	apb "github.com/openconfig/attestz/proto"
 
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/prototext"
@@ -77,7 +76,7 @@ const RSAkeySize2048 = 2048
 // IssueOwnerIakCertReq is the request to SwitchOwnerCaClient.IssueOwnerIakCert().
 type IssueOwnerIakCertReq struct {
 	// Identity fields of a given switch control card.
-	CardID *cpb.ControlCardVendorId
+	CardID *apb.ControlCardVendorId
 	// PEM-encoded IAK public key.
 	IakPubPem string
 }
@@ -91,7 +90,7 @@ type IssueOwnerIakCertResp struct {
 // IssueOwnerIDevIDCertReq is the request to SwitchOwnerCaClient.IssueOwnerIDevIDCert().
 type IssueOwnerIDevIDCertReq struct {
 	// Identity fields of a given switch control card.
-	CardID *cpb.ControlCardVendorId
+	CardID *apb.ControlCardVendorId
 	// PEM-encoded IDevID public key.
 	IDevIDPubPem string
 }
@@ -105,7 +104,7 @@ type IssueOwnerIDevIDCertResp struct {
 // IssueAikCertReq is the request to SwitchOwnerCaClient.IssueAikCert().
 type IssueAikCertReq struct {
 	// Identity fields of a given switch control card.
-	CardID *cpb.ControlCardVendorId
+	CardID *apb.ControlCardVendorId
 	// PEM-encoded AIK public key.
 	AikPubPem string
 }
@@ -151,22 +150,22 @@ type EnrollzDeviceClient interface {
 	// Thus, for standby card the best we can do in this case is fetch it's IDevID cert from the response
 	// payload (as opposed to TLS handshake - what we do for an active card enrollment) which active card
 	// is responsible to populate.
-	GetIakCert(ctx context.Context, req *epb.GetIakCertRequest) (*epb.GetIakCertResponse, error)
+	GetIakCert(ctx context.Context, req *apb.GetIakCertRequest) (*apb.GetIakCertResponse, error)
 
 	// Returns `TpmEnrollzServiceClient.RotateOIakCert()` response.
-	RotateOIakCert(ctx context.Context, req *epb.RotateOIakCertRequest) (*epb.RotateOIakCertResponse, error)
+	RotateOIakCert(ctx context.Context, req *apb.RotateOIakCertRequest) (*apb.RotateOIakCertResponse, error)
 
 	// Returns `TpmEnrollzServiceClient.RotateAIKCert()` response.
-	RotateAIKCert(ctx context.Context, opts ...grpc.CallOption) (epb.TpmEnrollzService_RotateAIKCertClient, error)
+	RotateAIKCert(ctx context.Context, opts ...grpc.CallOption) (apb.TpmEnrollzService_RotateAIKCertClient, error)
 
 	// Returns `TpmEnrollzServiceClient.GetControlCardVendorID()` response.
-	GetControlCardVendorID(ctx context.Context, req *epb.GetControlCardVendorIDRequest) (*epb.GetControlCardVendorIDResponse, error)
+	GetControlCardVendorID(ctx context.Context, req *apb.GetControlCardVendorIDRequest) (*apb.GetControlCardVendorIDResponse, error)
 
 	// Returns `TpmEnrollzServiceClient.Challenge()` response.
-	Challenge(ctx context.Context, req *epb.ChallengeRequest) (*epb.ChallengeResponse, error)
+	Challenge(ctx context.Context, req *apb.ChallengeRequest) (*apb.ChallengeResponse, error)
 
 	// Returns `TpmEnrollzServiceClient.GetIdevidCsr()` response.
-	GetIdevidCsr(ctx context.Context, req *epb.GetIdevidCsrRequest) (*epb.GetIdevidCsrResponse, error)
+	GetIdevidCsr(ctx context.Context, req *apb.GetIdevidCsrRequest) (*apb.GetIdevidCsrResponse, error)
 }
 
 // FetchEKReq is the request to fetch the EK Public Key from the RoT.
@@ -182,7 +181,7 @@ type FetchEKResp struct {
 	// EK (or PPK) Public Key.
 	EkPublicKey *rsa.PublicKey
 	// Key type: EK or PPK
-	KeyType epb.Key
+	KeyType apb.Key
 }
 
 // ROTDBClient is a client to fetch the EK Public Key from the RoT.
@@ -231,7 +230,7 @@ type EnrollSwitchWithHMACChallengeInfraDeps interface {
 // EnrollControlCardReq is the request to EnrollControlCard().
 type EnrollControlCardReq struct {
 	// Selections of the switch control cards to enroll.
-	ControlCardSelections []*cpb.ControlCardSelection
+	ControlCardSelections []*apb.ControlCardSelection
 	// Infra-specific wired dependencies.
 	Deps EnrollzInfraDeps
 	// Verification options for IAK and IDevID certs.
@@ -283,7 +282,7 @@ func EnrollControlCard(ctx context.Context, req *EnrollControlCardReq) error {
 	}
 
 	var cardDataList []ControlCardCertData
-	var getIakCertRespList []*epb.GetIakCertResponse
+	var getIakCertRespList []*apb.GetIakCertResponse
 	for _, selection := range req.ControlCardSelections {
 		cardData, getIakCertResp, err := verifyIdentityWithVendorCerts(ctx, selection, req.Deps, req.CertVerificationOpts, req.SkipNonceExchange, true)
 		if err != nil {
@@ -314,8 +313,8 @@ func EnrollControlCard(ctx context.Context, req *EnrollControlCardReq) error {
 }
 
 type ControlCardCertData struct {
-	ControlCardSelections *cpb.ControlCardSelection
-	ControlCardID         *cpb.ControlCardVendorId
+	ControlCardSelections *apb.ControlCardSelection
+	ControlCardID         *apb.ControlCardVendorId
 	IAKPubPem             string
 	IDevIDPubPem          string
 }
@@ -324,8 +323,8 @@ type ControlCardCertData struct {
 // It calls the device's GetIakCert method, validates the received IAK and optionally IDevID certificates,
 // and verifies the nonce signature if provided. It returns the verified control card certificate
 // data and the GetIakCertResponse from the device.
-func verifyIdentityWithVendorCerts(ctx context.Context, controlCardSelection *cpb.ControlCardSelection, deps EnrollzInfraDeps, certVerificationOpts x509.VerifyOptions, skipNonceExchange *bool, verifyIDevID bool) (*ControlCardCertData, *epb.GetIakCertResponse, error) {
-	getIakCertReq := &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection}
+func verifyIdentityWithVendorCerts(ctx context.Context, controlCardSelection *apb.ControlCardSelection, deps EnrollzInfraDeps, certVerificationOpts x509.VerifyOptions, skipNonceExchange *bool, verifyIDevID bool) (*ControlCardCertData, *apb.GetIakCertResponse, error) {
+	getIakCertReq := &apb.GetIakCertRequest{ControlCardSelection: controlCardSelection}
 	// Generate a nonce.
 	if skipNonceExchange != nil && !*skipNonceExchange {
 		nonce := make([]byte, 16)
@@ -333,7 +332,7 @@ func verifyIdentityWithVendorCerts(ctx context.Context, controlCardSelection *cp
 			return nil, nil, fmt.Errorf("%w: %v", ErrNonceGeneration, err)
 		}
 		getIakCertReq.Nonce = nonce
-		getIakCertReq.HashAlgo = cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256.Enum()
+		getIakCertReq.HashAlgo = apb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256.Enum()
 	}
 	getIakCertResp, err := deps.GetIakCert(ctx, getIakCertReq)
 	if err != nil {
@@ -436,14 +435,14 @@ func issueOwnerIDevIDCert(ctx context.Context, deps EnrollzInfraDeps, certData C
 	return issueOwnerIDevIDCertResp.OwnerIDevIDCertPem, nil
 }
 
-func rotateOIakCert(ctx context.Context, deps EnrollzInfraDeps, sslProfileID string, controlCardCerts []*epb.ControlCardCertUpdate, atomicCertRotationSupported bool) error {
+func rotateOIakCert(ctx context.Context, deps EnrollzInfraDeps, sslProfileID string, controlCardCerts []*apb.ControlCardCertUpdate, atomicCertRotationSupported bool) error {
 	if len(controlCardCerts) == 0 {
 		return fmt.Errorf("%w: %s", ErrEmptyField, "control card cert data list")
 	}
 	if atomicCertRotationSupported {
 		// Rotate oIAK and oIDevID certs for all control cards atomically.
 		// This is the preferred way to rotate certs going forward.
-		rotateOIakCertReq := &epb.RotateOIakCertRequest{
+		rotateOIakCertReq := &apb.RotateOIakCertRequest{
 			SslProfileId: sslProfileID,
 			Updates:      controlCardCerts,
 		}
@@ -457,7 +456,7 @@ func rotateOIakCert(ctx context.Context, deps EnrollzInfraDeps, sslProfileID str
 	} else {
 		// Rotate oIAK and oIDevID certs for each control card separately.
 		for _, certData := range controlCardCerts {
-			rotateOIakCertReq := &epb.RotateOIakCertRequest{
+			rotateOIakCertReq := &apb.RotateOIakCertRequest{
 				SslProfileId:         sslProfileID,
 				ControlCardSelection: certData.ControlCardSelection,
 				OiakCert:             certData.OiakCert,
@@ -484,7 +483,7 @@ func issueAndRotateOwnerCerts(ctx context.Context, deps EnrollzInfraDeps, certDa
 	}
 
 	// Issue oIAK and oIDevID certs for each control card.
-	var controlCardCerts []*epb.ControlCardCertUpdate
+	var controlCardCerts []*apb.ControlCardCertUpdate
 	for _, certData := range certDataList {
 		var validationErrs []string
 		if certData.ControlCardID == nil {
@@ -508,7 +507,7 @@ func issueAndRotateOwnerCerts(ctx context.Context, deps EnrollzInfraDeps, certDa
 			return err
 		}
 
-		controlCardCerts = append(controlCardCerts, &epb.ControlCardCertUpdate{
+		controlCardCerts = append(controlCardCerts, &apb.ControlCardCertUpdate{
 			ControlCardSelection: certData.ControlCardSelections,
 			OiakCert:             oiakCert,
 			OidevidCert:          oidevidCert,
@@ -521,7 +520,7 @@ func issueAndRotateOwnerCerts(ctx context.Context, deps EnrollzInfraDeps, certDa
 // RotateOwnerIakCertReq is the request to RotateOwnerIakCert().
 type RotateOwnerIakCertReq struct {
 	// Selection of a specific switch control card.
-	ControlCardSelections []*cpb.ControlCardSelection
+	ControlCardSelections []*apb.ControlCardSelection
 	// Infra-specific wired dependencies.
 	Deps EnrollzInfraDeps
 	// Verification options for IAK cert.
@@ -570,7 +569,7 @@ func RotateOwnerIakCert(ctx context.Context, req *RotateOwnerIakCertReq) error {
 	}
 
 	var cardDataList []ControlCardCertData
-	var getIakCertRespList []*epb.GetIakCertResponse
+	var getIakCertRespList []*apb.GetIakCertResponse
 	for _, selection := range req.ControlCardSelections {
 		cardData, getIakCertResp, err := verifyIdentityWithVendorCerts(ctx, selection, req.Deps, req.CertVerificationOpts, req.SkipNonceExchange, false)
 		if err != nil {
@@ -603,7 +602,7 @@ func RotateOwnerIakCert(ctx context.Context, req *RotateOwnerIakCertReq) error {
 // RotateAIKCertReq is the request to RotateAIKCert().
 type RotateAIKCertReq struct {
 	// Selection of a specific switch control card.
-	ControlCardSelection *cpb.ControlCardSelection
+	ControlCardSelection *apb.ControlCardSelection
 	// Infra-specific wired dependencies.
 	Deps RotateAIKCertInfraDeps
 }
@@ -648,8 +647,8 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 		log.ErrorContext(ctx, err)
 		return err
 	}
-	rotateAIKCertReq := &epb.RotateAIKCertRequest{
-		Value: &epb.RotateAIKCertRequest_IssuerPublicKey{
+	rotateAIKCertReq := &apb.RotateAIKCertRequest{
+		Value: &apb.RotateAIKCertRequest_IssuerPublicKey{
 			IssuerPublicKey: publicKeyBytes,
 		},
 		ControlCardSelection: req.ControlCardSelection,
@@ -845,12 +844,12 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	}
 
 	// Send encrypted data
-	issuerCertPayload := &epb.RotateAIKCertRequest_IssuerCertPayload{
+	issuerCertPayload := &apb.RotateAIKCertRequest_IssuerCertPayload{
 		SymmetricKeyBlob: symKeyBlob,
 		AikCertBlob:      aikCertBlob,
 	}
-	rotateAIKCertReq = &epb.RotateAIKCertRequest{
-		Value:                &epb.RotateAIKCertRequest_IssuerCertPayload_{IssuerCertPayload: issuerCertPayload},
+	rotateAIKCertReq = &apb.RotateAIKCertRequest{
+		Value:                &apb.RotateAIKCertRequest_IssuerCertPayload_{IssuerCertPayload: issuerCertPayload},
 		ControlCardSelection: req.ControlCardSelection,
 	}
 	if err := stream.Send(rotateAIKCertReq); err != nil {
@@ -881,8 +880,8 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 	}
 
 	// Finalize Enrollment
-	rotateAIKCertReq = &epb.RotateAIKCertRequest{
-		Value: &epb.RotateAIKCertRequest_Finalize{
+	rotateAIKCertReq = &apb.RotateAIKCertRequest{
+		Value: &apb.RotateAIKCertRequest_Finalize{
 			Finalize: true,
 		},
 		ControlCardSelection: req.ControlCardSelection,
@@ -908,7 +907,7 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 // EnrollSwitchWithHMACChallengeReq is the request to EnrollWithHMACChallenge().
 type EnrollSwitchWithHMACChallengeReq struct {
 	// List of switch control cards to be enrolled.
-	ControlCardSelections []*cpb.ControlCardSelection
+	ControlCardSelections []*apb.ControlCardSelection
 	// Infra-specific wired dependencies.
 	Deps EnrollSwitchWithHMACChallengeInfraDeps
 	// SSL profile ID to which newly-issued Owner IDevID cert should be applied.
@@ -989,7 +988,7 @@ func EnrollSwitchWithHMACChallenge(ctx context.Context, req *EnrollSwitchWithHMA
 //  5. The service verifies the TPM's HMAC response to confirm possession of the EK private key.
 //  6. The service also verifies the integrity of the IAK public key and the IDevID CSR
 //     received from the device.
-func verifyIdentityWithHMACChallenge(ctx context.Context, controlCardSelection *cpb.ControlCardSelection, deps EnrollSwitchWithHMACChallengeInfraDeps) (controlCardID *cpb.ControlCardVendorId, iakPub *tpm20.TPMTPublic, idevidPub *tpm20.TPMTPublic, err error) {
+func verifyIdentityWithHMACChallenge(ctx context.Context, controlCardSelection *apb.ControlCardSelection, deps EnrollSwitchWithHMACChallengeInfraDeps) (controlCardID *apb.ControlCardVendorId, iakPub *tpm20.TPMTPublic, idevidPub *tpm20.TPMTPublic, err error) {
 	// validate the request
 	if controlCardSelection == nil {
 		return nil, nil, nil, fmt.Errorf("%w: controlCardSelection cannot be nil", ErrInvalidRequest)
@@ -1001,7 +1000,7 @@ func verifyIdentityWithHMACChallenge(ctx context.Context, controlCardSelection *
 
 	// Get Control Card Vendor ID from the TPM.
 	// TODO: add more validations on controlCardSelection
-	controlCardVendorID, err := deps.GetControlCardVendorID(ctx, &epb.GetControlCardVendorIDRequest{
+	controlCardVendorID, err := deps.GetControlCardVendorID(ctx, &apb.GetControlCardVendorIDRequest{
 		ControlCardSelection: controlCardSelection,
 	})
 	if err != nil {
@@ -1020,7 +1019,7 @@ func verifyIdentityWithHMACChallenge(ctx context.Context, controlCardSelection *
 		return nil, nil, nil, fmt.Errorf("failed to create HMAC challenge: %w", err)
 	}
 
-	challengeResp, err := deps.Challenge(ctx, &epb.ChallengeRequest{ControlCardSelection: controlCardSelection, Challenge: hmacChallenge, Key: fetchEKResp.KeyType})
+	challengeResp, err := deps.Challenge(ctx, &apb.ChallengeRequest{ControlCardSelection: controlCardSelection, Challenge: hmacChallenge, Key: fetchEKResp.KeyType})
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to challenge the TPM: %w", err)
 	}
@@ -1048,8 +1047,8 @@ func verifyIdentityWithHMACChallenge(ctx context.Context, controlCardSelection *
 	}
 
 	// Get IDevID CSR from the TPM.
-	keyTemplate := epb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384
-	getIDevIDCSRResp, err := deps.GetIdevidCsr(ctx, &epb.GetIdevidCsrRequest{
+	keyTemplate := apb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384
+	getIDevIDCSRResp, err := deps.GetIdevidCsr(ctx, &apb.GetIdevidCsrRequest{
 		ControlCardSelection: controlCardSelection,
 		Key:                  fetchEKResp.KeyType,
 		KeyTemplate:          keyTemplate,
@@ -1067,7 +1066,7 @@ func verifyIdentityWithHMACChallenge(ctx context.Context, controlCardSelection *
 }
 
 // fetchEK fetches the stored EK or PPK from the RoT database.
-func fetchEK(ctx context.Context, client ROTDBClient, cardID *cpb.ControlCardVendorId) (*FetchEKResp, error) {
+func fetchEK(ctx context.Context, client ROTDBClient, cardID *apb.ControlCardVendorId) (*FetchEKResp, error) {
 	fetchEKResp, err := client.FetchEK(ctx, &FetchEKReq{
 		Serial:   cardID.GetControlCardSerial(),
 		Supplier: cardID.GetChassisManufacturer(),
@@ -1081,8 +1080,8 @@ func fetchEK(ctx context.Context, client ROTDBClient, cardID *cpb.ControlCardVen
 	return fetchEKResp, nil
 }
 
-// createHMACChallenge creates an HMAC and wraps it to the EK and returns a epb.HMACChallenge struct.
-func createHMACChallenge(deps TPM20Utils, fetchEKResp *FetchEKResp) (*epb.HMACChallenge, *tpm20.TPMTSensitive, error) {
+// createHMACChallenge creates an HMAC and wraps it to the EK and returns a apb.HMACChallenge struct.
+func createHMACChallenge(deps TPM20Utils, fetchEKResp *FetchEKResp) (*apb.HMACChallenge, *tpm20.TPMTSensitive, error) {
 	if deps == nil {
 		return nil, nil, fmt.Errorf("%w: deps cannot be nil", ErrInvalidRequest)
 	}
@@ -1101,7 +1100,7 @@ func createHMACChallenge(deps TPM20Utils, fetchEKResp *FetchEKResp) (*epb.HMACCh
 		return nil, nil, fmt.Errorf("failed to wrap HMAC key to EK public key: %w", err)
 	}
 
-	challengeReq := &epb.HMACChallenge{
+	challengeReq := &apb.HMACChallenge{
 		HmacPubKey: tpm20.Marshal(tpm20.BytesAs2B[tpm20.TPMTPublic](tpm20.Marshal(hmacPub))),
 		Duplicate:  tpm20.Marshal(&tpm20.TPM2BPrivate{Buffer: duplicate}),
 		InSymSeed:  tpm20.Marshal(&tpm20.TPM2BEncryptedSecret{Buffer: inSymSeed}),
@@ -1111,7 +1110,7 @@ func createHMACChallenge(deps TPM20Utils, fetchEKResp *FetchEKResp) (*epb.HMACCh
 }
 
 // verifyIAKKey verifies the IAK Certify Info and IAK Attributes.
-func verifyIAKKey(deps TPM20Utils, hmacChallengeResp *epb.HMACChallengeResponse) (*tpm20.TPMTPublic, error) {
+func verifyIAKKey(deps TPM20Utils, hmacChallengeResp *apb.HMACChallengeResponse) (*tpm20.TPMTPublic, error) {
 	if deps == nil {
 		return nil, fmt.Errorf("%w: deps cannot be nil", ErrInvalidRequest)
 	}
@@ -1142,7 +1141,7 @@ func verifyIAKKey(deps TPM20Utils, hmacChallengeResp *epb.HMACChallengeResponse)
 }
 
 // verifyIdevidKey verifies the IDevID Certify Info, IDevID Attributes, and the IDevID CSR signature.
-func verifyIdevidKeyAndCsr(deps TPM20Utils, fetchEKResp *FetchEKResp, iakPubKey *tpm20.TPMTPublic, getIdevidCsrResponse *epb.GetIdevidCsrResponse, keyTemplate epb.KeyTemplate) (*tpm20.TPMTPublic, error) {
+func verifyIdevidKeyAndCsr(deps TPM20Utils, fetchEKResp *FetchEKResp, iakPubKey *tpm20.TPMTPublic, getIdevidCsrResponse *apb.GetIdevidCsrResponse, keyTemplate apb.KeyTemplate) (*tpm20.TPMTPublic, error) {
 	if getIdevidCsrResponse == nil {
 		return nil, fmt.Errorf("%w: getIdevidCsrResponse cannot be nil", ErrInvalidRequest)
 	}

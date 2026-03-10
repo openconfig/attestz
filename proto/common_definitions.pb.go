@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.9
 // 	protoc        v6.32.1
-// source: github.com/openconfig/attestz/proto/common_definitions.proto
+// source: github.com/openconfig/attestz/proto/proto
 
 package attestz
 
@@ -311,7 +311,7 @@ var File_github_com_openconfig_attestz_proto_common_definitions_proto protorefle
 
 const file_github_com_openconfig_attestz_proto_common_definitions_proto_rawDesc = "" +
 	"\n" +
-	"<github.com/openconfig/attestz/proto/common_definitions.proto\x12\x12openconfig.attestz\"\xd9\x02\n" +
+	"<github.com/openconfig/attestz/proto/proto\x12\x12openconfig.attestz\"\xd9\x02\n" +
 	"\x13ControlCardVendorId\x12O\n" +
 	"\x11control_card_role\x18\x01 \x01(\x0e2#.openconfig.attestz.ControlCardRoleR\x0fcontrolCardRole\x12.\n" +
 	"\x13control_card_serial\x18\x02 \x01(\tR\x11controlCardSerial\x12*\n" +

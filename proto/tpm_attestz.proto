@@ -19,7 +19,7 @@ package openconfig.attestz;
 
 import "github.com/openconfig/attestz/proto/common_definitions.proto";
 
-option go_package = "github.com/openconfig/attestz";
+option go_package = "github.com/openconfig/attestz/proto;attestz";
 
 
 // Request for a given control card to attest its boot state.

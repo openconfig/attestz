@@ -7,7 +7,6 @@
 package attestz
 
 import (
-	common_definitions "github.com/openconfig/attestz/proto/common_definitions"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -170,10 +169,10 @@ func (Status) EnumDescriptor() ([]byte, []int) {
 }
 
 type GetIakCertRequest struct {
-	state                protoimpl.MessageState                   `protogen:"open.v1"`
-	ControlCardSelection *common_definitions.ControlCardSelection `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
-	Nonce                []byte                                   `protobuf:"bytes,2,opt,name=nonce,proto3,oneof" json:"nonce,omitempty"`
-	HashAlgo             *common_definitions.Tpm20HashAlgo        `protobuf:"varint,3,opt,name=hash_algo,json=hashAlgo,proto3,enum=openconfig.attestz.Tpm20HashAlgo,oneof" json:"hash_algo,omitempty"`
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	ControlCardSelection *ControlCardSelection  `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
+	Nonce                []byte                 `protobuf:"bytes,2,opt,name=nonce,proto3,oneof" json:"nonce,omitempty"`
+	HashAlgo             *Tpm20HashAlgo         `protobuf:"varint,3,opt,name=hash_algo,json=hashAlgo,proto3,enum=openconfig.attestz.Tpm20HashAlgo,oneof" json:"hash_algo,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -208,7 +207,7 @@ func (*GetIakCertRequest) Descriptor() ([]byte, []int) {
 	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *GetIakCertRequest) GetControlCardSelection() *common_definitions.ControlCardSelection {
+func (x *GetIakCertRequest) GetControlCardSelection() *ControlCardSelection {
 	if x != nil {
 		return x.ControlCardSelection
 	}
@@ -222,20 +221,20 @@ func (x *GetIakCertRequest) GetNonce() []byte {
 	return nil
 }
 
-func (x *GetIakCertRequest) GetHashAlgo() common_definitions.Tpm20HashAlgo {
+func (x *GetIakCertRequest) GetHashAlgo() Tpm20HashAlgo {
 	if x != nil && x.HashAlgo != nil {
 		return *x.HashAlgo
 	}
-	return common_definitions.Tpm20HashAlgo(0)
+	return Tpm20HashAlgo(0)
 }
 
 type GetIakCertResponse struct {
-	state                       protoimpl.MessageState                  `protogen:"open.v1"`
-	ControlCardId               *common_definitions.ControlCardVendorId `protobuf:"bytes,1,opt,name=control_card_id,json=controlCardId,proto3" json:"control_card_id,omitempty"`
-	IakCert                     string                                  `protobuf:"bytes,2,opt,name=iak_cert,json=iakCert,proto3" json:"iak_cert,omitempty"`
-	IdevidCert                  string                                  `protobuf:"bytes,3,opt,name=idevid_cert,json=idevidCert,proto3" json:"idevid_cert,omitempty"`
-	NonceSignature              []byte                                  `protobuf:"bytes,4,opt,name=nonce_signature,json=nonceSignature,proto3,oneof" json:"nonce_signature,omitempty"`
-	AtomicCertRotationSupported bool                                    `protobuf:"varint,5,opt,name=atomic_cert_rotation_supported,json=atomicCertRotationSupported,proto3" json:"atomic_cert_rotation_supported,omitempty"`
+	state                       protoimpl.MessageState `protogen:"open.v1"`
+	ControlCardId               *ControlCardVendorId   `protobuf:"bytes,1,opt,name=control_card_id,json=controlCardId,proto3" json:"control_card_id,omitempty"`
+	IakCert                     string                 `protobuf:"bytes,2,opt,name=iak_cert,json=iakCert,proto3" json:"iak_cert,omitempty"`
+	IdevidCert                  string                 `protobuf:"bytes,3,opt,name=idevid_cert,json=idevidCert,proto3" json:"idevid_cert,omitempty"`
+	NonceSignature              []byte                 `protobuf:"bytes,4,opt,name=nonce_signature,json=nonceSignature,proto3,oneof" json:"nonce_signature,omitempty"`
+	AtomicCertRotationSupported bool                   `protobuf:"varint,5,opt,name=atomic_cert_rotation_supported,json=atomicCertRotationSupported,proto3" json:"atomic_cert_rotation_supported,omitempty"`
 	unknownFields               protoimpl.UnknownFields
 	sizeCache                   protoimpl.SizeCache
 }
@@ -270,7 +269,7 @@ func (*GetIakCertResponse) Descriptor() ([]byte, []int) {
 	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *GetIakCertResponse) GetControlCardId() *common_definitions.ControlCardVendorId {
+func (x *GetIakCertResponse) GetControlCardId() *ControlCardVendorId {
 	if x != nil {
 		return x.ControlCardId
 	}
@@ -308,7 +307,7 @@ func (x *GetIakCertResponse) GetAtomicCertRotationSupported() bool {
 type RotateOIakCertRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/tpm_enrollz.proto.
-	ControlCardSelection *common_definitions.ControlCardSelection `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
+	ControlCardSelection *ControlCardSelection `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
 	// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/tpm_enrollz.proto.
 	OiakCert string `protobuf:"bytes,2,opt,name=oiak_cert,json=oiakCert,proto3" json:"oiak_cert,omitempty"`
 	// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/tpm_enrollz.proto.
@@ -350,7 +349,7 @@ func (*RotateOIakCertRequest) Descriptor() ([]byte, []int) {
 }
 
 // Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/tpm_enrollz.proto.
-func (x *RotateOIakCertRequest) GetControlCardSelection() *common_definitions.ControlCardSelection {
+func (x *RotateOIakCertRequest) GetControlCardSelection() *ControlCardSelection {
 	if x != nil {
 		return x.ControlCardSelection
 	}
@@ -388,10 +387,10 @@ func (x *RotateOIakCertRequest) GetUpdates() []*ControlCardCertUpdate {
 }
 
 type ControlCardCertUpdate struct {
-	state                protoimpl.MessageState                   `protogen:"open.v1"`
-	ControlCardSelection *common_definitions.ControlCardSelection `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
-	OiakCert             string                                   `protobuf:"bytes,2,opt,name=oiak_cert,json=oiakCert,proto3" json:"oiak_cert,omitempty"`
-	OidevidCert          string                                   `protobuf:"bytes,3,opt,name=oidevid_cert,json=oidevidCert,proto3" json:"oidevid_cert,omitempty"`
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	ControlCardSelection *ControlCardSelection  `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
+	OiakCert             string                 `protobuf:"bytes,2,opt,name=oiak_cert,json=oiakCert,proto3" json:"oiak_cert,omitempty"`
+	OidevidCert          string                 `protobuf:"bytes,3,opt,name=oidevid_cert,json=oidevidCert,proto3" json:"oidevid_cert,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -426,7 +425,7 @@ func (*ControlCardCertUpdate) Descriptor() ([]byte, []int) {
 	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *ControlCardCertUpdate) GetControlCardSelection() *common_definitions.ControlCardSelection {
+func (x *ControlCardCertUpdate) GetControlCardSelection() *ControlCardSelection {
 	if x != nil {
 		return x.ControlCardSelection
 	}
@@ -490,8 +489,8 @@ type RotateAIKCertRequest struct {
 	//	*RotateAIKCertRequest_IssuerPublicKey
 	//	*RotateAIKCertRequest_IssuerCertPayload_
 	//	*RotateAIKCertRequest_Finalize
-	Value                isRotateAIKCertRequest_Value             `protobuf_oneof:"value"`
-	ControlCardSelection *common_definitions.ControlCardSelection `protobuf:"bytes,4,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
+	Value                isRotateAIKCertRequest_Value `protobuf_oneof:"value"`
+	ControlCardSelection *ControlCardSelection        `protobuf:"bytes,4,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -560,7 +559,7 @@ func (x *RotateAIKCertRequest) GetFinalize() bool {
 	return false
 }
 
-func (x *RotateAIKCertRequest) GetControlCardSelection() *common_definitions.ControlCardSelection {
+func (x *RotateAIKCertRequest) GetControlCardSelection() *ControlCardSelection {
 	if x != nil {
 		return x.ControlCardSelection
 	}
@@ -595,8 +594,8 @@ type RotateAIKCertResponse struct {
 	//
 	//	*RotateAIKCertResponse_ApplicationIdentityRequest
 	//	*RotateAIKCertResponse_AikCert
-	Value         isRotateAIKCertResponse_Value           `protobuf_oneof:"value"`
-	ControlCardId *common_definitions.ControlCardVendorId `protobuf:"bytes,3,opt,name=control_card_id,json=controlCardId,proto3" json:"control_card_id,omitempty"`
+	Value         isRotateAIKCertResponse_Value `protobuf_oneof:"value"`
+	ControlCardId *ControlCardVendorId          `protobuf:"bytes,3,opt,name=control_card_id,json=controlCardId,proto3" json:"control_card_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -656,7 +655,7 @@ func (x *RotateAIKCertResponse) GetAikCert() string {
 	return ""
 }
 
-func (x *RotateAIKCertResponse) GetControlCardId() *common_definitions.ControlCardVendorId {
+func (x *RotateAIKCertResponse) GetControlCardId() *ControlCardVendorId {
 	if x != nil {
 		return x.ControlCardId
 	}
@@ -680,8 +679,8 @@ func (*RotateAIKCertResponse_ApplicationIdentityRequest) isRotateAIKCertResponse
 func (*RotateAIKCertResponse_AikCert) isRotateAIKCertResponse_Value() {}
 
 type GetControlCardVendorIDRequest struct {
-	state                protoimpl.MessageState                   `protogen:"open.v1"`
-	ControlCardSelection *common_definitions.ControlCardSelection `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	ControlCardSelection *ControlCardSelection  `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -716,7 +715,7 @@ func (*GetControlCardVendorIDRequest) Descriptor() ([]byte, []int) {
 	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *GetControlCardVendorIDRequest) GetControlCardSelection() *common_definitions.ControlCardSelection {
+func (x *GetControlCardVendorIDRequest) GetControlCardSelection() *ControlCardSelection {
 	if x != nil {
 		return x.ControlCardSelection
 	}
@@ -724,8 +723,8 @@ func (x *GetControlCardVendorIDRequest) GetControlCardSelection() *common_defini
 }
 
 type GetControlCardVendorIDResponse struct {
-	state         protoimpl.MessageState                  `protogen:"open.v1"`
-	ControlCardId *common_definitions.ControlCardVendorId `protobuf:"bytes,1,opt,name=control_card_id,json=controlCardId,proto3" json:"control_card_id,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ControlCardId *ControlCardVendorId   `protobuf:"bytes,1,opt,name=control_card_id,json=controlCardId,proto3" json:"control_card_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -760,7 +759,7 @@ func (*GetControlCardVendorIDResponse) Descriptor() ([]byte, []int) {
 	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *GetControlCardVendorIDResponse) GetControlCardId() *common_definitions.ControlCardVendorId {
+func (x *GetControlCardVendorIDResponse) GetControlCardId() *ControlCardVendorId {
 	if x != nil {
 		return x.ControlCardId
 	}
@@ -768,10 +767,10 @@ func (x *GetControlCardVendorIDResponse) GetControlCardId() *common_definitions.
 }
 
 type GetIdevidCsrRequest struct {
-	state                protoimpl.MessageState                   `protogen:"open.v1"`
-	ControlCardSelection *common_definitions.ControlCardSelection `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
-	Key                  Key                                      `protobuf:"varint,2,opt,name=key,proto3,enum=openconfig.attestz.Key" json:"key,omitempty"`
-	KeyTemplate          KeyTemplate                              `protobuf:"varint,3,opt,name=key_template,json=keyTemplate,proto3,enum=openconfig.attestz.KeyTemplate" json:"key_template,omitempty"`
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	ControlCardSelection *ControlCardSelection  `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
+	Key                  Key                    `protobuf:"varint,2,opt,name=key,proto3,enum=openconfig.attestz.Key" json:"key,omitempty"`
+	KeyTemplate          KeyTemplate            `protobuf:"varint,3,opt,name=key_template,json=keyTemplate,proto3,enum=openconfig.attestz.KeyTemplate" json:"key_template,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -806,7 +805,7 @@ func (*GetIdevidCsrRequest) Descriptor() ([]byte, []int) {
 	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{9}
 }
 
-func (x *GetIdevidCsrRequest) GetControlCardSelection() *common_definitions.ControlCardSelection {
+func (x *GetIdevidCsrRequest) GetControlCardSelection() *ControlCardSelection {
 	if x != nil {
 		return x.ControlCardSelection
 	}
@@ -880,8 +879,8 @@ func (x *CsrResponse) GetIdevidSignatureCsr() []byte {
 }
 
 type GetIdevidCsrResponse struct {
-	state         protoimpl.MessageState                  `protogen:"open.v1"`
-	ControlCardId *common_definitions.ControlCardVendorId `protobuf:"bytes,1,opt,name=control_card_id,json=controlCardId,proto3" json:"control_card_id,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ControlCardId *ControlCardVendorId   `protobuf:"bytes,1,opt,name=control_card_id,json=controlCardId,proto3" json:"control_card_id,omitempty"`
 	// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/tpm_enrollz.proto.
 	CsrContents []byte `protobuf:"bytes,2,opt,name=csr_contents,json=csrContents,proto3" json:"csr_contents,omitempty"`
 	// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/tpm_enrollz.proto.
@@ -922,7 +921,7 @@ func (*GetIdevidCsrResponse) Descriptor() ([]byte, []int) {
 	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{11}
 }
 
-func (x *GetIdevidCsrResponse) GetControlCardId() *common_definitions.ControlCardVendorId {
+func (x *GetIdevidCsrResponse) GetControlCardId() *ControlCardVendorId {
 	if x != nil {
 		return x.ControlCardId
 	}
@@ -1020,8 +1019,8 @@ func (x *HMACChallenge) GetInSymSeed() []byte {
 }
 
 type ChallengeRequest struct {
-	state                protoimpl.MessageState                   `protogen:"open.v1"`
-	ControlCardSelection *common_definitions.ControlCardSelection `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	ControlCardSelection *ControlCardSelection  `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
 	// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/tpm_enrollz.proto.
 	EncryptedNonce []byte         `protobuf:"bytes,2,opt,name=encrypted_nonce,json=encryptedNonce,proto3" json:"encrypted_nonce,omitempty"`
 	Key            Key            `protobuf:"varint,3,opt,name=key,proto3,enum=openconfig.attestz.Key" json:"key,omitempty"`
@@ -1060,7 +1059,7 @@ func (*ChallengeRequest) Descriptor() ([]byte, []int) {
 	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{13}
 }
 
-func (x *ChallengeRequest) GetControlCardSelection() *common_definitions.ControlCardSelection {
+func (x *ChallengeRequest) GetControlCardSelection() *ControlCardSelection {
 	if x != nil {
 		return x.ControlCardSelection
 	}
@@ -1259,7 +1258,7 @@ var File_github_com_openconfig_attestz_proto_tpm_enrollz_proto protoreflect.File
 
 const file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDesc = "" +
 	"\n" +
-	"5github.com/openconfig/attestz/proto/tpm_enrollz.proto\x12\x12openconfig.attestz\x1a<github.com/openconfig/attestz/proto/common_definitions.proto\"\xeb\x01\n" +
+	"5github.com/openconfig/attestz/proto/tpm_enrollz.proto\x12\x12openconfig.attestz\x1a<github.com/openconfig/attestz/proto/proto\"\xeb\x01\n" +
 	"\x11GetIakCertRequest\x12^\n" +
 	"\x16control_card_selection\x18\x01 \x01(\v2(.openconfig.attestz.ControlCardSelectionR\x14controlCardSelection\x12\x19\n" +
 	"\x05nonce\x18\x02 \x01(\fH\x00R\x05nonce\x88\x01\x01\x12C\n" +
@@ -1371,29 +1370,29 @@ func file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP() []
 var file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
 var file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_goTypes = []any{
-	(Key)(0),                                        // 0: openconfig.attestz.Key
-	(KeyTemplate)(0),                                // 1: openconfig.attestz.KeyTemplate
-	(Status)(0),                                     // 2: openconfig.attestz.Status
-	(*GetIakCertRequest)(nil),                       // 3: openconfig.attestz.GetIakCertRequest
-	(*GetIakCertResponse)(nil),                      // 4: openconfig.attestz.GetIakCertResponse
-	(*RotateOIakCertRequest)(nil),                   // 5: openconfig.attestz.RotateOIakCertRequest
-	(*ControlCardCertUpdate)(nil),                   // 6: openconfig.attestz.ControlCardCertUpdate
-	(*RotateOIakCertResponse)(nil),                  // 7: openconfig.attestz.RotateOIakCertResponse
-	(*RotateAIKCertRequest)(nil),                    // 8: openconfig.attestz.RotateAIKCertRequest
-	(*RotateAIKCertResponse)(nil),                   // 9: openconfig.attestz.RotateAIKCertResponse
-	(*GetControlCardVendorIDRequest)(nil),           // 10: openconfig.attestz.GetControlCardVendorIDRequest
-	(*GetControlCardVendorIDResponse)(nil),          // 11: openconfig.attestz.GetControlCardVendorIDResponse
-	(*GetIdevidCsrRequest)(nil),                     // 12: openconfig.attestz.GetIdevidCsrRequest
-	(*CsrResponse)(nil),                             // 13: openconfig.attestz.CsrResponse
-	(*GetIdevidCsrResponse)(nil),                    // 14: openconfig.attestz.GetIdevidCsrResponse
-	(*HMACChallenge)(nil),                           // 15: openconfig.attestz.HMACChallenge
-	(*ChallengeRequest)(nil),                        // 16: openconfig.attestz.ChallengeRequest
-	(*HMACChallengeResponse)(nil),                   // 17: openconfig.attestz.HMACChallengeResponse
-	(*ChallengeResponse)(nil),                       // 18: openconfig.attestz.ChallengeResponse
-	(*RotateAIKCertRequest_IssuerCertPayload)(nil),  // 19: openconfig.attestz.RotateAIKCertRequest.IssuerCertPayload
-	(*common_definitions.ControlCardSelection)(nil), // 20: openconfig.attestz.ControlCardSelection
-	(common_definitions.Tpm20HashAlgo)(0),           // 21: openconfig.attestz.Tpm20HashAlgo
-	(*common_definitions.ControlCardVendorId)(nil),  // 22: openconfig.attestz.ControlCardVendorId
+	(Key)(0),                                       // 0: openconfig.attestz.Key
+	(KeyTemplate)(0),                               // 1: openconfig.attestz.KeyTemplate
+	(Status)(0),                                    // 2: openconfig.attestz.Status
+	(*GetIakCertRequest)(nil),                      // 3: openconfig.attestz.GetIakCertRequest
+	(*GetIakCertResponse)(nil),                     // 4: openconfig.attestz.GetIakCertResponse
+	(*RotateOIakCertRequest)(nil),                  // 5: openconfig.attestz.RotateOIakCertRequest
+	(*ControlCardCertUpdate)(nil),                  // 6: openconfig.attestz.ControlCardCertUpdate
+	(*RotateOIakCertResponse)(nil),                 // 7: openconfig.attestz.RotateOIakCertResponse
+	(*RotateAIKCertRequest)(nil),                   // 8: openconfig.attestz.RotateAIKCertRequest
+	(*RotateAIKCertResponse)(nil),                  // 9: openconfig.attestz.RotateAIKCertResponse
+	(*GetControlCardVendorIDRequest)(nil),          // 10: openconfig.attestz.GetControlCardVendorIDRequest
+	(*GetControlCardVendorIDResponse)(nil),         // 11: openconfig.attestz.GetControlCardVendorIDResponse
+	(*GetIdevidCsrRequest)(nil),                    // 12: openconfig.attestz.GetIdevidCsrRequest
+	(*CsrResponse)(nil),                            // 13: openconfig.attestz.CsrResponse
+	(*GetIdevidCsrResponse)(nil),                   // 14: openconfig.attestz.GetIdevidCsrResponse
+	(*HMACChallenge)(nil),                          // 15: openconfig.attestz.HMACChallenge
+	(*ChallengeRequest)(nil),                       // 16: openconfig.attestz.ChallengeRequest
+	(*HMACChallengeResponse)(nil),                  // 17: openconfig.attestz.HMACChallengeResponse
+	(*ChallengeResponse)(nil),                      // 18: openconfig.attestz.ChallengeResponse
+	(*RotateAIKCertRequest_IssuerCertPayload)(nil), // 19: openconfig.attestz.RotateAIKCertRequest.IssuerCertPayload
+	(*ControlCardSelection)(nil),                   // 20: openconfig.attestz.ControlCardSelection
+	(Tpm20HashAlgo)(0),                             // 21: openconfig.attestz.Tpm20HashAlgo
+	(*ControlCardVendorId)(nil),                    // 22: openconfig.attestz.ControlCardVendorId
 }
 var file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_depIdxs = []int32{
 	20, // 0: openconfig.attestz.GetIakCertRequest.control_card_selection:type_name -> openconfig.attestz.ControlCardSelection

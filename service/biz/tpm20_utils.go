@@ -33,7 +33,7 @@ import (
 	log "github.com/golang/glog"
 	tpm20 "github.com/google/go-tpm/tpm2"
 
-	epb "github.com/openconfig/attestz/proto/tpm_enrollz"
+	apb "github.com/openconfig/attestz/proto"
 )
 
 var (
@@ -99,7 +99,7 @@ type TPM20Utils interface {
 	VerifyCertifyInfo(certifyInfoAttest *tpm20.TPMSAttest, certifiedKey *tpm20.TPMTPublic) error
 	VerifyIAKAttributes(iakPub []byte) (*tpm20.TPMTPublic, error)
 	VerifyTPMTSignature(data []byte, signature *tpm20.TPMTSignature, pubKey *tpm20.TPMTPublic) error
-	VerifyIdevidAttributes(idevidPub *tpm20.TPMTPublic, keyTemplate epb.KeyTemplate) error
+	VerifyIdevidAttributes(idevidPub *tpm20.TPMTPublic, keyTemplate apb.KeyTemplate) error
 }
 
 // DefaultTPM20Utils is a concrete implementation of the TPM20Utils interface.
@@ -635,7 +635,7 @@ func verifyECDSA(data []byte, sig *tpm20.TPMSSignatureECC, pubKey *tpm20.TPMTPub
 }
 
 // VerifyIdevidAttributes verifies the IDevID attributes and make sure they match the template provided.
-func (u *DefaultTPM20Utils) VerifyIdevidAttributes(idevidPub *tpm20.TPMTPublic, keyTemplate epb.KeyTemplate) error {
+func (u *DefaultTPM20Utils) VerifyIdevidAttributes(idevidPub *tpm20.TPMTPublic, keyTemplate apb.KeyTemplate) error {
 	if idevidPub == nil {
 		return fmt.Errorf("%w: IDevID pub cannot be nil", ErrInputNil)
 	}
@@ -657,7 +657,7 @@ func (u *DefaultTPM20Utils) VerifyIdevidAttributes(idevidPub *tpm20.TPMTPublic, 
 	switch keyTemplate {
 	// This template follows the "ECC NIST P384 Key Template" as specified in
 	// https://trustedcomputinggroup.org/wp-content/uploads/TPM-2.0-Keys-for-Device-Identity-and-Attestation-v1.10r9_pub.pdf#page=46
-	case epb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384:
+	case apb.KeyTemplate_KEY_TEMPLATE_ECC_NIST_P384:
 		if idevidPub.Type != tpm20.TPMAlgECC {
 			return fmt.Errorf("%w: unexpected idevidPub.Type got %v, want %v", ErrInvalidPubKeyAttributes, idevidPub.Type, tpm20.TPMAlgECC)
 		}
