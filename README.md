@@ -214,8 +214,8 @@ This applies specifically to PCRs that are consistent across a given product mod
 
 To implement this workflow effectively, the following operational aspects are considered:
 
-- **PCR Acquisition Method**: Expected PCR values are primarily provided by the device vendor. The ideal and expected method is for these values to be delivered via a secure mechanism, such as an API endpoint or by being included within the firmware/software image bundle using the structured, cryptographically signed format defined by OpenConfig.
-- **Timing**: The expected reference values are ideally obtained _before the devices are shipped to the switch owner_. They are typically acquired or updated whenever a new software/firmware image version is qualified.
+- **Reference Value Acquisition Method**: Expected PCR values are primarily provided by the device vendor. The ideal and expected method is for these values to be delivered via a secure mechanism, such as an API endpoint or by being included within the firmware/software image bundle using the structured, cryptographically signed format defined by OpenConfig.
+- **Timing**: They are typically acquired or updated whenever a new software/firmware image version is qualified.
 - **Staging Phase**: Once acquired, the expected reference values are ingested and stored in a dedicated internal database. This system acts as the central source of truth for expected device security measurements (TPM PCR values) during the verification process.
 
 #### TPM 2.0 Attestation Workflow Steps
