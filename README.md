@@ -20,7 +20,7 @@ of logic.
       - [1. EnrollZ service serves TPM enrollment API endpoints](#1-enrollz-service-serves-tpm-enrollment-api-endpoints)
       - [2. Use IAK cert (as is) signed by the switch vendor CA](#2-use-iak-cert-as-is-signed-by-the-switch-vendor-ca)
       - [3. Switch owner uses EK (or EK cert) to issue LAK cert](#3-switch-owner-uses-ek-or-ek-cert-to-issue-lak-cert)
-      - [4. Switch owner issues LAK cert based on IAK cert](#4-switch-owner-issues-lak-cert-based-on-iak-cert-signed-by-switch-vendor-ca)
+      - [4. Switch owner issues LAK cert based on IAK cert](#4-switch-owner-issues-lak-cert-based-on-iak-cert)
   - [TPM 2.0 Attestation for Switch Owners](#tpm-20-attestation-for-switch-owners)
     - [General Guidelines on What to Attest](#general-guidelines-on-what-to-attest)
     - [Conceptual Flow for *Offline* PCR Precomputation](#conceptual-flow-for-offline-pcr-precomputation)
