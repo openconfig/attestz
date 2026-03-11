@@ -33,7 +33,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/testing/protocmp"
 
-	apb "github.com/openconfig/attestz/proto"
+	apb "github.com/openconfig/attestz/proto/attestz"
 )
 
 //go:embed hmac_challenge_test_data

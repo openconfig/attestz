@@ -21,7 +21,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	tpm20 "github.com/google/go-tpm/tpm2"
-	apb "github.com/openconfig/attestz/proto"
+	apb "github.com/openconfig/attestz/proto/attestz"
 )
 
 var (

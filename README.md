@@ -373,7 +373,7 @@ All proto-generated code is consolidated into a single package for easy access:
 
 ```go
 import (
-    apb "github.com/openconfig/attestz/proto"
+    apb "github.com/openconfig/attestz/proto/attestz"
 )
 
 func main() {
@@ -391,7 +391,7 @@ The `service/biz` package contains infrastructure-agnostic business logic that y
 ```go
 import (
     "github.com/openconfig/attestz/service/biz"
-    apb "github.com/openconfig/attestz/proto"
+    apb "github.com/openconfig/attestz/proto/attestz"
 )
 
 func MyEnrollHandler(ctx context.Context, req *apb.EnrollControlCardReq) error {
@@ -443,7 +443,7 @@ go_library(
     name = "my_lib",
     srcs = ["my_lib.go"],
     deps = [
-        "@openconfig_attestz//proto:attestz_go_proto",
+        "@openconfig_attestz//proto/attestz:attestz_go_proto",
         "@openconfig_attestz//service/biz",
     ],
 )

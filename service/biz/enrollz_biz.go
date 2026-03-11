@@ -33,7 +33,7 @@ import (
 	tpm12 "github.com/google/go-tpm/tpm"
 	tpm20 "github.com/google/go-tpm/tpm2"
 
-	apb "github.com/openconfig/attestz/proto"
+	apb "github.com/openconfig/attestz/proto/attestz"
 
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/prototext"

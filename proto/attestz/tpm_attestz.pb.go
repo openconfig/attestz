@@ -18,7 +18,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v3.21.12
-// source: github.com/openconfig/attestz/proto/tpm_attestz.proto
+// source: github.com/openconfig/attestz/proto/attestz/tpm_attestz.proto
 
 package attestz
 
@@ -54,7 +54,7 @@ type AttestRequest struct {
 
 func (x *AttestRequest) Reset() {
 	*x = AttestRequest{}
-	mi := &file_github_com_openconfig_attestz_proto_tpm_attestz_proto_msgTypes[0]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -66,7 +66,7 @@ func (x *AttestRequest) String() string {
 func (*AttestRequest) ProtoMessage() {}
 
 func (x *AttestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_openconfig_attestz_proto_tpm_attestz_proto_msgTypes[0]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -79,7 +79,7 @@ func (x *AttestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AttestRequest.ProtoReflect.Descriptor instead.
 func (*AttestRequest) Descriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_tpm_attestz_proto_rawDescGZIP(), []int{0}
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *AttestRequest) GetControlCardSelection() *ControlCardSelection {
@@ -121,7 +121,7 @@ type AttestResponse struct {
 	// cert string can have more than one certificate block representing a
 	// certificate chain.
 	//
-	// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/tpm_attestz.proto.
+	// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/attestz/tpm_attestz.proto.
 	OiakCert string `protobuf:"bytes,2,opt,name=oiak_cert,json=oiakCert,proto3" json:"oiak_cert,omitempty"`
 	// Final observed unsigned PCR values {pcr_index -> pcr_value}.
 	// PCR bytes are formatted in accordance with section 10.3 of
@@ -162,7 +162,7 @@ type AttestResponse struct {
 
 func (x *AttestResponse) Reset() {
 	*x = AttestResponse{}
-	mi := &file_github_com_openconfig_attestz_proto_tpm_attestz_proto_msgTypes[1]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -174,7 +174,7 @@ func (x *AttestResponse) String() string {
 func (*AttestResponse) ProtoMessage() {}
 
 func (x *AttestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_openconfig_attestz_proto_tpm_attestz_proto_msgTypes[1]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -187,7 +187,7 @@ func (x *AttestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AttestResponse.ProtoReflect.Descriptor instead.
 func (*AttestResponse) Descriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_tpm_attestz_proto_rawDescGZIP(), []int{1}
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *AttestResponse) GetControlCardId() *ControlCardVendorId {
@@ -197,7 +197,7 @@ func (x *AttestResponse) GetControlCardId() *ControlCardVendorId {
 	return nil
 }
 
-// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/tpm_attestz.proto.
+// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/attestz/tpm_attestz.proto.
 func (x *AttestResponse) GetOiakCert() string {
 	if x != nil {
 		return x.OiakCert
@@ -253,7 +253,7 @@ type AttestResponse_AttestationCert struct {
 
 func (x *AttestResponse_AttestationCert) Reset() {
 	*x = AttestResponse_AttestationCert{}
-	mi := &file_github_com_openconfig_attestz_proto_tpm_attestz_proto_msgTypes[2]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -265,7 +265,7 @@ func (x *AttestResponse_AttestationCert) String() string {
 func (*AttestResponse_AttestationCert) ProtoMessage() {}
 
 func (x *AttestResponse_AttestationCert) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_openconfig_attestz_proto_tpm_attestz_proto_msgTypes[2]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -278,7 +278,7 @@ func (x *AttestResponse_AttestationCert) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AttestResponse_AttestationCert.ProtoReflect.Descriptor instead.
 func (*AttestResponse_AttestationCert) Descriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_tpm_attestz_proto_rawDescGZIP(), []int{1, 0}
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_rawDescGZIP(), []int{1, 0}
 }
 
 func (x *AttestResponse_AttestationCert) GetValue() isAttestResponse_AttestationCert_Value {
@@ -322,11 +322,11 @@ func (*AttestResponse_AttestationCert_AikCert) isAttestResponse_AttestationCert_
 
 func (*AttestResponse_AttestationCert_OiakCert) isAttestResponse_AttestationCert_Value() {}
 
-var File_github_com_openconfig_attestz_proto_tpm_attestz_proto protoreflect.FileDescriptor
+var File_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto protoreflect.FileDescriptor
 
-const file_github_com_openconfig_attestz_proto_tpm_attestz_proto_rawDesc = "" +
+const file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_rawDesc = "" +
 	"\n" +
-	"5github.com/openconfig/attestz/proto/tpm_attestz.proto\x12\x12openconfig.attestz\x1a<github.com/openconfig/attestz/proto/common_definitions.proto\"\xe6\x01\n" +
+	"=github.com/openconfig/attestz/proto/attestz/tpm_attestz.proto\x12\x12openconfig.attestz\x1aDgithub.com/openconfig/attestz/proto/attestz/common_definitions.proto\"\xe6\x01\n" +
 	"\rAttestRequest\x12^\n" +
 	"\x16control_card_selection\x18\x01 \x01(\v2(.openconfig.attestz.ControlCardSelectionR\x14controlCardSelection\x12\x14\n" +
 	"\x05nonce\x18\x02 \x01(\fR\x05nonce\x12>\n" +
@@ -350,22 +350,22 @@ const file_github_com_openconfig_attestz_proto_tpm_attestz_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\x05R\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\fR\x05value:\x028\x012d\n" +
 	"\x11TpmAttestzService\x12O\n" +
-	"\x06Attest\x12!.openconfig.attestz.AttestRequest\x1a\".openconfig.attestz.AttestResponseB-Z+github.com/openconfig/attestz/proto;attestzb\x06proto3"
+	"\x06Attest\x12!.openconfig.attestz.AttestRequest\x1a\".openconfig.attestz.AttestResponseB5Z3github.com/openconfig/attestz/proto/attestz;attestzb\x06proto3"
 
 var (
-	file_github_com_openconfig_attestz_proto_tpm_attestz_proto_rawDescOnce sync.Once
-	file_github_com_openconfig_attestz_proto_tpm_attestz_proto_rawDescData []byte
+	file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_rawDescOnce sync.Once
+	file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_rawDescData []byte
 )
 
-func file_github_com_openconfig_attestz_proto_tpm_attestz_proto_rawDescGZIP() []byte {
-	file_github_com_openconfig_attestz_proto_tpm_attestz_proto_rawDescOnce.Do(func() {
-		file_github_com_openconfig_attestz_proto_tpm_attestz_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_github_com_openconfig_attestz_proto_tpm_attestz_proto_rawDesc), len(file_github_com_openconfig_attestz_proto_tpm_attestz_proto_rawDesc)))
+func file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_rawDescGZIP() []byte {
+	file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_rawDescOnce.Do(func() {
+		file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_rawDesc), len(file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_rawDesc)))
 	})
-	return file_github_com_openconfig_attestz_proto_tpm_attestz_proto_rawDescData
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_rawDescData
 }
 
-var file_github_com_openconfig_attestz_proto_tpm_attestz_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
-var file_github_com_openconfig_attestz_proto_tpm_attestz_proto_goTypes = []any{
+var file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_goTypes = []any{
 	(*AttestRequest)(nil),                  // 0: openconfig.attestz.AttestRequest
 	(*AttestResponse)(nil),                 // 1: openconfig.attestz.AttestResponse
 	(*AttestResponse_AttestationCert)(nil), // 2: openconfig.attestz.AttestResponse.AttestationCert
@@ -374,7 +374,7 @@ var file_github_com_openconfig_attestz_proto_tpm_attestz_proto_goTypes = []any{
 	(Tpm20HashAlgo)(0),                     // 5: openconfig.attestz.Tpm20HashAlgo
 	(*ControlCardVendorId)(nil),            // 6: openconfig.attestz.ControlCardVendorId
 }
-var file_github_com_openconfig_attestz_proto_tpm_attestz_proto_depIdxs = []int32{
+var file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_depIdxs = []int32{
 	4, // 0: openconfig.attestz.AttestRequest.control_card_selection:type_name -> openconfig.attestz.ControlCardSelection
 	5, // 1: openconfig.attestz.AttestRequest.hash_algo:type_name -> openconfig.attestz.Tpm20HashAlgo
 	6, // 2: openconfig.attestz.AttestResponse.control_card_id:type_name -> openconfig.attestz.ControlCardVendorId
@@ -389,13 +389,13 @@ var file_github_com_openconfig_attestz_proto_tpm_attestz_proto_depIdxs = []int32
 	0, // [0:5] is the sub-list for field type_name
 }
 
-func init() { file_github_com_openconfig_attestz_proto_tpm_attestz_proto_init() }
-func file_github_com_openconfig_attestz_proto_tpm_attestz_proto_init() {
-	if File_github_com_openconfig_attestz_proto_tpm_attestz_proto != nil {
+func init() { file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_init() }
+func file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_init() {
+	if File_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto != nil {
 		return
 	}
-	file_github_com_openconfig_attestz_proto_common_definitions_proto_init()
-	file_github_com_openconfig_attestz_proto_tpm_attestz_proto_msgTypes[2].OneofWrappers = []any{
+	file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_init()
+	file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_msgTypes[2].OneofWrappers = []any{
 		(*AttestResponse_AttestationCert_AikCert)(nil),
 		(*AttestResponse_AttestationCert_OiakCert)(nil),
 	}
@@ -403,17 +403,17 @@ func file_github_com_openconfig_attestz_proto_tpm_attestz_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_github_com_openconfig_attestz_proto_tpm_attestz_proto_rawDesc), len(file_github_com_openconfig_attestz_proto_tpm_attestz_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_rawDesc), len(file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_github_com_openconfig_attestz_proto_tpm_attestz_proto_goTypes,
-		DependencyIndexes: file_github_com_openconfig_attestz_proto_tpm_attestz_proto_depIdxs,
-		MessageInfos:      file_github_com_openconfig_attestz_proto_tpm_attestz_proto_msgTypes,
+		GoTypes:           file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_goTypes,
+		DependencyIndexes: file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_depIdxs,
+		MessageInfos:      file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_msgTypes,
 	}.Build()
-	File_github_com_openconfig_attestz_proto_tpm_attestz_proto = out.File
-	file_github_com_openconfig_attestz_proto_tpm_attestz_proto_goTypes = nil
-	file_github_com_openconfig_attestz_proto_tpm_attestz_proto_depIdxs = nil
+	File_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto = out.File
+	file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_goTypes = nil
+	file_github_com_openconfig_attestz_proto_attestz_tpm_attestz_proto_depIdxs = nil
 }

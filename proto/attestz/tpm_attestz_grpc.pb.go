@@ -18,7 +18,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.1
 // - protoc             v3.21.12
-// source: github.com/openconfig/attestz/proto/tpm_attestz.proto
+// source: github.com/openconfig/attestz/proto/attestz/tpm_attestz.proto
 
 package attestz
 
@@ -155,5 +155,5 @@ var TpmAttestzService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "github.com/openconfig/attestz/proto/tpm_attestz.proto",
+	Metadata: "github.com/openconfig/attestz/proto/attestz/tpm_attestz.proto",
 }

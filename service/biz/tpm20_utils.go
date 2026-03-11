@@ -33,7 +33,7 @@ import (
 	log "github.com/golang/glog"
 	tpm20 "github.com/google/go-tpm/tpm2"
 
-	apb "github.com/openconfig/attestz/proto"
+	apb "github.com/openconfig/attestz/proto/attestz"
 )
 
 var (

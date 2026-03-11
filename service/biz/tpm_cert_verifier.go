@@ -28,7 +28,7 @@ import (
 	"strings"
 
 	log "github.com/golang/glog"
-	apb "github.com/openconfig/attestz/proto"
+	apb "github.com/openconfig/attestz/proto/attestz"
 )
 
 // VerifyIakAndIDevIDCertsReq is the request to VerifyIakAndIDevIDCerts().
