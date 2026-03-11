@@ -2,7 +2,6 @@
 set -euo pipefail
 
 BASE=$(bazel info bazel-genfiles)
-ATTESTZ_NS='github.com/openconfig/attestz'
 
 # Bazel go_rules will create empty files containing "// +build ignore\n\npackage ignore"
 # in the case where the protoc compiler doesn't generate any output. See:
