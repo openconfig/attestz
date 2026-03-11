@@ -17,7 +17,7 @@ TPM attestation workflow ensures the integrity of networking devices throughout 
       - [4. Switch owner issues LAK cert based on IAK cert signed by switch vendor CA](#4-switch-owner-issues-lak-cert-based-on-iak-cert-signed-by-switch-vendor-ca)
   - [TPM 2.0 Attestation for Switch Owners](#tpm-20-attestation-for-switch-owners)
     - [General Guidelines on What to Attest](#general-guidelines-on-what-to-attest)
-    - [Conceptual Flow for _Offline_ PCR Precomputation](#conceptual-flow-for-offline-pcr-precomputation)
+    - [Conceptual Flow for _Offline_ PCR Value Precomputation](#conceptual-flow-for-offline-pcr-value-precomputation)
     - [TPM 2.0 Attestation Workflow Steps](#tpm-20-attestation-workflow-steps)
     - [TPM 2.0 Attestation Workflow Diagram](#tpm-20-attestation-workflow-diagram)
     - [TPM 2.0 Attestation Alternatives Considered](#tpm-20-attestation-alternatives-considered)
