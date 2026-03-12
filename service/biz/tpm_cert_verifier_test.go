@@ -206,13 +206,14 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 	unknownCaCert := generateCaCert(t)
 
 	cardSerial := "ABCD1234"
+	chassisSerial := "Some chassis serial"
 	cardID := &cpb.ControlCardVendorId{
 		ControlCardRole:     cpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE,
 		ControlCardSerial:   cardSerial,
 		ControlCardSlot:     "Some card slot",
 		ChassisManufacturer: "Some manufacturer",
 		ChassisPartNumber:   "Some part",
-		ChassisSerialNumber: "Some chassis serial",
+		ChassisSerialNumber: chassisSerial,
 	}
 	certSerial := "PID:ZZ-Y-XX SN:ABCD1234"
 	certSerial2 := "ABCD1234"
@@ -264,6 +265,19 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 			iakCertNotAfter:         time.Now().AddDate(0, 1, 0),
 			iDevIDCertAsymAlgo:      rsa2048Algo,
 			iDevIDCertSubjectSerial: certSerial2,
+			iDevIDCertNotBefore:     time.Now(),
+			iDevIDCertNotAfter:      time.Now().AddDate(0, 0, 10),
+		},
+		{
+			desc:                    "Success: Chassis Serial Matches but not Control Card",
+			wantError:               false,
+			cardID:                  cardID,
+			iakCertAsymAlgo:         eccP521Algo,
+			iakCertSubjectSerial:    chassisSerial,
+			iakCertNotBefore:        time.Now(),
+			iakCertNotAfter:         time.Now().AddDate(0, 1, 0),
+			iDevIDCertAsymAlgo:      rsa4096Algo,
+			iDevIDCertSubjectSerial: chassisSerial,
 			iDevIDCertNotBefore:     time.Now(),
 			iDevIDCertNotAfter:      time.Now().AddDate(0, 0, 10),
 		},
