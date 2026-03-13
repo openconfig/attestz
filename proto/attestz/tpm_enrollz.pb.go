@@ -2,12 +2,11 @@
 // versions:
 // 	protoc-gen-go v1.36.9
 // 	protoc        v6.32.1
-// source: github.com/openconfig/attestz/proto/tpm_enrollz.proto
+// source: github.com/openconfig/attestz/proto/attestz/tpm_enrollz.proto
 
 package attestz
 
 import (
-	common_definitions "github.com/openconfig/attestz/proto/common_definitions"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -55,11 +54,11 @@ func (x Key) String() string {
 }
 
 func (Key) Descriptor() protoreflect.EnumDescriptor {
-	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_enumTypes[0].Descriptor()
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_enumTypes[0].Descriptor()
 }
 
 func (Key) Type() protoreflect.EnumType {
-	return &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_enumTypes[0]
+	return &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_enumTypes[0]
 }
 
 func (x Key) Number() protoreflect.EnumNumber {
@@ -68,7 +67,7 @@ func (x Key) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Key.Descriptor instead.
 func (Key) EnumDescriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{0}
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDescGZIP(), []int{0}
 }
 
 type KeyTemplate int32
@@ -101,11 +100,11 @@ func (x KeyTemplate) String() string {
 }
 
 func (KeyTemplate) Descriptor() protoreflect.EnumDescriptor {
-	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_enumTypes[1].Descriptor()
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_enumTypes[1].Descriptor()
 }
 
 func (KeyTemplate) Type() protoreflect.EnumType {
-	return &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_enumTypes[1]
+	return &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_enumTypes[1]
 }
 
 func (x KeyTemplate) Number() protoreflect.EnumNumber {
@@ -114,7 +113,7 @@ func (x KeyTemplate) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use KeyTemplate.Descriptor instead.
 func (KeyTemplate) EnumDescriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{1}
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDescGZIP(), []int{1}
 }
 
 type Status int32
@@ -153,11 +152,11 @@ func (x Status) String() string {
 }
 
 func (Status) Descriptor() protoreflect.EnumDescriptor {
-	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_enumTypes[2].Descriptor()
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_enumTypes[2].Descriptor()
 }
 
 func (Status) Type() protoreflect.EnumType {
-	return &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_enumTypes[2]
+	return &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_enumTypes[2]
 }
 
 func (x Status) Number() protoreflect.EnumNumber {
@@ -166,21 +165,21 @@ func (x Status) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Status.Descriptor instead.
 func (Status) EnumDescriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{2}
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDescGZIP(), []int{2}
 }
 
 type GetIakCertRequest struct {
-	state                protoimpl.MessageState                   `protogen:"open.v1"`
-	ControlCardSelection *common_definitions.ControlCardSelection `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
-	Nonce                []byte                                   `protobuf:"bytes,2,opt,name=nonce,proto3,oneof" json:"nonce,omitempty"`
-	HashAlgo             *common_definitions.Tpm20HashAlgo        `protobuf:"varint,3,opt,name=hash_algo,json=hashAlgo,proto3,enum=openconfig.attestz.Tpm20HashAlgo,oneof" json:"hash_algo,omitempty"`
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	ControlCardSelection *ControlCardSelection  `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
+	Nonce                []byte                 `protobuf:"bytes,2,opt,name=nonce,proto3,oneof" json:"nonce,omitempty"`
+	HashAlgo             *Tpm20HashAlgo         `protobuf:"varint,3,opt,name=hash_algo,json=hashAlgo,proto3,enum=openconfig.attestz.Tpm20HashAlgo,oneof" json:"hash_algo,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
 
 func (x *GetIakCertRequest) Reset() {
 	*x = GetIakCertRequest{}
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[0]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -192,7 +191,7 @@ func (x *GetIakCertRequest) String() string {
 func (*GetIakCertRequest) ProtoMessage() {}
 
 func (x *GetIakCertRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[0]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -205,10 +204,10 @@ func (x *GetIakCertRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetIakCertRequest.ProtoReflect.Descriptor instead.
 func (*GetIakCertRequest) Descriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{0}
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *GetIakCertRequest) GetControlCardSelection() *common_definitions.ControlCardSelection {
+func (x *GetIakCertRequest) GetControlCardSelection() *ControlCardSelection {
 	if x != nil {
 		return x.ControlCardSelection
 	}
@@ -222,27 +221,27 @@ func (x *GetIakCertRequest) GetNonce() []byte {
 	return nil
 }
 
-func (x *GetIakCertRequest) GetHashAlgo() common_definitions.Tpm20HashAlgo {
+func (x *GetIakCertRequest) GetHashAlgo() Tpm20HashAlgo {
 	if x != nil && x.HashAlgo != nil {
 		return *x.HashAlgo
 	}
-	return common_definitions.Tpm20HashAlgo(0)
+	return Tpm20HashAlgo_TPM_2_0_HASH_ALGO_UNSPECIFIED
 }
 
 type GetIakCertResponse struct {
-	state                       protoimpl.MessageState                  `protogen:"open.v1"`
-	ControlCardId               *common_definitions.ControlCardVendorId `protobuf:"bytes,1,opt,name=control_card_id,json=controlCardId,proto3" json:"control_card_id,omitempty"`
-	IakCert                     string                                  `protobuf:"bytes,2,opt,name=iak_cert,json=iakCert,proto3" json:"iak_cert,omitempty"`
-	IdevidCert                  string                                  `protobuf:"bytes,3,opt,name=idevid_cert,json=idevidCert,proto3" json:"idevid_cert,omitempty"`
-	NonceSignature              []byte                                  `protobuf:"bytes,4,opt,name=nonce_signature,json=nonceSignature,proto3,oneof" json:"nonce_signature,omitempty"`
-	AtomicCertRotationSupported bool                                    `protobuf:"varint,5,opt,name=atomic_cert_rotation_supported,json=atomicCertRotationSupported,proto3" json:"atomic_cert_rotation_supported,omitempty"`
+	state                       protoimpl.MessageState `protogen:"open.v1"`
+	ControlCardId               *ControlCardVendorId   `protobuf:"bytes,1,opt,name=control_card_id,json=controlCardId,proto3" json:"control_card_id,omitempty"`
+	IakCert                     string                 `protobuf:"bytes,2,opt,name=iak_cert,json=iakCert,proto3" json:"iak_cert,omitempty"`
+	IdevidCert                  string                 `protobuf:"bytes,3,opt,name=idevid_cert,json=idevidCert,proto3" json:"idevid_cert,omitempty"`
+	NonceSignature              []byte                 `protobuf:"bytes,4,opt,name=nonce_signature,json=nonceSignature,proto3,oneof" json:"nonce_signature,omitempty"`
+	AtomicCertRotationSupported bool                   `protobuf:"varint,5,opt,name=atomic_cert_rotation_supported,json=atomicCertRotationSupported,proto3" json:"atomic_cert_rotation_supported,omitempty"`
 	unknownFields               protoimpl.UnknownFields
 	sizeCache                   protoimpl.SizeCache
 }
 
 func (x *GetIakCertResponse) Reset() {
 	*x = GetIakCertResponse{}
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[1]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -254,7 +253,7 @@ func (x *GetIakCertResponse) String() string {
 func (*GetIakCertResponse) ProtoMessage() {}
 
 func (x *GetIakCertResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[1]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -267,10 +266,10 @@ func (x *GetIakCertResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetIakCertResponse.ProtoReflect.Descriptor instead.
 func (*GetIakCertResponse) Descriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{1}
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *GetIakCertResponse) GetControlCardId() *common_definitions.ControlCardVendorId {
+func (x *GetIakCertResponse) GetControlCardId() *ControlCardVendorId {
 	if x != nil {
 		return x.ControlCardId
 	}
@@ -307,11 +306,11 @@ func (x *GetIakCertResponse) GetAtomicCertRotationSupported() bool {
 
 type RotateOIakCertRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/tpm_enrollz.proto.
-	ControlCardSelection *common_definitions.ControlCardSelection `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
-	// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/tpm_enrollz.proto.
+	// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/attestz/tpm_enrollz.proto.
+	ControlCardSelection *ControlCardSelection `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
+	// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/attestz/tpm_enrollz.proto.
 	OiakCert string `protobuf:"bytes,2,opt,name=oiak_cert,json=oiakCert,proto3" json:"oiak_cert,omitempty"`
-	// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/tpm_enrollz.proto.
+	// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/attestz/tpm_enrollz.proto.
 	OidevidCert   string                   `protobuf:"bytes,3,opt,name=oidevid_cert,json=oidevidCert,proto3" json:"oidevid_cert,omitempty"`
 	SslProfileId  string                   `protobuf:"bytes,4,opt,name=ssl_profile_id,json=sslProfileId,proto3" json:"ssl_profile_id,omitempty"`
 	Updates       []*ControlCardCertUpdate `protobuf:"bytes,5,rep,name=updates,proto3" json:"updates,omitempty"`
@@ -321,7 +320,7 @@ type RotateOIakCertRequest struct {
 
 func (x *RotateOIakCertRequest) Reset() {
 	*x = RotateOIakCertRequest{}
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[2]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -333,7 +332,7 @@ func (x *RotateOIakCertRequest) String() string {
 func (*RotateOIakCertRequest) ProtoMessage() {}
 
 func (x *RotateOIakCertRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[2]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -346,18 +345,18 @@ func (x *RotateOIakCertRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RotateOIakCertRequest.ProtoReflect.Descriptor instead.
 func (*RotateOIakCertRequest) Descriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{2}
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDescGZIP(), []int{2}
 }
 
-// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/tpm_enrollz.proto.
-func (x *RotateOIakCertRequest) GetControlCardSelection() *common_definitions.ControlCardSelection {
+// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/attestz/tpm_enrollz.proto.
+func (x *RotateOIakCertRequest) GetControlCardSelection() *ControlCardSelection {
 	if x != nil {
 		return x.ControlCardSelection
 	}
 	return nil
 }
 
-// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/tpm_enrollz.proto.
+// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/attestz/tpm_enrollz.proto.
 func (x *RotateOIakCertRequest) GetOiakCert() string {
 	if x != nil {
 		return x.OiakCert
@@ -365,7 +364,7 @@ func (x *RotateOIakCertRequest) GetOiakCert() string {
 	return ""
 }
 
-// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/tpm_enrollz.proto.
+// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/attestz/tpm_enrollz.proto.
 func (x *RotateOIakCertRequest) GetOidevidCert() string {
 	if x != nil {
 		return x.OidevidCert
@@ -388,17 +387,17 @@ func (x *RotateOIakCertRequest) GetUpdates() []*ControlCardCertUpdate {
 }
 
 type ControlCardCertUpdate struct {
-	state                protoimpl.MessageState                   `protogen:"open.v1"`
-	ControlCardSelection *common_definitions.ControlCardSelection `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
-	OiakCert             string                                   `protobuf:"bytes,2,opt,name=oiak_cert,json=oiakCert,proto3" json:"oiak_cert,omitempty"`
-	OidevidCert          string                                   `protobuf:"bytes,3,opt,name=oidevid_cert,json=oidevidCert,proto3" json:"oidevid_cert,omitempty"`
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	ControlCardSelection *ControlCardSelection  `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
+	OiakCert             string                 `protobuf:"bytes,2,opt,name=oiak_cert,json=oiakCert,proto3" json:"oiak_cert,omitempty"`
+	OidevidCert          string                 `protobuf:"bytes,3,opt,name=oidevid_cert,json=oidevidCert,proto3" json:"oidevid_cert,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
 
 func (x *ControlCardCertUpdate) Reset() {
 	*x = ControlCardCertUpdate{}
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[3]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -410,7 +409,7 @@ func (x *ControlCardCertUpdate) String() string {
 func (*ControlCardCertUpdate) ProtoMessage() {}
 
 func (x *ControlCardCertUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[3]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -423,10 +422,10 @@ func (x *ControlCardCertUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ControlCardCertUpdate.ProtoReflect.Descriptor instead.
 func (*ControlCardCertUpdate) Descriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{3}
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *ControlCardCertUpdate) GetControlCardSelection() *common_definitions.ControlCardSelection {
+func (x *ControlCardCertUpdate) GetControlCardSelection() *ControlCardSelection {
 	if x != nil {
 		return x.ControlCardSelection
 	}
@@ -455,7 +454,7 @@ type RotateOIakCertResponse struct {
 
 func (x *RotateOIakCertResponse) Reset() {
 	*x = RotateOIakCertResponse{}
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[4]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -467,7 +466,7 @@ func (x *RotateOIakCertResponse) String() string {
 func (*RotateOIakCertResponse) ProtoMessage() {}
 
 func (x *RotateOIakCertResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[4]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -480,7 +479,7 @@ func (x *RotateOIakCertResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RotateOIakCertResponse.ProtoReflect.Descriptor instead.
 func (*RotateOIakCertResponse) Descriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{4}
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDescGZIP(), []int{4}
 }
 
 type RotateAIKCertRequest struct {
@@ -490,15 +489,15 @@ type RotateAIKCertRequest struct {
 	//	*RotateAIKCertRequest_IssuerPublicKey
 	//	*RotateAIKCertRequest_IssuerCertPayload_
 	//	*RotateAIKCertRequest_Finalize
-	Value                isRotateAIKCertRequest_Value             `protobuf_oneof:"value"`
-	ControlCardSelection *common_definitions.ControlCardSelection `protobuf:"bytes,4,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
+	Value                isRotateAIKCertRequest_Value `protobuf_oneof:"value"`
+	ControlCardSelection *ControlCardSelection        `protobuf:"bytes,4,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
 
 func (x *RotateAIKCertRequest) Reset() {
 	*x = RotateAIKCertRequest{}
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[5]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -510,7 +509,7 @@ func (x *RotateAIKCertRequest) String() string {
 func (*RotateAIKCertRequest) ProtoMessage() {}
 
 func (x *RotateAIKCertRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[5]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -523,7 +522,7 @@ func (x *RotateAIKCertRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RotateAIKCertRequest.ProtoReflect.Descriptor instead.
 func (*RotateAIKCertRequest) Descriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{5}
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *RotateAIKCertRequest) GetValue() isRotateAIKCertRequest_Value {
@@ -560,7 +559,7 @@ func (x *RotateAIKCertRequest) GetFinalize() bool {
 	return false
 }
 
-func (x *RotateAIKCertRequest) GetControlCardSelection() *common_definitions.ControlCardSelection {
+func (x *RotateAIKCertRequest) GetControlCardSelection() *ControlCardSelection {
 	if x != nil {
 		return x.ControlCardSelection
 	}
@@ -595,15 +594,15 @@ type RotateAIKCertResponse struct {
 	//
 	//	*RotateAIKCertResponse_ApplicationIdentityRequest
 	//	*RotateAIKCertResponse_AikCert
-	Value         isRotateAIKCertResponse_Value           `protobuf_oneof:"value"`
-	ControlCardId *common_definitions.ControlCardVendorId `protobuf:"bytes,3,opt,name=control_card_id,json=controlCardId,proto3" json:"control_card_id,omitempty"`
+	Value         isRotateAIKCertResponse_Value `protobuf_oneof:"value"`
+	ControlCardId *ControlCardVendorId          `protobuf:"bytes,3,opt,name=control_card_id,json=controlCardId,proto3" json:"control_card_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RotateAIKCertResponse) Reset() {
 	*x = RotateAIKCertResponse{}
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[6]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -615,7 +614,7 @@ func (x *RotateAIKCertResponse) String() string {
 func (*RotateAIKCertResponse) ProtoMessage() {}
 
 func (x *RotateAIKCertResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[6]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -628,7 +627,7 @@ func (x *RotateAIKCertResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RotateAIKCertResponse.ProtoReflect.Descriptor instead.
 func (*RotateAIKCertResponse) Descriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{6}
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *RotateAIKCertResponse) GetValue() isRotateAIKCertResponse_Value {
@@ -656,7 +655,7 @@ func (x *RotateAIKCertResponse) GetAikCert() string {
 	return ""
 }
 
-func (x *RotateAIKCertResponse) GetControlCardId() *common_definitions.ControlCardVendorId {
+func (x *RotateAIKCertResponse) GetControlCardId() *ControlCardVendorId {
 	if x != nil {
 		return x.ControlCardId
 	}
@@ -680,15 +679,15 @@ func (*RotateAIKCertResponse_ApplicationIdentityRequest) isRotateAIKCertResponse
 func (*RotateAIKCertResponse_AikCert) isRotateAIKCertResponse_Value() {}
 
 type GetControlCardVendorIDRequest struct {
-	state                protoimpl.MessageState                   `protogen:"open.v1"`
-	ControlCardSelection *common_definitions.ControlCardSelection `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	ControlCardSelection *ControlCardSelection  `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
 
 func (x *GetControlCardVendorIDRequest) Reset() {
 	*x = GetControlCardVendorIDRequest{}
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[7]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -700,7 +699,7 @@ func (x *GetControlCardVendorIDRequest) String() string {
 func (*GetControlCardVendorIDRequest) ProtoMessage() {}
 
 func (x *GetControlCardVendorIDRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[7]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -713,10 +712,10 @@ func (x *GetControlCardVendorIDRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetControlCardVendorIDRequest.ProtoReflect.Descriptor instead.
 func (*GetControlCardVendorIDRequest) Descriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{7}
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *GetControlCardVendorIDRequest) GetControlCardSelection() *common_definitions.ControlCardSelection {
+func (x *GetControlCardVendorIDRequest) GetControlCardSelection() *ControlCardSelection {
 	if x != nil {
 		return x.ControlCardSelection
 	}
@@ -724,15 +723,15 @@ func (x *GetControlCardVendorIDRequest) GetControlCardSelection() *common_defini
 }
 
 type GetControlCardVendorIDResponse struct {
-	state         protoimpl.MessageState                  `protogen:"open.v1"`
-	ControlCardId *common_definitions.ControlCardVendorId `protobuf:"bytes,1,opt,name=control_card_id,json=controlCardId,proto3" json:"control_card_id,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ControlCardId *ControlCardVendorId   `protobuf:"bytes,1,opt,name=control_card_id,json=controlCardId,proto3" json:"control_card_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetControlCardVendorIDResponse) Reset() {
 	*x = GetControlCardVendorIDResponse{}
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[8]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -744,7 +743,7 @@ func (x *GetControlCardVendorIDResponse) String() string {
 func (*GetControlCardVendorIDResponse) ProtoMessage() {}
 
 func (x *GetControlCardVendorIDResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[8]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -757,10 +756,10 @@ func (x *GetControlCardVendorIDResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetControlCardVendorIDResponse.ProtoReflect.Descriptor instead.
 func (*GetControlCardVendorIDResponse) Descriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{8}
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *GetControlCardVendorIDResponse) GetControlCardId() *common_definitions.ControlCardVendorId {
+func (x *GetControlCardVendorIDResponse) GetControlCardId() *ControlCardVendorId {
 	if x != nil {
 		return x.ControlCardId
 	}
@@ -768,17 +767,17 @@ func (x *GetControlCardVendorIDResponse) GetControlCardId() *common_definitions.
 }
 
 type GetIdevidCsrRequest struct {
-	state                protoimpl.MessageState                   `protogen:"open.v1"`
-	ControlCardSelection *common_definitions.ControlCardSelection `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
-	Key                  Key                                      `protobuf:"varint,2,opt,name=key,proto3,enum=openconfig.attestz.Key" json:"key,omitempty"`
-	KeyTemplate          KeyTemplate                              `protobuf:"varint,3,opt,name=key_template,json=keyTemplate,proto3,enum=openconfig.attestz.KeyTemplate" json:"key_template,omitempty"`
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	ControlCardSelection *ControlCardSelection  `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
+	Key                  Key                    `protobuf:"varint,2,opt,name=key,proto3,enum=openconfig.attestz.Key" json:"key,omitempty"`
+	KeyTemplate          KeyTemplate            `protobuf:"varint,3,opt,name=key_template,json=keyTemplate,proto3,enum=openconfig.attestz.KeyTemplate" json:"key_template,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
 
 func (x *GetIdevidCsrRequest) Reset() {
 	*x = GetIdevidCsrRequest{}
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[9]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -790,7 +789,7 @@ func (x *GetIdevidCsrRequest) String() string {
 func (*GetIdevidCsrRequest) ProtoMessage() {}
 
 func (x *GetIdevidCsrRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[9]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -803,10 +802,10 @@ func (x *GetIdevidCsrRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetIdevidCsrRequest.ProtoReflect.Descriptor instead.
 func (*GetIdevidCsrRequest) Descriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{9}
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDescGZIP(), []int{9}
 }
 
-func (x *GetIdevidCsrRequest) GetControlCardSelection() *common_definitions.ControlCardSelection {
+func (x *GetIdevidCsrRequest) GetControlCardSelection() *ControlCardSelection {
 	if x != nil {
 		return x.ControlCardSelection
 	}
@@ -837,7 +836,7 @@ type CsrResponse struct {
 
 func (x *CsrResponse) Reset() {
 	*x = CsrResponse{}
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[10]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -849,7 +848,7 @@ func (x *CsrResponse) String() string {
 func (*CsrResponse) ProtoMessage() {}
 
 func (x *CsrResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[10]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -862,7 +861,7 @@ func (x *CsrResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CsrResponse.ProtoReflect.Descriptor instead.
 func (*CsrResponse) Descriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{10}
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *CsrResponse) GetCsrContents() []byte {
@@ -880,21 +879,17 @@ func (x *CsrResponse) GetIdevidSignatureCsr() []byte {
 }
 
 type GetIdevidCsrResponse struct {
-	state         protoimpl.MessageState                  `protogen:"open.v1"`
-	ControlCardId *common_definitions.ControlCardVendorId `protobuf:"bytes,1,opt,name=control_card_id,json=controlCardId,proto3" json:"control_card_id,omitempty"`
-	// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/tpm_enrollz.proto.
-	CsrContents []byte `protobuf:"bytes,2,opt,name=csr_contents,json=csrContents,proto3" json:"csr_contents,omitempty"`
-	// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/tpm_enrollz.proto.
-	IdevidSignatureCsr []byte       `protobuf:"bytes,3,opt,name=idevid_signature_csr,json=idevidSignatureCsr,proto3" json:"idevid_signature_csr,omitempty"`
-	CsrResponse        *CsrResponse `protobuf:"bytes,4,opt,name=csr_response,json=csrResponse,proto3" json:"csr_response,omitempty"`
-	Status             Status       `protobuf:"varint,5,opt,name=status,proto3,enum=openconfig.attestz.Status" json:"status,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ControlCardId *ControlCardVendorId   `protobuf:"bytes,1,opt,name=control_card_id,json=controlCardId,proto3" json:"control_card_id,omitempty"`
+	CsrResponse   *CsrResponse           `protobuf:"bytes,4,opt,name=csr_response,json=csrResponse,proto3" json:"csr_response,omitempty"`
+	Status        Status                 `protobuf:"varint,5,opt,name=status,proto3,enum=openconfig.attestz.Status" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetIdevidCsrResponse) Reset() {
 	*x = GetIdevidCsrResponse{}
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[11]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -906,7 +901,7 @@ func (x *GetIdevidCsrResponse) String() string {
 func (*GetIdevidCsrResponse) ProtoMessage() {}
 
 func (x *GetIdevidCsrResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[11]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -919,28 +914,12 @@ func (x *GetIdevidCsrResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetIdevidCsrResponse.ProtoReflect.Descriptor instead.
 func (*GetIdevidCsrResponse) Descriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{11}
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDescGZIP(), []int{11}
 }
 
-func (x *GetIdevidCsrResponse) GetControlCardId() *common_definitions.ControlCardVendorId {
+func (x *GetIdevidCsrResponse) GetControlCardId() *ControlCardVendorId {
 	if x != nil {
 		return x.ControlCardId
-	}
-	return nil
-}
-
-// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/tpm_enrollz.proto.
-func (x *GetIdevidCsrResponse) GetCsrContents() []byte {
-	if x != nil {
-		return x.CsrContents
-	}
-	return nil
-}
-
-// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/tpm_enrollz.proto.
-func (x *GetIdevidCsrResponse) GetIdevidSignatureCsr() []byte {
-	if x != nil {
-		return x.IdevidSignatureCsr
 	}
 	return nil
 }
@@ -970,7 +949,7 @@ type HMACChallenge struct {
 
 func (x *HMACChallenge) Reset() {
 	*x = HMACChallenge{}
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[12]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -982,7 +961,7 @@ func (x *HMACChallenge) String() string {
 func (*HMACChallenge) ProtoMessage() {}
 
 func (x *HMACChallenge) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[12]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -995,7 +974,7 @@ func (x *HMACChallenge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HMACChallenge.ProtoReflect.Descriptor instead.
 func (*HMACChallenge) Descriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{12}
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *HMACChallenge) GetHmacPubKey() []byte {
@@ -1020,19 +999,17 @@ func (x *HMACChallenge) GetInSymSeed() []byte {
 }
 
 type ChallengeRequest struct {
-	state                protoimpl.MessageState                   `protogen:"open.v1"`
-	ControlCardSelection *common_definitions.ControlCardSelection `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
-	// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/tpm_enrollz.proto.
-	EncryptedNonce []byte         `protobuf:"bytes,2,opt,name=encrypted_nonce,json=encryptedNonce,proto3" json:"encrypted_nonce,omitempty"`
-	Key            Key            `protobuf:"varint,3,opt,name=key,proto3,enum=openconfig.attestz.Key" json:"key,omitempty"`
-	Challenge      *HMACChallenge `protobuf:"bytes,4,opt,name=challenge,proto3" json:"challenge,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	ControlCardSelection *ControlCardSelection  `protobuf:"bytes,1,opt,name=control_card_selection,json=controlCardSelection,proto3" json:"control_card_selection,omitempty"`
+	Key                  Key                    `protobuf:"varint,3,opt,name=key,proto3,enum=openconfig.attestz.Key" json:"key,omitempty"`
+	Challenge            *HMACChallenge         `protobuf:"bytes,4,opt,name=challenge,proto3" json:"challenge,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *ChallengeRequest) Reset() {
 	*x = ChallengeRequest{}
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[13]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1044,7 +1021,7 @@ func (x *ChallengeRequest) String() string {
 func (*ChallengeRequest) ProtoMessage() {}
 
 func (x *ChallengeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[13]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1057,20 +1034,12 @@ func (x *ChallengeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChallengeRequest.ProtoReflect.Descriptor instead.
 func (*ChallengeRequest) Descriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{13}
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDescGZIP(), []int{13}
 }
 
-func (x *ChallengeRequest) GetControlCardSelection() *common_definitions.ControlCardSelection {
+func (x *ChallengeRequest) GetControlCardSelection() *ControlCardSelection {
 	if x != nil {
 		return x.ControlCardSelection
-	}
-	return nil
-}
-
-// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/tpm_enrollz.proto.
-func (x *ChallengeRequest) GetEncryptedNonce() []byte {
-	if x != nil {
-		return x.EncryptedNonce
 	}
 	return nil
 }
@@ -1100,7 +1069,7 @@ type HMACChallengeResponse struct {
 
 func (x *HMACChallengeResponse) Reset() {
 	*x = HMACChallengeResponse{}
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[14]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1112,7 +1081,7 @@ func (x *HMACChallengeResponse) String() string {
 func (*HMACChallengeResponse) ProtoMessage() {}
 
 func (x *HMACChallengeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[14]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1125,7 +1094,7 @@ func (x *HMACChallengeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HMACChallengeResponse.ProtoReflect.Descriptor instead.
 func (*HMACChallengeResponse) Descriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{14}
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *HMACChallengeResponse) GetIakPub() []byte {
@@ -1152,15 +1121,13 @@ func (x *HMACChallengeResponse) GetIakCertifyInfoSignature() []byte {
 type ChallengeResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ChallengeResp *HMACChallengeResponse `protobuf:"bytes,1,opt,name=challenge_resp,json=challengeResp,proto3" json:"challenge_resp,omitempty"`
-	// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/tpm_enrollz.proto.
-	Nonce         []byte `protobuf:"bytes,2,opt,name=nonce,proto3" json:"nonce,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ChallengeResponse) Reset() {
 	*x = ChallengeResponse{}
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[15]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1172,7 +1139,7 @@ func (x *ChallengeResponse) String() string {
 func (*ChallengeResponse) ProtoMessage() {}
 
 func (x *ChallengeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[15]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1185,20 +1152,12 @@ func (x *ChallengeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChallengeResponse.ProtoReflect.Descriptor instead.
 func (*ChallengeResponse) Descriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{15}
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ChallengeResponse) GetChallengeResp() *HMACChallengeResponse {
 	if x != nil {
 		return x.ChallengeResp
-	}
-	return nil
-}
-
-// Deprecated: Marked as deprecated in github.com/openconfig/attestz/proto/tpm_enrollz.proto.
-func (x *ChallengeResponse) GetNonce() []byte {
-	if x != nil {
-		return x.Nonce
 	}
 	return nil
 }
@@ -1213,7 +1172,7 @@ type RotateAIKCertRequest_IssuerCertPayload struct {
 
 func (x *RotateAIKCertRequest_IssuerCertPayload) Reset() {
 	*x = RotateAIKCertRequest_IssuerCertPayload{}
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[16]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1225,7 +1184,7 @@ func (x *RotateAIKCertRequest_IssuerCertPayload) String() string {
 func (*RotateAIKCertRequest_IssuerCertPayload) ProtoMessage() {}
 
 func (x *RotateAIKCertRequest_IssuerCertPayload) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[16]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1238,7 +1197,7 @@ func (x *RotateAIKCertRequest_IssuerCertPayload) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use RotateAIKCertRequest_IssuerCertPayload.ProtoReflect.Descriptor instead.
 func (*RotateAIKCertRequest_IssuerCertPayload) Descriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP(), []int{5, 0}
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDescGZIP(), []int{5, 0}
 }
 
 func (x *RotateAIKCertRequest_IssuerCertPayload) GetSymmetricKeyBlob() []byte {
@@ -1255,11 +1214,11 @@ func (x *RotateAIKCertRequest_IssuerCertPayload) GetAikCertBlob() []byte {
 	return nil
 }
 
-var File_github_com_openconfig_attestz_proto_tpm_enrollz_proto protoreflect.FileDescriptor
+var File_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto protoreflect.FileDescriptor
 
-const file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDesc = "" +
+const file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDesc = "" +
 	"\n" +
-	"5github.com/openconfig/attestz/proto/tpm_enrollz.proto\x12\x12openconfig.attestz\x1a<github.com/openconfig/attestz/proto/common_definitions.proto\"\xeb\x01\n" +
+	"=github.com/openconfig/attestz/proto/attestz/tpm_enrollz.proto\x12\x12openconfig.attestz\x1aDgithub.com/openconfig/attestz/proto/attestz/common_definitions.proto\"\xeb\x01\n" +
 	"\x11GetIakCertRequest\x12^\n" +
 	"\x16control_card_selection\x18\x01 \x01(\v2(.openconfig.attestz.ControlCardSelectionR\x14controlCardSelection\x12\x19\n" +
 	"\x05nonce\x18\x02 \x01(\fH\x00R\x05nonce\x88\x01\x01\x12C\n" +
@@ -1310,30 +1269,26 @@ const file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDesc = "" +
 	"\fkey_template\x18\x03 \x01(\x0e2\x1f.openconfig.attestz.KeyTemplateR\vkeyTemplate\"b\n" +
 	"\vCsrResponse\x12!\n" +
 	"\fcsr_contents\x18\x01 \x01(\fR\vcsrContents\x120\n" +
-	"\x14idevid_signature_csr\x18\x02 \x01(\fR\x12idevidSignatureCsr\"\xbc\x02\n" +
+	"\x14idevid_signature_csr\x18\x02 \x01(\fR\x12idevidSignatureCsr\"\xeb\x01\n" +
 	"\x14GetIdevidCsrResponse\x12O\n" +
-	"\x0fcontrol_card_id\x18\x01 \x01(\v2'.openconfig.attestz.ControlCardVendorIdR\rcontrolCardId\x12%\n" +
-	"\fcsr_contents\x18\x02 \x01(\fB\x02\x18\x01R\vcsrContents\x124\n" +
-	"\x14idevid_signature_csr\x18\x03 \x01(\fB\x02\x18\x01R\x12idevidSignatureCsr\x12B\n" +
+	"\x0fcontrol_card_id\x18\x01 \x01(\v2'.openconfig.attestz.ControlCardVendorIdR\rcontrolCardId\x12B\n" +
 	"\fcsr_response\x18\x04 \x01(\v2\x1f.openconfig.attestz.CsrResponseR\vcsrResponse\x122\n" +
-	"\x06status\x18\x05 \x01(\x0e2\x1a.openconfig.attestz.StatusR\x06status\"o\n" +
+	"\x06status\x18\x05 \x01(\x0e2\x1a.openconfig.attestz.StatusR\x06statusJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04\"o\n" +
 	"\rHMACChallenge\x12 \n" +
 	"\fhmac_pub_key\x18\x01 \x01(\fR\n" +
 	"hmacPubKey\x12\x1c\n" +
 	"\tduplicate\x18\x02 \x01(\fR\tduplicate\x12\x1e\n" +
-	"\vin_sym_seed\x18\x03 \x01(\fR\tinSymSeed\"\x8b\x02\n" +
+	"\vin_sym_seed\x18\x03 \x01(\fR\tinSymSeed\"\xe4\x01\n" +
 	"\x10ChallengeRequest\x12^\n" +
-	"\x16control_card_selection\x18\x01 \x01(\v2(.openconfig.attestz.ControlCardSelectionR\x14controlCardSelection\x12+\n" +
-	"\x0fencrypted_nonce\x18\x02 \x01(\fB\x02\x18\x01R\x0eencryptedNonce\x12)\n" +
+	"\x16control_card_selection\x18\x01 \x01(\v2(.openconfig.attestz.ControlCardSelectionR\x14controlCardSelection\x12)\n" +
 	"\x03key\x18\x03 \x01(\x0e2\x17.openconfig.attestz.KeyR\x03key\x12?\n" +
-	"\tchallenge\x18\x04 \x01(\v2!.openconfig.attestz.HMACChallengeR\tchallenge\"\x97\x01\n" +
+	"\tchallenge\x18\x04 \x01(\v2!.openconfig.attestz.HMACChallengeR\tchallengeJ\x04\b\x02\x10\x03\"\x97\x01\n" +
 	"\x15HMACChallengeResponse\x12\x17\n" +
 	"\aiak_pub\x18\x01 \x01(\fR\x06iakPub\x12(\n" +
 	"\x10iak_certify_info\x18\x02 \x01(\fR\x0eiakCertifyInfo\x12;\n" +
-	"\x1aiak_certify_info_signature\x18\x03 \x01(\fR\x17iakCertifyInfoSignature\"\x7f\n" +
+	"\x1aiak_certify_info_signature\x18\x03 \x01(\fR\x17iakCertifyInfoSignature\"k\n" +
 	"\x11ChallengeResponse\x12P\n" +
-	"\x0echallenge_resp\x18\x01 \x01(\v2).openconfig.attestz.HMACChallengeResponseR\rchallengeResp\x12\x18\n" +
-	"\x05nonce\x18\x02 \x01(\fB\x02\x18\x01R\x05nonce*3\n" +
+	"\x0echallenge_resp\x18\x01 \x01(\v2).openconfig.attestz.HMACChallengeResponseR\rchallengeRespJ\x04\b\x02\x10\x03*3\n" +
 	"\x03Key\x12\x13\n" +
 	"\x0fKEY_UNSPECIFIED\x10\x00\x12\n" +
 	"\n" +
@@ -1354,48 +1309,48 @@ const file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDesc = "" +
 	"\rRotateAIKCert\x12(.openconfig.attestz.RotateAIKCertRequest\x1a).openconfig.attestz.RotateAIKCertResponse(\x010\x01\x12a\n" +
 	"\fGetIdevidCsr\x12'.openconfig.attestz.GetIdevidCsrRequest\x1a(.openconfig.attestz.GetIdevidCsrResponse\x12X\n" +
 	"\tChallenge\x12$.openconfig.attestz.ChallengeRequest\x1a%.openconfig.attestz.ChallengeResponse\x12\x7f\n" +
-	"\x16GetControlCardVendorID\x121.openconfig.attestz.GetControlCardVendorIDRequest\x1a2.openconfig.attestz.GetControlCardVendorIDResponseB\x1fZ\x1dgithub.com/openconfig/attestzb\x06proto3"
+	"\x16GetControlCardVendorID\x121.openconfig.attestz.GetControlCardVendorIDRequest\x1a2.openconfig.attestz.GetControlCardVendorIDResponseB5Z3github.com/openconfig/attestz/proto/attestz;attestzb\x06proto3"
 
 var (
-	file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescOnce sync.Once
-	file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescData []byte
+	file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDescOnce sync.Once
+	file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDescData []byte
 )
 
-func file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescGZIP() []byte {
-	file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescOnce.Do(func() {
-		file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDesc), len(file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDesc)))
+func file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDescGZIP() []byte {
+	file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDescOnce.Do(func() {
+		file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDesc), len(file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDesc)))
 	})
-	return file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDescData
+	return file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDescData
 }
 
-var file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
-var file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_goTypes = []any{
-	(Key)(0),                                        // 0: openconfig.attestz.Key
-	(KeyTemplate)(0),                                // 1: openconfig.attestz.KeyTemplate
-	(Status)(0),                                     // 2: openconfig.attestz.Status
-	(*GetIakCertRequest)(nil),                       // 3: openconfig.attestz.GetIakCertRequest
-	(*GetIakCertResponse)(nil),                      // 4: openconfig.attestz.GetIakCertResponse
-	(*RotateOIakCertRequest)(nil),                   // 5: openconfig.attestz.RotateOIakCertRequest
-	(*ControlCardCertUpdate)(nil),                   // 6: openconfig.attestz.ControlCardCertUpdate
-	(*RotateOIakCertResponse)(nil),                  // 7: openconfig.attestz.RotateOIakCertResponse
-	(*RotateAIKCertRequest)(nil),                    // 8: openconfig.attestz.RotateAIKCertRequest
-	(*RotateAIKCertResponse)(nil),                   // 9: openconfig.attestz.RotateAIKCertResponse
-	(*GetControlCardVendorIDRequest)(nil),           // 10: openconfig.attestz.GetControlCardVendorIDRequest
-	(*GetControlCardVendorIDResponse)(nil),          // 11: openconfig.attestz.GetControlCardVendorIDResponse
-	(*GetIdevidCsrRequest)(nil),                     // 12: openconfig.attestz.GetIdevidCsrRequest
-	(*CsrResponse)(nil),                             // 13: openconfig.attestz.CsrResponse
-	(*GetIdevidCsrResponse)(nil),                    // 14: openconfig.attestz.GetIdevidCsrResponse
-	(*HMACChallenge)(nil),                           // 15: openconfig.attestz.HMACChallenge
-	(*ChallengeRequest)(nil),                        // 16: openconfig.attestz.ChallengeRequest
-	(*HMACChallengeResponse)(nil),                   // 17: openconfig.attestz.HMACChallengeResponse
-	(*ChallengeResponse)(nil),                       // 18: openconfig.attestz.ChallengeResponse
-	(*RotateAIKCertRequest_IssuerCertPayload)(nil),  // 19: openconfig.attestz.RotateAIKCertRequest.IssuerCertPayload
-	(*common_definitions.ControlCardSelection)(nil), // 20: openconfig.attestz.ControlCardSelection
-	(common_definitions.Tpm20HashAlgo)(0),           // 21: openconfig.attestz.Tpm20HashAlgo
-	(*common_definitions.ControlCardVendorId)(nil),  // 22: openconfig.attestz.ControlCardVendorId
+var file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_goTypes = []any{
+	(Key)(0),                                       // 0: openconfig.attestz.Key
+	(KeyTemplate)(0),                               // 1: openconfig.attestz.KeyTemplate
+	(Status)(0),                                    // 2: openconfig.attestz.Status
+	(*GetIakCertRequest)(nil),                      // 3: openconfig.attestz.GetIakCertRequest
+	(*GetIakCertResponse)(nil),                     // 4: openconfig.attestz.GetIakCertResponse
+	(*RotateOIakCertRequest)(nil),                  // 5: openconfig.attestz.RotateOIakCertRequest
+	(*ControlCardCertUpdate)(nil),                  // 6: openconfig.attestz.ControlCardCertUpdate
+	(*RotateOIakCertResponse)(nil),                 // 7: openconfig.attestz.RotateOIakCertResponse
+	(*RotateAIKCertRequest)(nil),                   // 8: openconfig.attestz.RotateAIKCertRequest
+	(*RotateAIKCertResponse)(nil),                  // 9: openconfig.attestz.RotateAIKCertResponse
+	(*GetControlCardVendorIDRequest)(nil),          // 10: openconfig.attestz.GetControlCardVendorIDRequest
+	(*GetControlCardVendorIDResponse)(nil),         // 11: openconfig.attestz.GetControlCardVendorIDResponse
+	(*GetIdevidCsrRequest)(nil),                    // 12: openconfig.attestz.GetIdevidCsrRequest
+	(*CsrResponse)(nil),                            // 13: openconfig.attestz.CsrResponse
+	(*GetIdevidCsrResponse)(nil),                   // 14: openconfig.attestz.GetIdevidCsrResponse
+	(*HMACChallenge)(nil),                          // 15: openconfig.attestz.HMACChallenge
+	(*ChallengeRequest)(nil),                       // 16: openconfig.attestz.ChallengeRequest
+	(*HMACChallengeResponse)(nil),                  // 17: openconfig.attestz.HMACChallengeResponse
+	(*ChallengeResponse)(nil),                      // 18: openconfig.attestz.ChallengeResponse
+	(*RotateAIKCertRequest_IssuerCertPayload)(nil), // 19: openconfig.attestz.RotateAIKCertRequest.IssuerCertPayload
+	(*ControlCardSelection)(nil),                   // 20: openconfig.attestz.ControlCardSelection
+	(Tpm20HashAlgo)(0),                             // 21: openconfig.attestz.Tpm20HashAlgo
+	(*ControlCardVendorId)(nil),                    // 22: openconfig.attestz.ControlCardVendorId
 }
-var file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_depIdxs = []int32{
+var file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_depIdxs = []int32{
 	20, // 0: openconfig.attestz.GetIakCertRequest.control_card_selection:type_name -> openconfig.attestz.ControlCardSelection
 	21, // 1: openconfig.attestz.GetIakCertRequest.hash_algo:type_name -> openconfig.attestz.Tpm20HashAlgo
 	22, // 2: openconfig.attestz.GetIakCertResponse.control_card_id:type_name -> openconfig.attestz.ControlCardVendorId
@@ -1436,19 +1391,20 @@ var file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_depIdxs = []int32
 	0,  // [0:21] is the sub-list for field type_name
 }
 
-func init() { file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_init() }
-func file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_init() {
-	if File_github_com_openconfig_attestz_proto_tpm_enrollz_proto != nil {
+func init() { file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_init() }
+func file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_init() {
+	if File_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto != nil {
 		return
 	}
-	file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[0].OneofWrappers = []any{}
-	file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[1].OneofWrappers = []any{}
-	file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[5].OneofWrappers = []any{
+	file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_init()
+	file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[0].OneofWrappers = []any{}
+	file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[1].OneofWrappers = []any{}
+	file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[5].OneofWrappers = []any{
 		(*RotateAIKCertRequest_IssuerPublicKey)(nil),
 		(*RotateAIKCertRequest_IssuerCertPayload_)(nil),
 		(*RotateAIKCertRequest_Finalize)(nil),
 	}
-	file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes[6].OneofWrappers = []any{
+	file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes[6].OneofWrappers = []any{
 		(*RotateAIKCertResponse_ApplicationIdentityRequest)(nil),
 		(*RotateAIKCertResponse_AikCert)(nil),
 	}
@@ -1456,18 +1412,18 @@ func file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDesc), len(file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDesc), len(file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_rawDesc)),
 			NumEnums:      3,
 			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_goTypes,
-		DependencyIndexes: file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_depIdxs,
-		EnumInfos:         file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_enumTypes,
-		MessageInfos:      file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_msgTypes,
+		GoTypes:           file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_goTypes,
+		DependencyIndexes: file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_depIdxs,
+		EnumInfos:         file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_enumTypes,
+		MessageInfos:      file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_msgTypes,
 	}.Build()
-	File_github_com_openconfig_attestz_proto_tpm_enrollz_proto = out.File
-	file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_goTypes = nil
-	file_github_com_openconfig_attestz_proto_tpm_enrollz_proto_depIdxs = nil
+	File_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto = out.File
+	file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_goTypes = nil
+	file_github_com_openconfig_attestz_proto_attestz_tpm_enrollz_proto_depIdxs = nil
 }

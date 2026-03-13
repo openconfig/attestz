@@ -33,7 +33,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/protobuf/testing/protocmp"
 
-	cpb "github.com/openconfig/attestz/proto/common_definitions"
+	apb "github.com/openconfig/attestz/proto/attestz"
 )
 
 type caCert struct {
@@ -206,8 +206,8 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 	unknownCaCert := generateCaCert(t)
 
 	cardSerial := "ABCD1234"
-	cardID := &cpb.ControlCardVendorId{
-		ControlCardRole:     cpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE,
+	cardID := &apb.ControlCardVendorId{
+		ControlCardRole:     apb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE,
 		ControlCardSerial:   cardSerial,
 		ControlCardSlot:     "Some card slot",
 		ChassisManufacturer: "Some manufacturer",
@@ -221,7 +221,7 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 		// Test description.
 		desc      string
 		wantError bool
-		cardID    *cpb.ControlCardVendorId
+		cardID    *apb.ControlCardVendorId
 		// iakCert
 		iakCertAsymAlgo      asymAlgo
 		iakCertSubjectSerial string
@@ -689,8 +689,8 @@ func TestVerifyTpmCert(t *testing.T) {
 	unknownCaCert := generateCaCert(t)
 
 	cardSerial := "S0M3S3R1ALNUMB3R"
-	cardID := &cpb.ControlCardVendorId{
-		ControlCardRole:     cpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE,
+	cardID := &apb.ControlCardVendorId{
+		ControlCardRole:     apb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE,
 		ControlCardSerial:   cardSerial,
 		ControlCardSlot:     "Some card slot",
 		ChassisManufacturer: "Some manufacturer",
@@ -1039,7 +1039,7 @@ func TestVerifyNonceSignature(t *testing.T) {
 				IAKPubPem: rsaPubKeyPem,
 				Signature: rsaSHA256Sig,
 				Nonce:     nonce,
-				HashAlgo:  cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
+				HashAlgo:  apb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
 			},
 			wantResp: &VerifyNonceSignatureResp{IsValid: true},
 			wantErr:  false,
@@ -1050,7 +1050,7 @@ func TestVerifyNonceSignature(t *testing.T) {
 				IAKPubPem: ecdsaPubKeyPem,
 				Signature: ecdsaSHA384Sig,
 				Nonce:     nonce,
-				HashAlgo:  cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384,
+				HashAlgo:  apb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384,
 			},
 			wantResp: &VerifyNonceSignatureResp{IsValid: true},
 			wantErr:  false,
@@ -1061,7 +1061,7 @@ func TestVerifyNonceSignature(t *testing.T) {
 				IAKPubPem: ecdsaP256PubKeyPem,
 				Signature: ecdsaSHA256Sig,
 				Nonce:     nonce,
-				HashAlgo:  cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
+				HashAlgo:  apb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
 			},
 			wantResp: &VerifyNonceSignatureResp{IsValid: true},
 			wantErr:  false,
@@ -1072,7 +1072,7 @@ func TestVerifyNonceSignature(t *testing.T) {
 				IAKPubPem: ecdsaPubKeyPem,
 				Signature: ecdsaSHA512Sig,
 				Nonce:     nonce,
-				HashAlgo:  cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA512,
+				HashAlgo:  apb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA512,
 			},
 			wantResp: &VerifyNonceSignatureResp{IsValid: true},
 			wantErr:  false,
@@ -1083,7 +1083,7 @@ func TestVerifyNonceSignature(t *testing.T) {
 				IAKPubPem: rsaPubKeyPem,
 				Signature: invalidSig,
 				Nonce:     nonce,
-				HashAlgo:  cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
+				HashAlgo:  apb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
 			},
 			wantResp: &VerifyNonceSignatureResp{IsValid: false},
 			wantErr:  false,
@@ -1094,7 +1094,7 @@ func TestVerifyNonceSignature(t *testing.T) {
 				IAKPubPem: rsaPubKeyPem,
 				Signature: rsaSHA256Sig,
 				Nonce:     nonce,
-				HashAlgo:  cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_UNSPECIFIED,
+				HashAlgo:  apb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_UNSPECIFIED,
 			},
 			wantResp: nil,
 			wantErr:  true,
@@ -1105,7 +1105,7 @@ func TestVerifyNonceSignature(t *testing.T) {
 				IAKPubPem: "invalid-pem",
 				Signature: rsaSHA256Sig,
 				Nonce:     nonce,
-				HashAlgo:  cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
+				HashAlgo:  apb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
 			},
 			wantResp: nil,
 			wantErr:  true,
@@ -1116,7 +1116,7 @@ func TestVerifyNonceSignature(t *testing.T) {
 				IAKPubPem: string(pem.EncodeToMemory(&pem.Block{Type: "INVALID KEY", Bytes: []byte("invalid-key")})),
 				Signature: rsaSHA256Sig,
 				Nonce:     nonce,
-				HashAlgo:  cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
+				HashAlgo:  apb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
 			},
 			wantResp: nil,
 			wantErr:  true,
@@ -1133,7 +1133,7 @@ func TestVerifyNonceSignature(t *testing.T) {
 				IAKPubPem: "",
 				Signature: rsaSHA256Sig,
 				Nonce:     nonce,
-				HashAlgo:  cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
+				HashAlgo:  apb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
 			},
 			wantResp: nil,
 			wantErr:  true,
@@ -1144,7 +1144,7 @@ func TestVerifyNonceSignature(t *testing.T) {
 				IAKPubPem: rsaPubKeyPem,
 				Signature: nil,
 				Nonce:     nonce,
-				HashAlgo:  cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
+				HashAlgo:  apb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
 			},
 			wantResp: nil,
 			wantErr:  true,
@@ -1155,7 +1155,7 @@ func TestVerifyNonceSignature(t *testing.T) {
 				IAKPubPem: rsaPubKeyPem,
 				Signature: rsaSHA256Sig,
 				Nonce:     nil,
-				HashAlgo:  cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
+				HashAlgo:  apb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
 			},
 			wantResp: nil,
 			wantErr:  true,
