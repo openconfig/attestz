@@ -14,5 +14,5 @@ rm -f proto/attestz/*.pb.go
 
 # Copy all generated files from the consolidated attestz_go_proto target
 for file in "${BASE}/proto/attestz/attestz_go_proto_/github.com/openconfig/attestz/proto/attestz"/*.pb.go; do
-  [[ $(head -n 1 "${file}") == "// +build ignore" ]] || cp -f "${file}" "proto/attestz/"
+	[[ $(head -n 1 "${file}") == "// +build ignore" ]] || cp -f "${file}" "proto/attestz/"
 done

@@ -371,9 +371,7 @@ This project is a standard Go module and can be imported into any Go project.
 
 To use the Attestz/Enrollz proto definitions and business logic, add the following to your `go.mod` file:
 
-```bash
-go get github.com/openconfig/attestz
-```
+    go get github.com/openconfig/attestz
 
 #### Example Usage
 
@@ -381,34 +379,30 @@ go get github.com/openconfig/attestz
 
 All proto-generated code is consolidated into a single package for easy access:
 
-```go
-import (
-    apb "github.com/openconfig/attestz/proto/attestz"
-)
-
-func main() {
-    req := &apb.AttestRequest{
-        Nonce: []byte("random-nonce"),
-        // ...
+    import (
+        apb "github.com/openconfig/attestz/proto/attestz"
+    )
+    
+    func main() {
+        req := &apb.AttestRequest{
+            Nonce: []byte("random-nonce"),
+            // ...
+        }
     }
-}
-```
 
 ##### Using Business Logic
 
 The `service/biz` package contains infrastructure-agnostic business logic that you can use in your own service implementations:
 
-```go
-import (
-    "github.com/openconfig/attestz/service/biz"
-    apb "github.com/openconfig/attestz/proto/attestz"
-)
-
-func MyEnrollHandler(ctx context.Context, req *apb.EnrollControlCardReq) error {
-    // Call the reference implementation logic
-    return biz.EnrollControlCard(ctx, req)
-}
-```
+    import (
+        "github.com/openconfig/attestz/service/biz"
+        apb "github.com/openconfig/attestz/proto/attestz"
+    )
+    
+    func MyEnrollHandler(ctx context.Context, req *apb.EnrollControlCardReq) error {
+        // Call the reference implementation logic
+        return biz.EnrollControlCard(ctx, req)
+    }
 
 ### Bazel Usage
 
@@ -420,41 +414,35 @@ You can also use this library in your own Bazel projects.
 
 Add the following to your `MODULE.bazel` file:
 
-```python
-bazel_dep(name = "openconfig_attestz", version = "0.0.0")
-
-# If you are testing locally:
-local_path_override(
-    module_name = "openconfig_attestz",
-    path = "/path/to/attestz",
-)
-```
+    bazel_dep(name = "openconfig_attestz", version = "0.0.0")
+    
+    # If you are testing locally:
+    local_path_override(
+        module_name = "openconfig_attestz",
+        path = "/path/to/attestz",
+    )
 
 ##### Using WORKSPACE
 
 Add the following to your `WORKSPACE` file:
 
-```python
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
-
-git_repository(
-    name = "openconfig_attestz",
-    remote = "https://github.com/openconfig/attestz.git",
-    commit = "<latest-commit-hash>",
-)
-```
+    load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+    
+    git_repository(
+        name = "openconfig_attestz",
+        remote = "https://github.com/openconfig/attestz.git",
+        commit = "<latest-commit-hash>",
+    )
 
 #### Depending on Targets
 
 In your `BUILD.bazel` file, you can then depend on the library targets:
 
-```python
-go_library(
-    name = "my_lib",
-    srcs = ["my_lib.go"],
-    deps = [
-        "@openconfig_attestz//proto/attestz:attestz_go_proto",
-        "@openconfig_attestz//service/biz",
-    ],
-)
-```
+    go_library(
+        name = "my_lib",
+        srcs = ["my_lib.go"],
+        deps = [
+            "@openconfig_attestz//proto/attestz:attestz_go_proto",
+            "@openconfig_attestz//service/biz",
+        ],
+    )
