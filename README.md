@@ -244,6 +244,7 @@ To implement this workflow effectively, the following operational aspects are co
 - Attestation logic is simple as it boils down to just comparing final PCR hashes and does not involve PCR recomputation from the boot log.
 - Expected final PCR values are computed only once, for all devices and offline (before devices arrive to switch owners as opposed to on every attestation while switches are already serving production traffic). This is both efficiency and reliability gain.
 - The design can be extended to attest device-specific PCRs if needed. In this case switch vendors will also provide (along with final expected PCRs) a structured vendor-agnostic PCR measurement manifest object which describes how to calculate final PCRs and at the very least specifies (1) what measurements go into which PCR, (2) the order of measurements, (3) cryptographic hash algorithm used.
+
   - _Note: For the actual manifest structure definition, we should consider getting ideas from the [attestation log-retrieval API](https://datatracker.ietf.org/doc/pdf/draft-ietf-rats-yang-tpm-charra-21#page=6) by IETF ChaRRA and re-using/expanding the design from the [Reference Integrity Manifest](https://trustedcomputinggroup.org/wp-content/uploads/TCG_RIM_Model_v1p01_r0p16_pub.pdf) by TCG.
     The goal is for a switch owner, given a vendor-agnostic PCR measurement manifest (the API/object/format definition is vendor-agnostic, but the actual instance of that object is vendor-specific) and PCR measurement inputs (e.g. boot configuration), to have the ability to pre-calculate the expected final PCRs for a given device using standard TPM folding hash technique. For example:_
 
@@ -382,7 +383,7 @@ All proto-generated code is consolidated into a single package for easy access:
     import (
         apb "github.com/openconfig/attestz/proto/attestz"
     )
-    
+
     func main() {
         req := &apb.AttestRequest{
             Nonce: []byte("random-nonce"),
@@ -398,7 +399,7 @@ The `service/biz` package contains infrastructure-agnostic business logic that y
         "github.com/openconfig/attestz/service/biz"
         apb "github.com/openconfig/attestz/proto/attestz"
     )
-    
+
     func MyEnrollHandler(ctx context.Context, req *apb.EnrollControlCardReq) error {
         // Call the reference implementation logic
         return biz.EnrollControlCard(ctx, req)
@@ -415,7 +416,7 @@ You can also use this library in your own Bazel projects.
 Add the following to your `MODULE.bazel` file:
 
     bazel_dep(name = "openconfig_attestz", version = "0.0.0")
-    
+
     # If you are testing locally:
     local_path_override(
         module_name = "openconfig_attestz",
@@ -427,7 +428,7 @@ Add the following to your `MODULE.bazel` file:
 Add the following to your `WORKSPACE` file:
 
     load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
-    
+
     git_repository(
         name = "openconfig_attestz",
         remote = "https://github.com/openconfig/attestz.git",
