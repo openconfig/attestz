@@ -27,6 +27,7 @@ const (
 	ControlCardRole_CONTROL_CARD_ROLE_UNSPECIFIED ControlCardRole = 0
 	ControlCardRole_CONTROL_CARD_ROLE_ACTIVE      ControlCardRole = 1
 	ControlCardRole_CONTROL_CARD_ROLE_STANDBY     ControlCardRole = 2
+	ControlCardRole_CONTROL_CARD_ROLE_CHASSIS     ControlCardRole = 3
 )
 
 // Enum value maps for ControlCardRole.
@@ -35,11 +36,13 @@ var (
 		0: "CONTROL_CARD_ROLE_UNSPECIFIED",
 		1: "CONTROL_CARD_ROLE_ACTIVE",
 		2: "CONTROL_CARD_ROLE_STANDBY",
+		3: "CONTROL_CARD_ROLE_CHASSIS",
 	}
 	ControlCardRole_value = map[string]int32{
 		"CONTROL_CARD_ROLE_UNSPECIFIED": 0,
 		"CONTROL_CARD_ROLE_ACTIVE":      1,
 		"CONTROL_CARD_ROLE_STANDBY":     2,
+		"CONTROL_CARD_ROLE_CHASSIS":     3,
 	}
 )
 
@@ -323,11 +326,12 @@ const file_github_com_openconfig_attestz_proto_common_definitions_proto_rawDesc 
 	"\x04role\x18\x01 \x01(\x0e2#.openconfig.attestz.ControlCardRoleH\x00R\x04role\x12\x18\n" +
 	"\x06serial\x18\x02 \x01(\tH\x00R\x06serial\x12\x14\n" +
 	"\x04slot\x18\x03 \x01(\tH\x00R\x04slotB\x11\n" +
-	"\x0fcontrol_card_id*q\n" +
+	"\x0fcontrol_card_id*\x90\x01\n" +
 	"\x0fControlCardRole\x12!\n" +
 	"\x1dCONTROL_CARD_ROLE_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18CONTROL_CARD_ROLE_ACTIVE\x10\x01\x12\x1d\n" +
-	"\x19CONTROL_CARD_ROLE_STANDBY\x10\x02*\xa8\x01\n" +
+	"\x19CONTROL_CARD_ROLE_STANDBY\x10\x02\x12\x1d\n" +
+	"\x19CONTROL_CARD_ROLE_CHASSIS\x10\x03*\xa8\x01\n" +
 	"\rTpm20HashAlgo\x12!\n" +
 	"\x1dTPM_2_0_HASH_ALGO_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16TPM_2_0_HASH_ALGO_SHA1\x10\x01\x12\x1c\n" +
