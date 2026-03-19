@@ -49,7 +49,7 @@ jobs:
           VALIDATE_JSCPD: false
           VALIDATE_JSON_PRETTIER: false
           VALIDATE_GO: false
-          VALIDATE_MODULES: false
+          VALIDATE_GO_MODULES: false
           IGNORE_GENERATED_FILES: true
           DEFAULT_BRANCH: main
           ENABLE_GITHUB_PULL_REQUEST_SUMMARY_COMMENT: false
