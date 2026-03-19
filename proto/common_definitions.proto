@@ -23,6 +23,7 @@ enum ControlCardRole {
   CONTROL_CARD_ROLE_UNSPECIFIED = 0;
   CONTROL_CARD_ROLE_ACTIVE = 1;
   CONTROL_CARD_ROLE_STANDBY = 2;
+  CONTROL_CARD_ROLE_CHASSIS = 3;
 }
 
 // Full description of a control card with switch vendor identity fields.
