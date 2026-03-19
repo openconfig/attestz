@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.9
 // 	protoc        v6.32.1
-// source: github.com/openconfig/attestz/proto/common_definitions.proto
+// source: github.com/openconfig/attestz/proto/attestz/common_definitions.proto
 
 package attestz
 
@@ -54,11 +54,11 @@ func (x ControlCardRole) String() string {
 }
 
 func (ControlCardRole) Descriptor() protoreflect.EnumDescriptor {
-	return file_github_com_openconfig_attestz_proto_common_definitions_proto_enumTypes[0].Descriptor()
+	return file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_enumTypes[0].Descriptor()
 }
 
 func (ControlCardRole) Type() protoreflect.EnumType {
-	return &file_github_com_openconfig_attestz_proto_common_definitions_proto_enumTypes[0]
+	return &file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_enumTypes[0]
 }
 
 func (x ControlCardRole) Number() protoreflect.EnumNumber {
@@ -67,7 +67,7 @@ func (x ControlCardRole) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ControlCardRole.Descriptor instead.
 func (ControlCardRole) EnumDescriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_common_definitions_proto_rawDescGZIP(), []int{0}
+	return file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_rawDescGZIP(), []int{0}
 }
 
 type Tpm20HashAlgo int32
@@ -109,11 +109,11 @@ func (x Tpm20HashAlgo) String() string {
 }
 
 func (Tpm20HashAlgo) Descriptor() protoreflect.EnumDescriptor {
-	return file_github_com_openconfig_attestz_proto_common_definitions_proto_enumTypes[1].Descriptor()
+	return file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_enumTypes[1].Descriptor()
 }
 
 func (Tpm20HashAlgo) Type() protoreflect.EnumType {
-	return &file_github_com_openconfig_attestz_proto_common_definitions_proto_enumTypes[1]
+	return &file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_enumTypes[1]
 }
 
 func (x Tpm20HashAlgo) Number() protoreflect.EnumNumber {
@@ -122,7 +122,7 @@ func (x Tpm20HashAlgo) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Tpm20HashAlgo.Descriptor instead.
 func (Tpm20HashAlgo) EnumDescriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_common_definitions_proto_rawDescGZIP(), []int{1}
+	return file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_rawDescGZIP(), []int{1}
 }
 
 type ControlCardVendorId struct {
@@ -139,7 +139,7 @@ type ControlCardVendorId struct {
 
 func (x *ControlCardVendorId) Reset() {
 	*x = ControlCardVendorId{}
-	mi := &file_github_com_openconfig_attestz_proto_common_definitions_proto_msgTypes[0]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -151,7 +151,7 @@ func (x *ControlCardVendorId) String() string {
 func (*ControlCardVendorId) ProtoMessage() {}
 
 func (x *ControlCardVendorId) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_openconfig_attestz_proto_common_definitions_proto_msgTypes[0]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -164,7 +164,7 @@ func (x *ControlCardVendorId) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ControlCardVendorId.ProtoReflect.Descriptor instead.
 func (*ControlCardVendorId) Descriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_common_definitions_proto_rawDescGZIP(), []int{0}
+	return file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *ControlCardVendorId) GetControlCardRole() ControlCardRole {
@@ -223,7 +223,7 @@ type ControlCardSelection struct {
 
 func (x *ControlCardSelection) Reset() {
 	*x = ControlCardSelection{}
-	mi := &file_github_com_openconfig_attestz_proto_common_definitions_proto_msgTypes[1]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -235,7 +235,7 @@ func (x *ControlCardSelection) String() string {
 func (*ControlCardSelection) ProtoMessage() {}
 
 func (x *ControlCardSelection) ProtoReflect() protoreflect.Message {
-	mi := &file_github_com_openconfig_attestz_proto_common_definitions_proto_msgTypes[1]
+	mi := &file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -248,7 +248,7 @@ func (x *ControlCardSelection) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ControlCardSelection.ProtoReflect.Descriptor instead.
 func (*ControlCardSelection) Descriptor() ([]byte, []int) {
-	return file_github_com_openconfig_attestz_proto_common_definitions_proto_rawDescGZIP(), []int{1}
+	return file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *ControlCardSelection) GetControlCardId() isControlCardSelection_ControlCardId {
@@ -307,11 +307,11 @@ func (*ControlCardSelection_Serial) isControlCardSelection_ControlCardId() {}
 
 func (*ControlCardSelection_Slot) isControlCardSelection_ControlCardId() {}
 
-var File_github_com_openconfig_attestz_proto_common_definitions_proto protoreflect.FileDescriptor
+var File_github_com_openconfig_attestz_proto_attestz_common_definitions_proto protoreflect.FileDescriptor
 
-const file_github_com_openconfig_attestz_proto_common_definitions_proto_rawDesc = "" +
+const file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_rawDesc = "" +
 	"\n" +
-	"<github.com/openconfig/attestz/proto/common_definitions.proto\x12\x12openconfig.attestz\"\xd9\x02\n" +
+	"Dgithub.com/openconfig/attestz/proto/attestz/common_definitions.proto\x12\x12openconfig.attestz\"\xd9\x02\n" +
 	"\x13ControlCardVendorId\x12O\n" +
 	"\x11control_card_role\x18\x01 \x01(\x0e2#.openconfig.attestz.ControlCardRoleR\x0fcontrolCardRole\x12.\n" +
 	"\x13control_card_serial\x18\x02 \x01(\tR\x11controlCardSerial\x12*\n" +
@@ -333,29 +333,29 @@ const file_github_com_openconfig_attestz_proto_common_definitions_proto_rawDesc 
 	"\x16TPM_2_0_HASH_ALGO_SHA1\x10\x01\x12\x1c\n" +
 	"\x18TPM_2_0_HASH_ALGO_SHA256\x10\x02\x12\x1c\n" +
 	"\x18TPM_2_0_HASH_ALGO_SHA384\x10\x03\x12\x1c\n" +
-	"\x18TPM_2_0_HASH_ALGO_SHA512\x10\x04B\x1fZ\x1dgithub.com/openconfig/attestzb\x06proto3"
+	"\x18TPM_2_0_HASH_ALGO_SHA512\x10\x04B5Z3github.com/openconfig/attestz/proto/attestz;attestzb\x06proto3"
 
 var (
-	file_github_com_openconfig_attestz_proto_common_definitions_proto_rawDescOnce sync.Once
-	file_github_com_openconfig_attestz_proto_common_definitions_proto_rawDescData []byte
+	file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_rawDescOnce sync.Once
+	file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_rawDescData []byte
 )
 
-func file_github_com_openconfig_attestz_proto_common_definitions_proto_rawDescGZIP() []byte {
-	file_github_com_openconfig_attestz_proto_common_definitions_proto_rawDescOnce.Do(func() {
-		file_github_com_openconfig_attestz_proto_common_definitions_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_github_com_openconfig_attestz_proto_common_definitions_proto_rawDesc), len(file_github_com_openconfig_attestz_proto_common_definitions_proto_rawDesc)))
+func file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_rawDescGZIP() []byte {
+	file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_rawDescOnce.Do(func() {
+		file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_rawDesc), len(file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_rawDesc)))
 	})
-	return file_github_com_openconfig_attestz_proto_common_definitions_proto_rawDescData
+	return file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_rawDescData
 }
 
-var file_github_com_openconfig_attestz_proto_common_definitions_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_github_com_openconfig_attestz_proto_common_definitions_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
-var file_github_com_openconfig_attestz_proto_common_definitions_proto_goTypes = []any{
+var file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_goTypes = []any{
 	(ControlCardRole)(0),         // 0: openconfig.attestz.ControlCardRole
 	(Tpm20HashAlgo)(0),           // 1: openconfig.attestz.Tpm20HashAlgo
 	(*ControlCardVendorId)(nil),  // 2: openconfig.attestz.ControlCardVendorId
 	(*ControlCardSelection)(nil), // 3: openconfig.attestz.ControlCardSelection
 }
-var file_github_com_openconfig_attestz_proto_common_definitions_proto_depIdxs = []int32{
+var file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_depIdxs = []int32{
 	0, // 0: openconfig.attestz.ControlCardVendorId.control_card_role:type_name -> openconfig.attestz.ControlCardRole
 	0, // 1: openconfig.attestz.ControlCardSelection.role:type_name -> openconfig.attestz.ControlCardRole
 	2, // [2:2] is the sub-list for method output_type
@@ -365,12 +365,12 @@ var file_github_com_openconfig_attestz_proto_common_definitions_proto_depIdxs = 
 	0, // [0:2] is the sub-list for field type_name
 }
 
-func init() { file_github_com_openconfig_attestz_proto_common_definitions_proto_init() }
-func file_github_com_openconfig_attestz_proto_common_definitions_proto_init() {
-	if File_github_com_openconfig_attestz_proto_common_definitions_proto != nil {
+func init() { file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_init() }
+func file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_init() {
+	if File_github_com_openconfig_attestz_proto_attestz_common_definitions_proto != nil {
 		return
 	}
-	file_github_com_openconfig_attestz_proto_common_definitions_proto_msgTypes[1].OneofWrappers = []any{
+	file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_msgTypes[1].OneofWrappers = []any{
 		(*ControlCardSelection_Role)(nil),
 		(*ControlCardSelection_Serial)(nil),
 		(*ControlCardSelection_Slot)(nil),
@@ -379,18 +379,18 @@ func file_github_com_openconfig_attestz_proto_common_definitions_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_github_com_openconfig_attestz_proto_common_definitions_proto_rawDesc), len(file_github_com_openconfig_attestz_proto_common_definitions_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_rawDesc), len(file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_rawDesc)),
 			NumEnums:      2,
 			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_github_com_openconfig_attestz_proto_common_definitions_proto_goTypes,
-		DependencyIndexes: file_github_com_openconfig_attestz_proto_common_definitions_proto_depIdxs,
-		EnumInfos:         file_github_com_openconfig_attestz_proto_common_definitions_proto_enumTypes,
-		MessageInfos:      file_github_com_openconfig_attestz_proto_common_definitions_proto_msgTypes,
+		GoTypes:           file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_goTypes,
+		DependencyIndexes: file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_depIdxs,
+		EnumInfos:         file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_enumTypes,
+		MessageInfos:      file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_msgTypes,
 	}.Build()
-	File_github_com_openconfig_attestz_proto_common_definitions_proto = out.File
-	file_github_com_openconfig_attestz_proto_common_definitions_proto_goTypes = nil
-	file_github_com_openconfig_attestz_proto_common_definitions_proto_depIdxs = nil
+	File_github_com_openconfig_attestz_proto_attestz_common_definitions_proto = out.File
+	file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_goTypes = nil
+	file_github_com_openconfig_attestz_proto_attestz_common_definitions_proto_depIdxs = nil
 }
