@@ -35,7 +35,7 @@ message ControlCardVendorId {
   string chassis_serial_number = 6;
 }
 
-// Used for selecting a switch control card by one of its indentifiers.
+// Used for selecting a switch control card by one of its identifiers.
 message ControlCardSelection {
   oneof control_card_id {
     ControlCardRole role = 1;
