@@ -57,7 +57,7 @@ TPM attestation workflow ensures the integrity of networking devices throughout 
 
 ### TPM 2.0 Enrollment for Switch Owners
 
-There are two primary enrollment flows for switch owners, depending on whether tracked TPM keys (such as EK) and vendor-issued certificates for these keys (such as or IDevID) are present on the device.
+There are two primary enrollment flows for switch owners, depending on whether tracked TPM keys (such as EK) and vendor-issued certificates for these keys (such as IDevID) are present on the device.
 
 1. Vendor-issued Certificates Flow: This flow leverages mutual authentication at the mTLS layer using certificates already provisioned by the vendor. This makes the flow less cryptographically heavy. However, it has a manufacturing dependency, requiring the device to be shipped with valid Initial Attestation Key (IAK) and Initial Device Identity (IDevID) certificates signed by the vendor CA.
 2. HMAC Challenge Flow: This flow is used when a device does not have vendor-provisioned identity certificates.
