@@ -8,8 +8,12 @@ TPM attestation workflow ensures the integrity of networking devices throughout 
 - [Terminology](#terminology)
 - [Design](#design)
   - [TPM 2.0 Enrollment for Switch Owners](#tpm-20-enrollment-for-switch-owners)
-    - [TPM 2.0 Enrollment Workflow Steps](#tpm-20-enrollment-workflow-steps)
-    - [TPM 2.0 Enrollment Workflow Diagram](#tpm-20-enrollment-workflow-diagram)
+    - [TPM 2.0 Enrollment using Vendor-issued Certificates](#tpm-20-enrollment-using-vendor-issued-certificates)
+      - [TPM 2.0 Enrollment Workflow Steps (Vendor-issued Certificates)](#tpm-20-enrollment-workflow-steps-vendor-issued-certificates)
+      - [TPM 2.0 Enrollment using Vendor-issued Certificates Workflow Diagram](#tpm-20-enrollment-using-vendor-issued-certificates-workflow-diagram)
+    - [TPM 2.0 Enrollment via HMAC challenge](#tpm-20-enrollment-via-hmac-challenge)
+      - [TPM 2.0 Enrollment Workflow Steps (HMAC Challenge)](#tpm-20-enrollment-workflow-steps-hmac-challenge)
+      - [TPM 2.0 Enrollment via HMAC Challenge Workflow Diagram](#tpm-20-enrollment-via-hmac-challenge-workflow-diagram)
     - [TPM 2.0 Enrollment Alternatives Considered](#tpm-20-enrollment-alternatives-considered)
       - [1. EnrollZ service serves TPM enrollment API endpoints](#1-enrollz-service-serves-tpm-enrollment-api-endpoints)
       - [2. Use IAK cert (as is) signed by the switch vendor CA](#2-use-iak-cert-as-is-signed-by-the-switch-vendor-ca)
@@ -53,6 +57,16 @@ TPM attestation workflow ensures the integrity of networking devices throughout 
 
 ### TPM 2.0 Enrollment for Switch Owners
 
+There are two primary enrollment flows for switch owners, depending on whether tracked TPM keys (such as EK) and vendor-issued certificates for these keys (such as IDevID) are present on the device.
+
+1. Vendor-issued Certificates Flow: This flow leverages mutual authentication at the mTLS layer using certificates already provisioned by the vendor. This makes the flow less cryptographically heavy. However, it has a manufacturing dependency, requiring the device to be shipped with valid Initial Attestation Key (IAK) and Initial Device Identity (IDevID) certificates signed by the vendor CA.
+2. HMAC Challenge Flow: This flow is used when a device does not have vendor-provisioned identity certificates.
+   It establishes trust by verifying a chain of trust originating from the device's Endorsement Key (EK).
+   While more cryptographically involved, it removes the dependency on the vendor CA for identity certificates,
+   instead requiring the switch owner to maintain a trusted database of EK public keys fetched from the vendor's Ownership Voucher gRPC Service (OVGS).
+
+#### TPM 2.0 Enrollment using Vendor-issued Certificates
+
 In this workflow switch owner verifies device's Initial Attestation Key (IAK) and Initial DevID (IDevID) certificates (signed by the switch vendor CA) and installs/rotates owner IAK (oIAK) and owner IDevID (oIDevID) certificates (signed by switch owner CA). oIAK and oIDevID certs are based on the same underlying keys as IAK and IDevID certs, respectively, and give switch owner the ability to (1)
 fully control certificate structure, revocation and expiration policies and (2) remove external dependency on switch vendor CA during TPM attestation workflow. The assumption is that before the device is shipped to the switch owner, a switch vendor provisions each control card with IAK and IDevID certificates following the TCG specification in
 [Section 5.2](https://trustedcomputinggroup.org/wp-content/uploads/TPM-2p0-Keys-for-Device-Identity-and-Attestation_v1_r12_pub10082021.pdf#page=20) and [Section 6.2](https://trustedcomputinggroup.org/wp-content/uploads/TPM-2p0-Keys-for-Device-Identity-and-Attestation_v1_r12_pub10082021.pdf#page=30).
@@ -65,7 +79,7 @@ Even though it is strongly preferred to rely on ECC P521 and SHA-512 where possi
 3. SHA 384 for PCR quote digest (part of signature scheme of the IAK key used in [TPM2_Quote()](https://www.trustedcomputinggroup.org/wp-content/uploads/TPM-Rev-2.0-Part-2-Structures-01.38.pdf#page=123)).
 4. ECC P384 for switch vendor CA (IAK and IDevID) certificate-signing keys.
 
-#### TPM 2.0 Enrollment Workflow Steps
+##### TPM 2.0 Enrollment Workflow Steps (Vendor-issued Certificates)
 
 1. On completion of Bootz workflow, device obtains all necessary credentials and configurations to start serving TPM enrollment gRPC API endpoints on the same port as gNOI/gNSI/gNMI (9339).
    - _Note: A device is shipped to the switch owner with a default SSL profile configured to rely on the IDevID key pair and IDevID TLS cert (signed by the switch vendor CA) for all RPCs._
@@ -99,9 +113,44 @@ Even though it is strongly preferred to rely on ECC P521 and SHA-512 where possi
 
 - Need to trust that switch vendors actually performed proper TPM enrollment following TCG spec.
 
-#### TPM 2.0 Enrollment Workflow Diagram
+##### TPM 2.0 Enrollment using Vendor-issued Certificates Workflow Diagram
 
-![Alt text](assets/tpm-20-enrollment-workflow-diagram.svg "TPM 2.0 enrollment workflow diagram")
+![Alt text](assets/tpm-20-enrollment-workflow-diagram.svg "TPM 2.0 enrollment via vendor issued certificates workflow diagram")
+
+#### TPM 2.0 Enrollment via HMAC challenge
+
+This enrollment flow is used for TPM 2.0 devices where the switch owner has access to the device's Endorsement Key (EK) public key or certificate, but the device does not have a vendor-provisioned IDevID or IAK certificate.
+This flow establishes trust in device-generated IAK and IDevID keys by verifying a chain of trust originating from the EK, whose authenticity is confirmed via proof-of-possession using an HMAC-based challenge.
+This approach eliminates the requirement for vendors to provision IAK/IDevID certificates during manufacturing and offers a universal solution for any TPM 2.0 device, provided the EK public keys or certificates are tracked by the owner.
+
+Prerequisites:
+
+- The vendor must record the EK public key or certificate and provide it for each supervisor via the Ownership Voucher gRPC Service (OVGS) along with other identifiers such as serial number, mac address and hardware model.
+- The switch owner must maintain a trusted, secure database called Root of Trust (RoT) database, that fetches vendor EKs from the vendor's Ownership Voucher gRPC Service (OVGS) and stores them. The EKs should be queryable via the supervisor serial number returned from the device.
+
+##### TPM 2.0 Enrollment Workflow Steps (HMAC Challenge)
+
+1. On completion of Bootz workflow, device obtains all necessary credentials and configurations to start serving TPM enrollment gRPC API endpoints.
+2. EnrollZ service is notified to enroll a TPM on a specific device. It establishes a one-way TLS connection where the device is required to verify the certs presented by EnrollZ service via the trust bundle provided in Bootz, and the device is not required to present a certificate.
+3. EnrollZ calls device's `GetControlCardVendorID` to get card details like serial number.
+4. EnrollZ queries its Root of Trust (RoT) database using serial number to fetch device's EK public key.
+5. EnrollZ creates a restricted HMAC key, wraps it to the EK public key, and sends `Challenge` RPC to device with wrapped HMAC key and other details.
+6. Device imports HMAC key using its EK private key, creates an IAK key pair if one doesn't exist, and calls `TPM2_Certify` to certify IAK public key using imported HMAC key.
+7. Device returns IAK public key, `iak_certify_info` structure, and `iak_certify_info_signature` as part of `ChallengeResponse`.
+8. EnrollZ verifies `iak_certify_info_signature` using HMAC key it generated. It also verifies `iak_certify_info` to confirm that IAK is a legitimate TPM-resident key held by same TPM that holds EK private key. EnrollZ also verifies IAK public area attributes.
+9. EnrollZ calls device's `GetIdevidCsr` RPC, requesting IDevID CSR with a specific key template. Note: Currently the only supported template is [Template H-3: ECC NIST P384](https://trustedcomputinggroup.org/wp-content/uploads/TPM-2p0-Keys-for-Device-Identity-and-Attestation_v1_r12_pub10082021.pdf#page=44).
+10. Device returns `GetIdevidCsrResponse` containing `csr_contents` and `idevid_signature_csr`. `csr_contents` contains IDevID public area, IAK public area, IDevID certification data and its signature by IAK.
+11. EnrollZ uses IAK public key (verified in step 7) to validate signature on IDevID certification data within `csr_contents`.
+12. EnrollZ verifies the IDevID certification data to confirm that IDevID is a legitimate TPM-resident key held by same TPM that holds IAK private key and verifies IDevID public area attributes against key template.
+13. EnrollZ uses IDevID public key to verify `idevid_signature_csr`.
+14. EnrollZ service repeats steps 3-12 for each control card.
+15. Once all control cards are verified, EnrollZ asks switch owner CA to issue oIAK and oIDevID certs for all control cards based on their IAK and IDevID pub keys.
+16. EnrollZ service obtains all oIAK and oIDevID certs from CA and calls device's `RotateOIakCert` API once with all certs to be persisted on all control cards.
+17. The switch verifies that the pub keys in oIAK and oIDevID certs match its IAK and IDevID pub keys for each control card, and stores certs in non-volatile memory for `attestz` workflow.
+
+##### TPM 2.0 Enrollment via HMAC Challenge Workflow Diagram
+
+![Alt text](assets/hmac_enrollz.jpg "TPM 2.0 enrollment via HMAC Challenge workflow diagram")
 
 #### TPM 2.0 Enrollment Alternatives Considered
 
@@ -242,7 +291,7 @@ To implement this workflow effectively, the following operational aspects are co
 - Attestation logic is simple as it boils down to just comparing final PCR hashes and does not involve PCR recomputation from the boot log.
 - Expected final PCR values are computed only once, for all devices and offline (before devices arrive to switch owners as opposed to on every attestation while switches are already serving production traffic). This is both efficiency and reliability gain.
 - The design can be extended to attest device-specific PCRs if needed. In this case switch vendors will also provide (along with final expected PCRs) a structured vendor-agnostic PCR measurement manifest object which describes how to calculate final PCRs and at the very least specifies (1) what measurements go into which PCR, (2) the order of measurements, (3) cryptographic hash algorithm used.
-  - _Note: For the actual manifest structure definition, we should consider getting ideas from the [attestation log-retrieval API](https://datatracker.ietf.org/doc/pdf/draft-ietf-rats-yang-tpm-charra-21#page=6) by IETF ChaRRA and re-using/expanding the design from the [Reference Integrity Manifest](https://trustedcomputinggroup.org/wp-content/uploads/TCG_RIM_Model_v1p01_r0p16_pub.pdf) by TCG.
+  - _Note: For the actual manifest structure definition, we should consider getting ideas from the [attestation log-retrieval API](https://datatracker.ietf.org/doc/pdf/draft-ietf-rats-yang-tpm-charra-21#page=6) by IETF ChaRRA and reusing/expanding the design from the [Reference Integrity Manifest](https://trustedcomputinggroup.org/wp-content/uploads/TCG_RIM_Model_v1p01_r0p16_pub.pdf) by TCG.
     The goal is for a switch owner, given a vendor-agnostic PCR measurement manifest (the API/object/format definition is vendor-agnostic, but the actual instance of that object is vendor-specific) and PCR measurement inputs (e.g. boot configuration), to have the ability to pre-calculate the expected final PCRs for a given device using standard TPM folding hash technique. For example:_
 
         ```text
