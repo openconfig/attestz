@@ -756,6 +756,10 @@ func TestRotateOwnerIakCert(t *testing.T) {
 	iakPub2 := "Some IAK pub PEM 2"
 	oIakCert2 := "Some Owner IAK cert PEM 2"
 
+	iDevIDCert1 := "Some IDevID cert PEM 1"
+	iDevIDPub1 := "Some IDevID pub PEM 1"
+	oIdevIDCert1 := "Some Owner IDevID cert PEM 1"
+
 	tests := []struct {
 		// Test description.
 		desc string
@@ -763,15 +767,21 @@ func TestRotateOwnerIakCert(t *testing.T) {
 		wantErrResp           error
 		controlCardSelections []*cpb.ControlCardSelection
 		// Expected captured params to stubbed deps functions calls.
-		wantGetIakCertReqs        []*epb.GetIakCertRequest
-		wantIssueOwnerIakCertReqs []*IssueOwnerIakCertReq
-		wantRotateOIakCertReqs    []*epb.RotateOIakCertRequest
-		wantVerifyTpmCertReqs     []*VerifyTpmCertReq
+		wantGetIakCertReqs              []*epb.GetIakCertRequest
+		wantIssueOwnerIakCertReqs       []*IssueOwnerIakCertReq
+		wantRotateOIakCertReqs          []*epb.RotateOIakCertRequest
+		wantVerifyTpmCertReqs           []*VerifyTpmCertReq
+		wantVerifyIakAndIDevIDCertsReqs []*VerifyIakAndIDevIDCertsReq
+		wantIssueOwnerIDevIDCertReqs    []*IssueOwnerIDevIDCertReq
 		// Stubbed responses to EnrollzInfraDeps deps.
-		issueOwnerIakCertResps []*IssueOwnerIakCertResp
-		getIakCertResps        []*epb.GetIakCertResponse
-		rotateOIakCertResps    []*epb.RotateOIakCertResponse
-		verifyTpmCertResps     []*VerifyTpmCertResp
+		issueOwnerIakCertResps       []*IssueOwnerIakCertResp
+		getIakCertResps              []*epb.GetIakCertResponse
+		rotateOIakCertResps          []*epb.RotateOIakCertResponse
+		verifyTpmCertResps           []*VerifyTpmCertResp
+		verifyIakAndIDevIDCertsResps []*VerifyIakAndIDevIDCertsResp
+		issueOwnerIDevIDCertResps    []*IssueOwnerIDevIDCertResp
+		enableOidevidRotate          bool
+		sslProfileID                 string
 	}{
 		{
 			desc:                  "Successful rotation of Owner IAK cert (single)",
@@ -1058,21 +1068,68 @@ func TestRotateOwnerIakCert(t *testing.T) {
 				{CardID: vendorID2, IakPubPem: iakPub2},
 			},
 		},
+		{
+			desc:                  "Successful rotation of Owner IAK and IDevID certs",
+			enableOidevidRotate:   true,
+			sslProfileID:          "some-ssl-profile-id",
+			controlCardSelections: []*cpb.ControlCardSelection{controlCardSelection1},
+			getIakCertResps: []*epb.GetIakCertResponse{{
+				ControlCardId:               vendorID1,
+				IakCert:                     iakCert1,
+				IdevidCert:                  iDevIDCert1,
+				AtomicCertRotationSupported: true,
+			}},
+			verifyIakAndIDevIDCertsResps: []*VerifyIakAndIDevIDCertsResp{{
+				IakPubPem:    iakPub1,
+				IDevIDPubPem: iDevIDPub1,
+			}},
+			issueOwnerIakCertResps:    []*IssueOwnerIakCertResp{{OwnerIakCertPem: oIakCert1}},
+			issueOwnerIDevIDCertResps: []*IssueOwnerIDevIDCertResp{{OwnerIDevIDCertPem: oIdevIDCert1}},
+			rotateOIakCertResps:       []*epb.RotateOIakCertResponse{{}},
+
+			wantGetIakCertReqs: []*epb.GetIakCertRequest{{ControlCardSelection: controlCardSelection1}},
+			wantVerifyIakAndIDevIDCertsReqs: []*VerifyIakAndIDevIDCertsReq{{
+				ControlCardID:        vendorID1,
+				IakCertPem:           iakCert1,
+				IDevIDCertPem:        iDevIDCert1,
+				CertVerificationOpts: certVerificationOpts,
+			}},
+			wantIssueOwnerIakCertReqs: []*IssueOwnerIakCertReq{{
+				CardID:    vendorID1,
+				IakPubPem: iakPub1,
+			}},
+			wantIssueOwnerIDevIDCertReqs: []*IssueOwnerIDevIDCertReq{{
+				CardID:       vendorID1,
+				IDevIDPubPem: iDevIDPub1,
+			}},
+			wantRotateOIakCertReqs: []*epb.RotateOIakCertRequest{{
+				SslProfileId: "some-ssl-profile-id",
+				Updates: []*epb.ControlCardCertUpdate{{
+					ControlCardSelection: controlCardSelection1,
+					OiakCert:             oIakCert1,
+					OidevidCert:          oIdevIDCert1,
+				}},
+			}},
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			stub := &stubEnrollzInfraDeps{
-				getIakCertResps:        test.getIakCertResps,
-				verifyTpmCertResps:     test.verifyTpmCertResps,
-				issueOwnerIakCertResps: test.issueOwnerIakCertResps,
-				rotateOIakCertResps:    test.rotateOIakCertResps,
-				errorResp:              test.wantErrResp,
+				getIakCertResps:              test.getIakCertResps,
+				verifyTpmCertResps:           test.verifyTpmCertResps,
+				verifyIakAndIDevIDCertsResps: test.verifyIakAndIDevIDCertsResps,
+				issueOwnerIakCertResps:       test.issueOwnerIakCertResps,
+				issueOwnerIDevIDCertResps:    test.issueOwnerIDevIDCertResps,
+				rotateOIakCertResps:          test.rotateOIakCertResps,
+				errorResp:                    test.wantErrResp,
 			}
 			req := &RotateOwnerIakCertReq{
 				ControlCardSelections: test.controlCardSelections,
 				CertVerificationOpts:  certVerificationOpts,
 				Deps:                  stub,
+				EnableOidevidRotate:   test.enableOidevidRotate,
+				SSLProfileID:          test.sslProfileID,
 			}
 			ctx := context.Background()
 			got := RotateOwnerIakCert(ctx, req)
@@ -1089,8 +1146,14 @@ func TestRotateOwnerIakCert(t *testing.T) {
 			if diff := cmp.Diff(stub.verifyTpmCertReqs, test.wantVerifyTpmCertReqs, protocmp.Transform(), cmpopts.IgnoreUnexported(x509.VerifyOptions{})); diff != "" {
 				t.Errorf("VerifyTpmCertReq request param to stubbed VerifyTpmCert dep does not match expectations: diff = %v", diff)
 			}
+			if diff := cmp.Diff(stub.verifyIakAndIDevIDCertsReqs, test.wantVerifyIakAndIDevIDCertsReqs, protocmp.Transform(), cmpopts.IgnoreUnexported(x509.VerifyOptions{})); diff != "" {
+				t.Errorf("VerifyIakAndIDevIDCertsReq request param to stubbed VerifyIakAndIDevIDCerts dep does not match expectations: diff = %v", diff)
+			}
 			if diff := cmp.Diff(stub.issueOwnerIakCertReqs, test.wantIssueOwnerIakCertReqs, protocmp.Transform()); diff != "" {
 				t.Errorf("IssueOwnerIakCertReq request param to stubbed IssueOwnerIakCert dep does not match expectations: diff = %v", diff)
+			}
+			if diff := cmp.Diff(stub.issueOwnerIDevIDCertReqs, test.wantIssueOwnerIDevIDCertReqs, protocmp.Transform()); diff != "" {
+				t.Errorf("IssueOwnerIDevIDCertReq request param to stubbed IssueOwnerIDevIDCert dep does not match expectations: diff = %v", diff)
 			}
 			if diff := cmp.Diff(stub.rotateOIakCertReqs, test.wantRotateOIakCertReqs, protocmp.Transform()); diff != "" {
 				t.Errorf("RotateOIakCertRequest request param to stubbed RotateOIakCert dep does not match expectations: diff = %v", diff)
