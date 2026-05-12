@@ -528,6 +528,10 @@ type RotateOwnerIakCertReq struct {
 	CertVerificationOpts x509.VerifyOptions
 	// Flag used to set the optional nonce and hash algorithm fields for nonce signature verification.
 	SkipNonceExchange *bool
+	// SSL profile ID to which newly-issued Owner IDevID cert should be applied.
+	SSLProfileID string
+	// Flag used to enable oIDevID rotation.
+	EnableOidevidRotate bool
 }
 
 // validateRotateOwnerIakCert verifies that RotateOwnerIakCertReq request is valid.
@@ -572,7 +576,7 @@ func RotateOwnerIakCert(ctx context.Context, req *RotateOwnerIakCertReq) error {
 	var cardDataList []ControlCardCertData
 	var getIakCertRespList []*epb.GetIakCertResponse
 	for _, selection := range req.ControlCardSelections {
-		cardData, getIakCertResp, err := verifyIdentityWithVendorCerts(ctx, selection, req.Deps, req.CertVerificationOpts, req.SkipNonceExchange, false)
+		cardData, getIakCertResp, err := verifyIdentityWithVendorCerts(ctx, selection, req.Deps, req.CertVerificationOpts, req.SkipNonceExchange, req.EnableOidevidRotate)
 		if err != nil {
 			err = fmt.Errorf("%w for control card %s: %w", ErrVerifyIdentity, prototext.Format(selection), err)
 			log.ErrorContext(ctx, err)
@@ -589,7 +593,7 @@ func RotateOwnerIakCert(ctx context.Context, req *RotateOwnerIakCertReq) error {
 		}
 	}
 
-	err = issueAndRotateOwnerCerts(ctx, req.Deps, cardDataList, "", true, getIakCertRespList[0].GetAtomicCertRotationSupported())
+	err = issueAndRotateOwnerCerts(ctx, req.Deps, cardDataList, req.SSLProfileID, !req.EnableOidevidRotate, getIakCertRespList[0].GetAtomicCertRotationSupported())
 	if err != nil {
 		err = fmt.Errorf("%w: %w", ErrIssueAndRotateOwnerCerts, err)
 		log.ErrorContext(ctx, err)
