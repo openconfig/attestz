@@ -6,8 +6,8 @@ require (
 	github.com/golang/glog v1.2.5
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-tpm v0.9.8
-	google.golang.org/grpc v1.81.0
-	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.6.1
+	google.golang.org/grpc v1.81.1
+	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.6.2
 	google.golang.org/protobuf v1.36.11
 )
 
