@@ -146,8 +146,6 @@ func (s *stubEnrollzInfraDeps) RotateOIakCert(ctx context.Context, req *epb.Rota
 	return nil, s.errorResp
 }
 
-
-
 func TestEnrollControlCard(t *testing.T) {
 	// Constants to be used in request params and stubbing.
 	controlCardSelection1 := &cpb.ControlCardSelection{

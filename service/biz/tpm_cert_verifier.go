@@ -63,8 +63,6 @@ type VerifyTpmCertResp struct {
 	PubPem string
 }
 
-
-
 // TpmCertVerifier parses and verifies IAK and IDevID certs.
 type TpmCertVerifier interface {
 	// Performs the following:
@@ -365,5 +363,3 @@ func VerifyAndSerializePubKey(ctx context.Context, cert *x509.Certificate) (stri
 		})
 	return string(pubKeyPem), nil
 }
-
-

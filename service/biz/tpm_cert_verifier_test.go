@@ -981,4 +981,3 @@ func generateECDSAKeyPair(t *testing.T, curve elliptic.Curve) (*ecdsa.PrivateKey
 		})
 	return privKey, string(pubKeyPem)
 }
-
