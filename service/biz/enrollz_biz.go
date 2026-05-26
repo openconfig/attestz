@@ -240,8 +240,6 @@ type EnrollControlCardReq struct {
 	SSLProfileID string
 	// Experimental flag used for lab testing only. Skips oIDevID rotation.
 	SkipOidevidRotate bool
-	// Flag used to set the optional nonce and hash algorithm fields for nonce signature verification.
-	SkipNonceExchange *bool
 }
 
 // validateEnrollControlCardReq verifies that EnrollControlCardReq request is valid.
@@ -285,7 +283,7 @@ func EnrollControlCard(ctx context.Context, req *EnrollControlCardReq) error {
 	var cardDataList []ControlCardCertData
 	var getIakCertRespList []*epb.GetIakCertResponse
 	for _, selection := range req.ControlCardSelections {
-		cardData, getIakCertResp, err := verifyIdentityWithVendorCerts(ctx, selection, req.Deps, req.CertVerificationOpts, req.SkipNonceExchange, true)
+		cardData, getIakCertResp, err := verifyIdentityWithVendorCerts(ctx, selection, req.Deps, req.CertVerificationOpts, true)
 		if err != nil {
 			err = fmt.Errorf("%w for control card %s: %w", ErrVerifyIdentity, prototext.Format(selection), err)
 			log.ErrorContext(ctx, err)
@@ -324,17 +322,8 @@ type ControlCardCertData struct {
 // It calls the device's GetIakCert method, validates the received IAK and optionally IDevID certificates,
 // and verifies the nonce signature if provided. It returns the verified control card certificate
 // data and the GetIakCertResponse from the device.
-func verifyIdentityWithVendorCerts(ctx context.Context, controlCardSelection *cpb.ControlCardSelection, deps EnrollzInfraDeps, certVerificationOpts x509.VerifyOptions, skipNonceExchange *bool, verifyIDevID bool) (*ControlCardCertData, *epb.GetIakCertResponse, error) {
+func verifyIdentityWithVendorCerts(ctx context.Context, controlCardSelection *cpb.ControlCardSelection, deps EnrollzInfraDeps, certVerificationOpts x509.VerifyOptions, verifyIDevID bool) (*ControlCardCertData, *epb.GetIakCertResponse, error) {
 	getIakCertReq := &epb.GetIakCertRequest{ControlCardSelection: controlCardSelection}
-	// Generate a nonce.
-	if skipNonceExchange != nil && !*skipNonceExchange {
-		nonce := make([]byte, 16)
-		if _, err := rand.Read(nonce); err != nil {
-			return nil, nil, fmt.Errorf("%w: %v", ErrNonceGeneration, err)
-		}
-		getIakCertReq.Nonce = nonce
-		getIakCertReq.HashAlgo = cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256.Enum()
-	}
 	getIakCertResp, err := deps.GetIakCert(ctx, getIakCertReq)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w with req=%s: %v", ErrGetIakCert, prototext.Format(getIakCertReq), err)
@@ -372,23 +361,6 @@ func verifyIdentityWithVendorCerts(ctx context.Context, controlCardSelection *cp
 		log.InfoContextf(ctx, "Successful TpmCertVerifier.VerifyTpmCert() for control_card_id=%s, resp with IAK_pub_pem=%s",
 			prototext.Format(getIakCertResp.ControlCardId), tpmCertVerifierResp.PubPem)
 		iakPubPem = tpmCertVerifierResp.PubPem
-	}
-
-	// Verify nonce signature if present.
-	if len(getIakCertResp.NonceSignature) > 0 {
-		resp, err := deps.VerifyNonceSignature(
-			ctx, &VerifyNonceSignatureReq{
-				Nonce:     getIakCertReq.Nonce,
-				Signature: getIakCertResp.NonceSignature,
-				HashAlgo:  *getIakCertReq.HashAlgo,
-				IAKPubPem: iakPubPem,
-			})
-		if err != nil {
-			return nil, nil, fmt.Errorf("%w: %v", ErrNonceVerification, err)
-		}
-		if !resp.IsValid {
-			return nil, nil, ErrNonceVerification
-		}
 	}
 
 	controlCardCertData := ControlCardCertData{
@@ -526,8 +498,6 @@ type RotateOwnerIakCertReq struct {
 	Deps EnrollzInfraDeps
 	// Verification options for IAK cert.
 	CertVerificationOpts x509.VerifyOptions
-	// Flag used to set the optional nonce and hash algorithm fields for nonce signature verification.
-	SkipNonceExchange *bool
 	// SSL profile ID to which newly-issued Owner IDevID cert should be applied.
 	SSLProfileID string
 	// Flag used to enable oIDevID rotation.
@@ -576,7 +546,7 @@ func RotateOwnerIakCert(ctx context.Context, req *RotateOwnerIakCertReq) error {
 	var cardDataList []ControlCardCertData
 	var getIakCertRespList []*epb.GetIakCertResponse
 	for _, selection := range req.ControlCardSelections {
-		cardData, getIakCertResp, err := verifyIdentityWithVendorCerts(ctx, selection, req.Deps, req.CertVerificationOpts, req.SkipNonceExchange, req.EnableOidevidRotate)
+		cardData, getIakCertResp, err := verifyIdentityWithVendorCerts(ctx, selection, req.Deps, req.CertVerificationOpts, req.EnableOidevidRotate)
 		if err != nil {
 			err = fmt.Errorf("%w for control card %s: %w", ErrVerifyIdentity, prototext.Format(selection), err)
 			log.ErrorContext(ctx, err)
