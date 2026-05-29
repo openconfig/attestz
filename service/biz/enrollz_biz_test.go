@@ -52,7 +52,6 @@ type stubEnrollzInfraDeps struct {
 	rotateOIakCertReqs          []*epb.RotateOIakCertRequest
 	verifyIakAndIDevIDCertsReqs []*VerifyIakAndIDevIDCertsReq
 	verifyTpmCertReqs           []*VerifyTpmCertReq
-	verifyNonceSignatureReqs    []*VerifyNonceSignatureReq
 
 	// Stubbed responses.
 	issueOwnerIakCertResps       []*IssueOwnerIakCertResp
@@ -61,7 +60,6 @@ type stubEnrollzInfraDeps struct {
 	rotateOIakCertResps          []*epb.RotateOIakCertResponse
 	verifyIakAndIDevIDCertsResps []*VerifyIakAndIDevIDCertsResp
 	verifyTpmCertResps           []*VerifyTpmCertResp
-	verifyNonceSignatureResps    []*VerifyNonceSignatureResp
 
 	// Stubbed errors (optional, per call index).
 	issueOwnerIakCertErrs       []error
@@ -70,7 +68,6 @@ type stubEnrollzInfraDeps struct {
 	getIakCertErrs              []error
 	verifyIakAndIDevIDCertsErrs []error
 	verifyTpmCertErrs           []error
-	verifyNonceSignatureErrs    []error
 
 	// Error response to return when no specific response is available.
 	errorResp error
@@ -147,22 +144,6 @@ func (s *stubEnrollzInfraDeps) RotateOIakCert(ctx context.Context, req *epb.Rota
 		return s.rotateOIakCertResps[idx], nil
 	}
 	return nil, s.errorResp
-}
-
-func (s *stubEnrollzInfraDeps) VerifyNonceSignature(ctx context.Context, req *VerifyNonceSignatureReq) (*VerifyNonceSignatureResp, error) {
-	s.verifyNonceSignatureReqs = append(s.verifyNonceSignatureReqs, req)
-	idx := len(s.verifyNonceSignatureReqs) - 1
-	if idx < len(s.verifyNonceSignatureErrs) && s.verifyNonceSignatureErrs[idx] != nil {
-		return nil, s.verifyNonceSignatureErrs[idx]
-	}
-	if idx >= len(s.verifyNonceSignatureResps) {
-		return nil, s.errorResp
-	}
-	resp := s.verifyNonceSignatureResps[idx]
-	if !resp.IsValid {
-		return resp, s.errorResp
-	}
-	return resp, nil
 }
 
 func TestEnrollControlCard(t *testing.T) {
@@ -1164,207 +1145,6 @@ func TestRotateOwnerIakCert(t *testing.T) {
 
 func boolPtr(b bool) *bool {
 	return &b
-}
-
-func TestNonceVerification(t *testing.T) {
-	// Constants to be used in request params and stubbing.
-	controlCardSelection := &cpb.ControlCardSelection{
-		ControlCardId: &cpb.ControlCardSelection_Role{
-			Role: cpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE,
-		},
-	}
-	certVerificationOpts := x509.VerifyOptions{
-		DNSName: "Some DNS name",
-	}
-	vendorID := &cpb.ControlCardVendorId{
-		ControlCardRole:     controlCardSelection.GetRole(),
-		ControlCardSerial:   "Some card serial",
-		ControlCardSlot:     "Some card slot",
-		ChassisManufacturer: "Some manufacturer",
-		ChassisPartNumber:   "Some part",
-		ChassisSerialNumber: "Some chassis serial",
-	}
-	sslProfileID := "some-ssl-profile-id"
-	iakCert := "Some IAK cert PEM"
-	iDevIDCert := "Some IDevID cert PEM"
-	iakPub := "Some IAK pub PEM"
-	iDevIDPub := "Some IDevID pub PEM"
-	oIakCert := "Some Owner IAK cert PEM"
-	oIdevIDCert := "Some Owner IDevID cert PEM"
-	validNonceSignature := []byte("some-nonce-signature")
-
-	tests := []struct {
-		// Test description.
-		desc string
-		// Indicates if the test is for EnrollControlCard or RotateOwnerIakCert
-		isEnrollmentTest bool
-		// Overall expected EnrollControlCard response.
-		wantErrResp error
-		// Stubbed responses to EnrollzInfraDeps deps.
-		getIakCertResp           *epb.GetIakCertResponse
-		verifyNonceSignatureResp *VerifyNonceSignatureResp
-		skipNonceExchange        *bool
-		// Expected verifyNonceSignatureReq to be called.
-		wantVerifyNonceSignatureReq bool
-	}{
-		{
-			desc:             "Successful nonce verification",
-			isEnrollmentTest: true,
-			getIakCertResp: &epb.GetIakCertResponse{
-				ControlCardId:  vendorID,
-				IakCert:        iakCert,
-				IdevidCert:     iDevIDCert,
-				NonceSignature: validNonceSignature,
-			},
-			verifyNonceSignatureResp: &VerifyNonceSignatureResp{
-				IsValid: true,
-			},
-			wantVerifyNonceSignatureReq: true,
-			skipNonceExchange:           boolPtr(false),
-			wantErrResp:                 nil,
-		},
-		{
-			desc:             "Failed nonce verification",
-			isEnrollmentTest: true,
-			wantErrResp:      ErrVerifyIdentity,
-			getIakCertResp: &epb.GetIakCertResponse{
-				ControlCardId:  vendorID,
-				IakCert:        iakCert,
-				IdevidCert:     iDevIDCert,
-				NonceSignature: validNonceSignature,
-			},
-			verifyNonceSignatureResp: &VerifyNonceSignatureResp{
-				IsValid: false,
-			},
-			wantVerifyNonceSignatureReq: true,
-			skipNonceExchange:           boolPtr(false),
-		},
-		{
-			desc:             "Missing nonce signature, verification skipped",
-			isEnrollmentTest: true,
-			getIakCertResp: &epb.GetIakCertResponse{
-				ControlCardId: vendorID,
-				IakCert:       iakCert,
-				IdevidCert:    iDevIDCert,
-			},
-			skipNonceExchange: boolPtr(false),
-		},
-		{
-			desc:             "Skip Nonce Exchange",
-			isEnrollmentTest: true,
-			getIakCertResp: &epb.GetIakCertResponse{
-				ControlCardId: vendorID,
-				IakCert:       iakCert,
-				IdevidCert:    iDevIDCert,
-			},
-			skipNonceExchange: boolPtr(true),
-		},
-		{
-			desc:             "Successful nonce verification for RotateOwnerIakCert",
-			isEnrollmentTest: false,
-			getIakCertResp: &epb.GetIakCertResponse{
-				ControlCardId:  vendorID,
-				IakCert:        iakCert,
-				NonceSignature: validNonceSignature,
-			},
-			verifyNonceSignatureResp: &VerifyNonceSignatureResp{
-				IsValid: true,
-			},
-			wantVerifyNonceSignatureReq: true,
-			skipNonceExchange:           boolPtr(false),
-			wantErrResp:                 nil,
-		},
-		{
-			desc:             "Failed nonce verification for RotateOwnerIakCert",
-			isEnrollmentTest: false,
-			wantErrResp:      ErrVerifyIdentity,
-			getIakCertResp: &epb.GetIakCertResponse{
-				ControlCardId:  vendorID,
-				IakCert:        iakCert,
-				NonceSignature: validNonceSignature,
-			},
-			verifyNonceSignatureResp: &VerifyNonceSignatureResp{
-				IsValid: false,
-			},
-			wantVerifyNonceSignatureReq: true,
-			skipNonceExchange:           boolPtr(false),
-		},
-		{
-			desc:             "Missing nonce signature for RotateOwnerIakCert, verification skipped",
-			isEnrollmentTest: false,
-			getIakCertResp: &epb.GetIakCertResponse{
-				ControlCardId: vendorID,
-				IakCert:       iakCert,
-			},
-			skipNonceExchange: boolPtr(false),
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			stub := &stubEnrollzInfraDeps{
-				getIakCertResps:              []*epb.GetIakCertResponse{test.getIakCertResp},
-				verifyIakAndIDevIDCertsResps: []*VerifyIakAndIDevIDCertsResp{{IakPubPem: iakPub, IDevIDPubPem: iDevIDPub}},
-				issueOwnerIakCertResps:       []*IssueOwnerIakCertResp{{OwnerIakCertPem: oIakCert}},
-				issueOwnerIDevIDCertResps:    []*IssueOwnerIDevIDCertResp{{OwnerIDevIDCertPem: oIdevIDCert}},
-				rotateOIakCertResps:          []*epb.RotateOIakCertResponse{{}},
-				errorResp:                    test.wantErrResp,
-				verifyNonceSignatureResps:    []*VerifyNonceSignatureResp{test.verifyNonceSignatureResp},
-				verifyTpmCertResps:           []*VerifyTpmCertResp{{PubPem: iakPub}},
-			}
-			ctx := context.Background()
-			var got error
-			if test.isEnrollmentTest {
-				req := &EnrollControlCardReq{
-					ControlCardSelections: []*cpb.ControlCardSelection{controlCardSelection},
-					CertVerificationOpts:  certVerificationOpts,
-					Deps:                  stub,
-					SSLProfileID:          sslProfileID,
-					SkipNonceExchange:     test.skipNonceExchange,
-				}
-				got = EnrollControlCard(ctx, req)
-			} else {
-				req := &RotateOwnerIakCertReq{
-					ControlCardSelections: []*cpb.ControlCardSelection{controlCardSelection},
-					CertVerificationOpts:  certVerificationOpts,
-					Deps:                  stub,
-					SkipNonceExchange:     test.skipNonceExchange,
-				}
-				got = RotateOwnerIakCert(ctx, req)
-			}
-
-			// Verify that EnrollControlCard returned expected error/no-error response.
-			if !errors.Is(got, test.wantErrResp) {
-				t.Errorf("Expected error response %v, but got error response %v", test.wantErrResp, got)
-			}
-
-			// Verify that GetIakCertReq was called with a nonce if SkipNonceExchange is false.
-			if test.skipNonceExchange == nil || !*test.skipNonceExchange {
-				if len(stub.getIakCertReqs) == 0 || len(stub.getIakCertReqs[0].Nonce) == 0 {
-					t.Errorf("GetIakCertRequest was called without a nonce, but it was expected")
-				}
-			} else if len(stub.getIakCertReqs) > 0 && len(stub.getIakCertReqs[0].Nonce) > 0 {
-				t.Errorf("GetIakCertRequest was called with a nonce, but it was not expected")
-			}
-
-			// Verify that VerifyNonceSignature was called if expected.
-			if test.wantVerifyNonceSignatureReq && len(stub.verifyNonceSignatureReqs) == 0 {
-				t.Errorf("VerifyNonceSignature was expected to be called but was not")
-			} else if !test.wantVerifyNonceSignatureReq && len(stub.verifyNonceSignatureReqs) > 0 {
-				t.Errorf("VerifyNonceSignature was not expected to be called but was")
-			}
-			if test.wantVerifyNonceSignatureReq {
-				if len(stub.verifyNonceSignatureReqs) == 0 {
-					t.Errorf("VerifyNonceSignature was expected to be called but was not")
-				} else {
-					req := stub.verifyNonceSignatureReqs[0]
-					if len(req.Nonce) == 0 || len(req.Signature) == 0 || len(req.IAKPubPem) == 0 || req.HashAlgo == 0 {
-						t.Errorf("VerifyNonceSignature was expected to be called with all parameters, but one or more parameters was missing")
-					}
-				}
-			}
-		})
-	}
 }
 
 type stubRotateAIKCertInfraDeps struct {
@@ -3272,38 +3052,40 @@ func TestIssueAndRotateOwnerCerts(t *testing.T) {
 }
 
 func TestVerifyIdentityWithVendorCerts(t *testing.T) {
-	// Constants
+	// Constants to be used in request params and stubbing.
 	controlCardSelection := &cpb.ControlCardSelection{
 		ControlCardId: &cpb.ControlCardSelection_Role{
 			Role: cpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE,
 		},
 	}
 	certVerificationOpts := x509.VerifyOptions{
-		DNSName: "test-dns",
+		DNSName: "Some DNS name",
 	}
 	vendorID := &cpb.ControlCardVendorId{
-		ControlCardSerial: "serial",
+		ControlCardRole:     controlCardSelection.GetRole(),
+		ControlCardSerial:   "Some card serial",
+		ControlCardSlot:     "Some card slot",
+		ChassisManufacturer: "Some manufacturer",
+		ChassisPartNumber:   "Some part",
+		ChassisSerialNumber: "Some chassis serial",
 	}
-	iakCert := "iak-cert-pem"
-	idevidCert := "idevid-cert-pem"
-	iakPub := "iak-pub-pem"
-	idevidPub := "idevid-pub-pem"
-	nonceSignature := []byte("signature")
+	iakCert := "Some IAK cert PEM"
+	idevidCert := "Some IDevID cert PEM"
+	iakPub := "Some IAK pub PEM"
+	idevidPub := "Some IDevID pub PEM"
 
 	tests := []struct {
-		desc              string
-		verifyIDevID      bool
-		skipNonceExchange *bool
-		mockStub          stubEnrollzInfraDeps
-		wantErr           error
-		wantNonceExchange bool
-		wantIakPub        string
-		wantIDevIDPub     string
+		// Test description.
+		desc          string
+		verifyIDevID  bool
+		mockStub      stubEnrollzInfraDeps
+		wantErr       error
+		wantIakPub    string
+		wantIDevIDPub string
 	}{
 		{
-			desc:              "Success with IDevID verification and skipped nonce",
-			verifyIDevID:      true,
-			skipNonceExchange: boolPtr(true),
+			desc:         "Success with IDevID verification",
+			verifyIDevID: true,
 			mockStub: stubEnrollzInfraDeps{
 				getIakCertResps: []*epb.GetIakCertResponse{{
 					ControlCardId: vendorID,
@@ -3319,9 +3101,8 @@ func TestVerifyIdentityWithVendorCerts(t *testing.T) {
 			wantIDevIDPub: idevidPub,
 		},
 		{
-			desc:              "Success without IDevID verification and skipped nonce",
-			verifyIDevID:      false,
-			skipNonceExchange: boolPtr(true),
+			desc:         "Success without IDevID verification",
+			verifyIDevID: false,
 			mockStub: stubEnrollzInfraDeps{
 				getIakCertResps: []*epb.GetIakCertResponse{{
 					ControlCardId: vendorID,
@@ -3334,41 +3115,16 @@ func TestVerifyIdentityWithVendorCerts(t *testing.T) {
 			wantIakPub: iakPub,
 		},
 		{
-			desc:              "Success with nonce exchange",
-			verifyIDevID:      true,
-			skipNonceExchange: boolPtr(false),
-			mockStub: stubEnrollzInfraDeps{
-				getIakCertResps: []*epb.GetIakCertResponse{{
-					ControlCardId:  vendorID,
-					IakCert:        iakCert,
-					IdevidCert:     idevidCert,
-					NonceSignature: nonceSignature,
-				}},
-				verifyIakAndIDevIDCertsResps: []*VerifyIakAndIDevIDCertsResp{{
-					IakPubPem:    iakPub,
-					IDevIDPubPem: idevidPub,
-				}},
-				verifyNonceSignatureResps: []*VerifyNonceSignatureResp{{
-					IsValid: true,
-				}},
-			},
-			wantNonceExchange: true,
-			wantIakPub:        iakPub,
-			wantIDevIDPub:     idevidPub,
-		},
-		{
-			desc:              "GetIakCert error",
-			verifyIDevID:      true,
-			skipNonceExchange: boolPtr(true),
+			desc:         "GetIakCert error",
+			verifyIDevID: true,
 			mockStub: stubEnrollzInfraDeps{
 				getIakCertErrs: []error{errors.New("get cert error")},
 			},
 			wantErr: ErrGetIakCert,
 		},
 		{
-			desc:              "VerifyIakAndIDevIDCerts error",
-			verifyIDevID:      true,
-			skipNonceExchange: boolPtr(true),
+			desc:         "VerifyIakAndIDevIDCerts error",
+			verifyIDevID: true,
 			mockStub: stubEnrollzInfraDeps{
 				getIakCertResps: []*epb.GetIakCertResponse{{
 					ControlCardId: vendorID,
@@ -3380,9 +3136,8 @@ func TestVerifyIdentityWithVendorCerts(t *testing.T) {
 			wantErr: ErrCertVerification,
 		},
 		{
-			desc:              "VerifyTpmCert error",
-			verifyIDevID:      false,
-			skipNonceExchange: boolPtr(true),
+			desc:         "VerifyTpmCert error",
+			verifyIDevID: false,
 			mockStub: stubEnrollzInfraDeps{
 				getIakCertResps: []*epb.GetIakCertResponse{{
 					ControlCardId: vendorID,
@@ -3392,55 +3147,13 @@ func TestVerifyIdentityWithVendorCerts(t *testing.T) {
 			},
 			wantErr: ErrCertVerification,
 		},
-		{
-			desc:              "Nonce verification error",
-			verifyIDevID:      true,
-			skipNonceExchange: boolPtr(false),
-			mockStub: stubEnrollzInfraDeps{
-				getIakCertResps: []*epb.GetIakCertResponse{{
-					ControlCardId:  vendorID,
-					IakCert:        iakCert,
-					IdevidCert:     idevidCert,
-					NonceSignature: nonceSignature,
-				}},
-				verifyIakAndIDevIDCertsResps: []*VerifyIakAndIDevIDCertsResp{{
-					IakPubPem:    iakPub,
-					IDevIDPubPem: idevidPub,
-				}},
-				verifyNonceSignatureErrs: []error{errors.New("nonce error")},
-			},
-			wantNonceExchange: true,
-			wantErr:           ErrNonceVerification,
-		},
-		{
-			desc:              "Nonce verification invalid",
-			verifyIDevID:      true,
-			skipNonceExchange: boolPtr(false),
-			mockStub: stubEnrollzInfraDeps{
-				getIakCertResps: []*epb.GetIakCertResponse{{
-					ControlCardId:  vendorID,
-					IakCert:        iakCert,
-					IdevidCert:     idevidCert,
-					NonceSignature: nonceSignature,
-				}},
-				verifyIakAndIDevIDCertsResps: []*VerifyIakAndIDevIDCertsResp{{
-					IakPubPem:    iakPub,
-					IDevIDPubPem: idevidPub,
-				}},
-				verifyNonceSignatureResps: []*VerifyNonceSignatureResp{{
-					IsValid: false,
-				}},
-			},
-			wantNonceExchange: true,
-			wantErr:           ErrNonceVerification,
-		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			stub := &test.mockStub
 			ctx := context.Background()
-			cardData, resp, err := verifyIdentityWithVendorCerts(ctx, controlCardSelection, stub, certVerificationOpts, test.skipNonceExchange, test.verifyIDevID)
+			cardData, resp, err := verifyIdentityWithVendorCerts(ctx, controlCardSelection, stub, certVerificationOpts, test.verifyIDevID)
 
 			if test.wantErr != nil {
 				if !errors.Is(err, test.wantErr) {
@@ -3463,15 +3176,6 @@ func TestVerifyIdentityWithVendorCerts(t *testing.T) {
 			}
 			if cardData.IDevIDPubPem != test.wantIDevIDPub {
 				t.Errorf("verifyIdentityWithVendorCerts() IDevIDPubPem = %v, want %v", cardData.IDevIDPubPem, test.wantIDevIDPub)
-			}
-
-			// Verify nonce was generated and sent if expected
-			if len(stub.getIakCertReqs) > 0 {
-				req := stub.getIakCertReqs[0]
-				hasNonce := len(req.Nonce) > 0
-				if hasNonce != test.wantNonceExchange {
-					t.Errorf("verifyIdentityWithVendorCerts() sent nonce = %v, want %v", hasNonce, test.wantNonceExchange)
-				}
 			}
 		})
 	}
