@@ -945,39 +945,3 @@ func TestVerifyTpmCert(t *testing.T) {
 		})
 	}
 }
-
-func generateRSAKeyPair(t *testing.T, keySize int) (*rsa.PrivateKey, string) {
-	t.Helper()
-	privKey, err := rsa.GenerateKey(rand.Reader, keySize)
-	if err != nil {
-		t.Fatalf("Failed to generate RSA key: %v", err)
-	}
-	derBytes, err := x509.MarshalPKIXPublicKey(&privKey.PublicKey)
-	if err != nil {
-		t.Fatalf("Failed to marshal RSA public key: %v", err)
-	}
-	pubKeyPem := pem.EncodeToMemory(
-		&pem.Block{
-			Type:  "PUBLIC KEY",
-			Bytes: derBytes,
-		})
-	return privKey, string(pubKeyPem)
-}
-
-func generateECDSAKeyPair(t *testing.T, curve elliptic.Curve) (*ecdsa.PrivateKey, string) {
-	t.Helper()
-	privKey, err := ecdsa.GenerateKey(curve, rand.Reader)
-	if err != nil {
-		t.Fatalf("Failed to generate ECDSA key: %v", err)
-	}
-	derBytes, err := x509.MarshalPKIXPublicKey(&privKey.PublicKey)
-	if err != nil {
-		t.Fatalf("Failed to marshal ECDSA public key: %v", err)
-	}
-	pubKeyPem := pem.EncodeToMemory(
-		&pem.Block{
-			Type:  "PUBLIC KEY",
-			Bytes: derBytes,
-		})
-	return privKey, string(pubKeyPem)
-}

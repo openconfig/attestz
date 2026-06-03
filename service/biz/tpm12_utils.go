@@ -64,6 +64,8 @@ var (
 	ErrUnsupportedScheme = errors.New("unsupported scheme")
 	// ErrInvalidPadding is returned when there padding used is invalid.
 	ErrInvalidPadding = errors.New("invalid padding")
+	// ErrEmptyCiphertext is returned when the ciphertext is empty.
+	ErrEmptyCiphertext = errors.New("ciphertext is empty")
 )
 
 // Note: All the uint values in TPM_* structures in this file use big endian (network byte order).
@@ -808,7 +810,10 @@ func (u *DefaultTPM12Utils) DecryptWithSymmetricKey(ctx context.Context, symKey 
 		ciphertext = ciphertext[cipherBlock.BlockSize():]
 	}
 
-	// The ciphertext must be a multiple of the block size.
+	// The ciphertext must be a non-empty multiple of the block size.
+	if len(ciphertext) == 0 {
+		return nil, ErrEmptyCiphertext
+	}
 	if len(ciphertext)%cipherBlock.BlockSize() != 0 {
 		return nil, fmt.Errorf("ciphertext is not a multiple of the block size")
 	}

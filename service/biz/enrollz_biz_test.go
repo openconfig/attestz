@@ -1143,10 +1143,6 @@ func TestRotateOwnerIakCert(t *testing.T) {
 	}
 }
 
-func boolPtr(b bool) *bool {
-	return &b
-}
-
 type stubRotateAIKCertInfraDeps struct {
 	SwitchOwnerCaClient
 	EnrollzDeviceClient

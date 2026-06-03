@@ -2367,6 +2367,20 @@ func TestDecryptWithSymmetricKey_Failure(t *testing.T) {
 			data:          validCiphertext,
 			expectedError: ErrInvalidPadding,
 		},
+		{
+			name:          "Failure Empty Ciphertext External IV",
+			key:           keyBytes,
+			keyParams:     keyParams,
+			data:          []byte{},
+			expectedError: ErrEmptyCiphertext,
+		},
+		{
+			name:          "Failure Ciphertext Just IV",
+			key:           keyBytes,
+			keyParams:     &TPMKeyParms{EncScheme: EsSymCBCPKCS5},
+			data:          validCiphertext[:aes.BlockSize],
+			expectedError: ErrEmptyCiphertext,
+		},
 	}
 
 	for _, tc := range failureTestCases {
