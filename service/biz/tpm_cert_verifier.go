@@ -268,8 +268,18 @@ func VerifyAndParsePemCert(ctx context.Context, certPem string, certVerification
 		for _, cert := range certs[1:] {
 			certVerificationOpts.Intermediates.AddCert(cert)
 		}
-		certVerificationOpts.KeyUsages = []x509.ExtKeyUsage{x509.ExtKeyUsageAny}
 	}
+
+	// TODO: Consider detaching certificate chain creation from setting verification options.
+	// This configuration should ideally be moved to the callers to allow stricter checking
+	// (e.g., ExtKeyUsageServerAuth for standard IDevIDs) while allowing relaxation
+	// (ExtKeyUsageAny) only where necessary (like IAKs or specific legacy vendor certs).
+	//
+	// We relax the key usage requirement to ExtKeyUsageAny here because:
+	// 1. IAKs are not standard TLS endpoints and might not have standard TLS usages.
+	// 2. Some vendor certificates (e.g., Arista Sup2 IDevIDs) may be missing the
+	//    ServerAuth extension, causing verification to fail with strict checking.
+	certVerificationOpts.KeyUsages = []x509.ExtKeyUsage{x509.ExtKeyUsageAny}
 
 	// Validate cert expiration and verify signature using provided options.
 	if _, err := leafCert.Verify(certVerificationOpts); err != nil {
