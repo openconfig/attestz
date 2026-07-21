@@ -92,6 +92,9 @@ message AttestResponse {
   // TPM 1.2: Attestation Identity Key - aik_cert
   // TPM 2.0: Owner Initial Attestation Key - oiak_cert
   AttestationCert attestation_cert = 7;
+
+  // [Optional] An event log using the TCG Canonical Event Log format.
+  bytes eventlog_bytes = 8;
 }
 
 // The service is responsible for TPM attestation workflow on the switch
