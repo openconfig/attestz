@@ -20,6 +20,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"strings"
+	"time"
 
 	// #nosec
 	"crypto/sha1"
@@ -994,7 +995,9 @@ func verifyIdentityWithHMACChallenge(ctx context.Context, controlCardSelection *
 		return nil, nil, nil, fmt.Errorf("failed to create HMAC challenge: %w", err)
 	}
 
-	challengeResp, err := deps.Challenge(ctx, &epb.ChallengeRequest{ControlCardSelection: controlCardSelection, Challenge: hmacChallenge, Key: fetchEKResp.KeyType})
+	challengeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	challengeResp, err := deps.Challenge(challengeCtx, &epb.ChallengeRequest{ControlCardSelection: controlCardSelection, Challenge: hmacChallenge, Key: fetchEKResp.KeyType})
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to challenge the TPM: %w", err)
 	}
