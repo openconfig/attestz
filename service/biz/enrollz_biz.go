@@ -75,6 +75,10 @@ var (
 // RSAkeySize2048 is the size of the RSA key used for TPM enrollment.
 const RSAkeySize2048 = 2048
 
+// defaultChallengeTimeout is the default timeout for the HMAC challenge.
+// This prevents the challenge verification from blocking indefinitely if the device is unresponsive.
+const defaultChallengeTimeout = 10 * time.Second
+
 // IssueOwnerIakCertReq is the request to SwitchOwnerCaClient.IssueOwnerIakCert().
 type IssueOwnerIakCertReq struct {
 	// Identity fields of a given switch control card.
@@ -995,7 +999,7 @@ func verifyIdentityWithHMACChallenge(ctx context.Context, controlCardSelection *
 		return nil, nil, nil, fmt.Errorf("failed to create HMAC challenge: %w", err)
 	}
 
-	challengeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	challengeCtx, cancel := context.WithTimeout(ctx, defaultChallengeTimeout)
 	defer cancel()
 	challengeResp, err := deps.Challenge(challengeCtx, &epb.ChallengeRequest{ControlCardSelection: controlCardSelection, Challenge: hmacChallenge, Key: fetchEKResp.KeyType})
 	if err != nil {
