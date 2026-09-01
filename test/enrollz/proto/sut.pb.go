@@ -42,21 +42,21 @@ type EnrollDeviceResponse_Status int32
 
 const (
 	EnrollDeviceResponse_STATUS_UNSPECIFIED EnrollDeviceResponse_Status = 0
-	EnrollDeviceResponse_SUCCESS            EnrollDeviceResponse_Status = 1
-	EnrollDeviceResponse_FAILURE            EnrollDeviceResponse_Status = 2
+	EnrollDeviceResponse_STATUS_SUCCESS     EnrollDeviceResponse_Status = 1
+	EnrollDeviceResponse_STATUS_FAILURE     EnrollDeviceResponse_Status = 2
 )
 
 // Enum value maps for EnrollDeviceResponse_Status.
 var (
 	EnrollDeviceResponse_Status_name = map[int32]string{
 		0: "STATUS_UNSPECIFIED",
-		1: "SUCCESS",
-		2: "FAILURE",
+		1: "STATUS_SUCCESS",
+		2: "STATUS_FAILURE",
 	}
 	EnrollDeviceResponse_Status_value = map[string]int32{
 		"STATUS_UNSPECIFIED": 0,
-		"SUCCESS":            1,
-		"FAILURE":            2,
+		"STATUS_SUCCESS":     1,
+		"STATUS_FAILURE":     2,
 	}
 )
 
@@ -245,14 +245,14 @@ const file_sut_proto_rawDesc = "" +
 	"\bhostname\x18\x02 \x01(\tR\bhostname\x12\x12\n" +
 	"\x04port\x18\x03 \x01(\tR\x04port\x12O\n" +
 	"\x11control_card_role\x18\x04 \x01(\x0e2#.openconfig.attestz.ControlCardRoleR\x0fcontrolCardRole\x12$\n" +
-	"\x0essl_profile_id\x18\x05 \x01(\tR\fsslProfileId\"\xc5\x01\n" +
+	"\x0essl_profile_id\x18\x05 \x01(\tR\fsslProfileId\"\xd3\x01\n" +
 	"\x14EnrollDeviceResponse\x12L\n" +
 	"\x06status\x18\x01 \x01(\x0e24.openconfig.attestz.test.EnrollDeviceResponse.StatusR\x06status\x12#\n" +
-	"\rerror_message\x18\x02 \x01(\tR\ferrorMessage\":\n" +
+	"\rerror_message\x18\x02 \x01(\tR\ferrorMessage\"H\n" +
 	"\x06Status\x12\x16\n" +
-	"\x12STATUS_UNSPECIFIED\x10\x00\x12\v\n" +
-	"\aSUCCESS\x10\x01\x12\v\n" +
-	"\aFAILURE\x10\x022y\n" +
+	"\x12STATUS_UNSPECIFIED\x10\x00\x12\x12\n" +
+	"\x0eSTATUS_SUCCESS\x10\x01\x12\x12\n" +
+	"\x0eSTATUS_FAILURE\x10\x022y\n" +
 	"\n" +
 	"Controller\x12k\n" +
 	"\fEnrollDevice\x12,.openconfig.attestz.test.EnrollDeviceRequest\x1a-.openconfig.attestz.test.EnrollDeviceResponseB2Z0github.com/openconfig/attestz/test/enrollz/protob\x06proto3"
