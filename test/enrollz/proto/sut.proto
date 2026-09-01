@@ -63,8 +63,8 @@ message EnrollDeviceRequest {
 message EnrollDeviceResponse {
   enum Status {
     STATUS_UNSPECIFIED = 0;
-    SUCCESS = 1;
-    FAILURE = 2;
+    STATUS_SUCCESS = 1;
+    STATUS_FAILURE = 2;
   }
 
   // The resulting status of the enrollment procedure.
