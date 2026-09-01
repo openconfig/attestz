@@ -1,0 +1,77 @@
+//
+// Copyright 2026 Google Inc. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" B1IS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+syntax = "proto3";
+
+package openconfig.attestz.test;
+
+import "github.com/openconfig/attestz/proto/common_definitions.proto";
+
+option go_package = "github.com/openconfig/attestz/test/enrollz/proto";
+
+// Controller defines the System Under Test (SUT) management interface for the
+// Enrollz integration test suite.
+//
+// In an Ondatra/Monax integration test, test cases invoke this Controller
+// service to drive the TPM 2.0 Enrollz workflow against a target Device Under
+// Test (DUT).
+service Controller {
+  // Initiates the TPM 2.0 Enrollz workflow for a specific control card on the
+  // DUT.
+  rpc EnrollDevice(EnrollDeviceRequest) returns (EnrollDeviceResponse);
+}
+
+// EnrollDeviceRequest contains the connection parameters and target hardware
+// specifications required to execute the Enrollz workflow against a DUT.
+message EnrollDeviceRequest {
+  // Target IP address of the Device Under Test (DUT).
+  string ip_address = 1;
+
+  // Optional: Resolvable hostname or FQDN of the DUT.
+  string hostname = 2;
+
+  // Target port for the gNSI service running on the DUT.
+  // The default value is "9339" (gNSI port).
+  string port = 3;
+
+  // The control card role to enroll (e.g., ACTIVE, STANDBY, CHASSIS).
+  //   - ACTIVE: Primary supervisor or single control processor.
+  //   - STANDBY: Backup supervisor in dual-supervisor modular chassis.
+  //   - CHASSIS: Physical chassis enclosure module (proxied via the ACTIVE
+  //   card).
+  openconfig.attestz.ControlCardRole control_card_role = 4;
+
+  // The SSL profile identifier on the DUT where the re-certified owner IDevID
+  // (oIDevID) certificate will be bound for TLS authentication. Required
+  // whenever oIDevID is rotated.
+  string ssl_profile_id = 5;
+}
+
+// EnrollDeviceResponse reports the outcome of the Enrollz enrollment workflow.
+message EnrollDeviceResponse {
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    SUCCESS = 1;
+    FAILURE = 2;
+  }
+
+  // The resulting status of the enrollment procedure.
+  Status status = 1;
+
+  // Optional: Detailed diagnostic or error message if status is FAILURE.
+  // Explains specific root causes (e.g., connection failure, certificate
+  // validation failure, serial mismatch, or gRPC rotation error).
+  string error_message = 2;
+}
