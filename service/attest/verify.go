@@ -17,6 +17,7 @@ package main
 import (
 	"bytes"
 	"crypto"
+	"crypto/ecdsa"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/sha512"
@@ -24,6 +25,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"math/big"
 	"sort"
 
 	"github.com/google/go-tpm/tpm2"
@@ -75,15 +77,19 @@ func VerifyRemoteAttestation(resp *apb.AttestResponse, expectedPCRs map[int][]by
 		return fmt.Errorf("certificate chain of trust validation failed: %v", err)
 	}
 
-	pubKey, ok := cert.PublicKey.(*rsa.PublicKey)
-	if !ok {
-		return errors.New("OIAK certificate does not contain an RSA public key")
-	}
-
-	// 2. Extract public key to verify raw Signature (not a TPMT_SIGNATURE) against the Quote.
+	// 2. Extract public key to verify Quote signature against the Quote.
 	hash := computeDigest(resp.GetQuoted())
-	if err := rsa.VerifyPKCS1v15(pubKey, cryptoHash, hash, resp.GetQuoteSignature()); err != nil {
-		return fmt.Errorf("quote signature verification failed: %v", err)
+	switch pubKey := cert.PublicKey.(type) {
+	case *rsa.PublicKey:
+		if err := verifyRSASignature(pubKey, cryptoHash, hash, resp.GetQuoteSignature()); err != nil {
+			return fmt.Errorf("quote signature verification failed: %v", err)
+		}
+	case *ecdsa.PublicKey:
+		if err := verifyECDSASignature(pubKey, hash, resp.GetQuoteSignature()); err != nil {
+			return fmt.Errorf("quote signature verification failed: %v", err)
+		}
+	default:
+		return errors.New("OIAK certificate does not contain an RSA or ECDSA public key")
 	}
 
 	// 3. Verify unencoded, raw binary data for the TPM2 PCR Quote (TPMS_ATTEST).
@@ -167,4 +173,57 @@ func VerifyRemoteAttestation(resp *apb.AttestResponse, expectedPCRs map[int][]by
 	}
 
 	return nil
+}
+
+func verifyRSASignature(pubKey *rsa.PublicKey, cryptoHash crypto.Hash, hash, sig []byte) error {
+	if err := rsa.VerifyPKCS1v15(pubKey, cryptoHash, hash, sig); err == nil {
+		return nil
+	}
+	if tpmSig, err := tpm2.Unmarshal[tpm2.TPMTSignature](sig); err == nil {
+		if rsaSig, err := tpmSig.Signature.RSASSA(); err == nil {
+			if err := rsa.VerifyPKCS1v15(pubKey, cryptoHash, hash, rsaSig.Sig.Buffer); err == nil {
+				return nil
+			}
+		}
+	}
+	return errors.New("RSA PKCS#1 v1.5 verification failed")
+}
+
+func verifyECDSASignature(pubKey *ecdsa.PublicKey, hash, sig []byte) error {
+	// Try ASN.1 DER-encoded signature (standard in Go crypto, X.509, TLS).
+	if ecdsa.VerifyASN1(pubKey, hash, sig) {
+		return nil
+	}
+
+	// Try raw IEEE P1363 (r || s) format.
+	curveOrderByteLen := (pubKey.Curve.Params().N.BitLen() + 7) / 8
+	if len(sig) == 2*curveOrderByteLen {
+		r := new(big.Int).SetBytes(sig[:curveOrderByteLen])
+		s := new(big.Int).SetBytes(sig[curveOrderByteLen:])
+		if ecdsa.Verify(pubKey, hash, r, s) {
+			return nil
+		}
+	}
+
+	// Try TPM2 TPMT_SIGNATURE format if provided.
+	if tpmSig, err := tpm2.Unmarshal[tpm2.TPMTSignature](sig); err == nil {
+		if eccSig, err := tpmSig.Signature.ECDSA(); err == nil {
+			r := new(big.Int).SetBytes(eccSig.SignatureR.Buffer)
+			s := new(big.Int).SetBytes(eccSig.SignatureS.Buffer)
+			if ecdsa.Verify(pubKey, hash, r, s) {
+				return nil
+			}
+		}
+	}
+
+	// Try TPM2 TPMSSignatureECC format if provided.
+	if eccSig, err := tpm2.Unmarshal[tpm2.TPMSSignatureECC](sig); err == nil {
+		r := new(big.Int).SetBytes(eccSig.SignatureR.Buffer)
+		s := new(big.Int).SetBytes(eccSig.SignatureS.Buffer)
+		if ecdsa.Verify(pubKey, hash, r, s) {
+			return nil
+		}
+	}
+
+	return errors.New("ECDSA verification failed")
 }

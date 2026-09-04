@@ -17,6 +17,7 @@ package main
 import (
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
@@ -151,6 +152,163 @@ func generateTestCertChain(t *testing.T) *testCertChain {
 	}
 }
 
+type testECDSACertChain struct {
+	rootCert  *x509.Certificate
+	interCert *x509.Certificate
+	interKey  *ecdsa.PrivateKey
+	oiakCert  *x509.Certificate
+	oiakKey   *ecdsa.PrivateKey
+	oiakPEM   string
+	rootPool  *x509.CertPool
+	interPool *x509.CertPool
+}
+
+func generateTestECDSACertChain(t *testing.T, curve elliptic.Curve) *testECDSACertChain {
+	t.Helper()
+
+	rootKey, err := ecdsa.GenerateKey(curve, rand.Reader)
+	if err != nil {
+		t.Fatalf("failed to generate root ECDSA key: %v", err)
+	}
+
+	rootTemplate := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			CommonName: "Test ECDSA Root CA",
+		},
+		NotBefore:             time.Now().Add(-1 * time.Hour),
+		NotAfter:              time.Now().Add(24 * time.Hour),
+		IsCA:                  true,
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		BasicConstraintsValid: true,
+	}
+
+	rootDER, err := x509.CreateCertificate(rand.Reader, rootTemplate, rootTemplate, &rootKey.PublicKey, rootKey)
+	if err != nil {
+		t.Fatalf("failed to create root cert: %v", err)
+	}
+	rootCert, err := x509.ParseCertificate(rootDER)
+	if err != nil {
+		t.Fatalf("failed to parse root cert: %v", err)
+	}
+
+	interKey, err := ecdsa.GenerateKey(curve, rand.Reader)
+	if err != nil {
+		t.Fatalf("failed to generate intermediate ECDSA key: %v", err)
+	}
+
+	interTemplate := &x509.Certificate{
+		SerialNumber: big.NewInt(2),
+		Subject: pkix.Name{
+			CommonName: "Test ECDSA Intermediate CA",
+		},
+		NotBefore:             time.Now().Add(-1 * time.Hour),
+		NotAfter:              time.Now().Add(24 * time.Hour),
+		IsCA:                  true,
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		BasicConstraintsValid: true,
+	}
+
+	interDER, err := x509.CreateCertificate(rand.Reader, interTemplate, rootCert, &interKey.PublicKey, rootKey)
+	if err != nil {
+		t.Fatalf("failed to create intermediate cert: %v", err)
+	}
+	interCert, err := x509.ParseCertificate(interDER)
+	if err != nil {
+		t.Fatalf("failed to parse intermediate cert: %v", err)
+	}
+
+	oiakKey, err := ecdsa.GenerateKey(curve, rand.Reader)
+	if err != nil {
+		t.Fatalf("failed to generate OIAK ECDSA key: %v", err)
+	}
+
+	oiakTemplate := &x509.Certificate{
+		SerialNumber: big.NewInt(3),
+		Subject: pkix.Name{
+			CommonName: "Test ECDSA OIAK",
+		},
+		NotBefore:   time.Now().Add(-1 * time.Hour),
+		NotAfter:    time.Now().Add(24 * time.Hour),
+		KeyUsage:    x509.KeyUsageDigitalSignature,
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+	}
+
+	oiakDER, err := x509.CreateCertificate(rand.Reader, oiakTemplate, interCert, &oiakKey.PublicKey, interKey)
+	if err != nil {
+		t.Fatalf("failed to create OIAK cert: %v", err)
+	}
+	oiakCert, err := x509.ParseCertificate(oiakDER)
+	if err != nil {
+		t.Fatalf("failed to parse OIAK cert: %v", err)
+	}
+
+	oiakPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: oiakDER})
+
+	rootPool := x509.NewCertPool()
+	rootPool.AddCert(rootCert)
+
+	interPool := x509.NewCertPool()
+	interPool.AddCert(interCert)
+
+	return &testECDSACertChain{
+		rootCert:  rootCert,
+		interCert: interCert,
+		interKey:  interKey,
+		oiakCert:  oiakCert,
+		oiakKey:   oiakKey,
+		oiakPEM:   string(oiakPEM),
+		rootPool:  rootPool,
+		interPool: interPool,
+	}
+}
+
+func createRawECDSASignature(t *testing.T, key *ecdsa.PrivateKey, hash []byte) []byte {
+	t.Helper()
+	r, s, err := ecdsa.Sign(rand.Reader, key, hash)
+	if err != nil {
+		t.Fatalf("failed to sign with ECDSA: %v", err)
+	}
+	curveByteLen := (key.Curve.Params().N.BitLen() + 7) / 8
+	rBytes := r.Bytes()
+	sBytes := s.Bytes()
+	sig := make([]byte, 2*curveByteLen)
+	copy(sig[curveByteLen-len(rBytes):curveByteLen], rBytes)
+	copy(sig[2*curveByteLen-len(sBytes):], sBytes)
+	return sig
+}
+
+func createTPMTECDSASignature(t *testing.T, key *ecdsa.PrivateKey, hash []byte, tpmAlg tpm2.TPMAlgID) []byte {
+	t.Helper()
+	r, s, err := ecdsa.Sign(rand.Reader, key, hash)
+	if err != nil {
+		t.Fatalf("failed to sign with ECDSA: %v", err)
+	}
+	tpmSig := &tpm2.TPMTSignature{
+		SigAlg: tpm2.TPMAlgECDSA,
+		Signature: tpm2.NewTPMUSignature(tpm2.TPMAlgECDSA, &tpm2.TPMSSignatureECC{
+			Hash:       tpmAlg,
+			SignatureR: tpm2.TPM2BECCParameter{Buffer: r.Bytes()},
+			SignatureS: tpm2.TPM2BECCParameter{Buffer: s.Bytes()},
+		}),
+	}
+	return tpm2.Marshal(tpmSig)
+}
+
+func createTPMSSignatureECC(t *testing.T, key *ecdsa.PrivateKey, hash []byte, tpmAlg tpm2.TPMAlgID) []byte {
+	t.Helper()
+	r, s, err := ecdsa.Sign(rand.Reader, key, hash)
+	if err != nil {
+		t.Fatalf("failed to sign with ECDSA: %v", err)
+	}
+	eccSig := &tpm2.TPMSSignatureECC{
+		Hash:       tpmAlg,
+		SignatureR: tpm2.TPM2BECCParameter{Buffer: r.Bytes()},
+		SignatureS: tpm2.TPM2BECCParameter{Buffer: s.Bytes()},
+	}
+	return tpm2.Marshal(eccSig)
+}
+
 func createAttestResponse(oiakPEM string, quoted, sig []byte, pcrValues map[int32][]byte) *apb.AttestResponse {
 	return &apb.AttestResponse{
 		AttestationCert: &apb.AttestResponse_AttestationCert{
@@ -164,7 +322,7 @@ func createAttestResponse(oiakPEM string, quoted, sig []byte, pcrValues map[int3
 	}
 }
 
-func createValidQuote(t *testing.T, requestedIndices []int, pcrValues map[int32][]byte, nonce []byte, key *rsa.PrivateKey, hashAlgo cpb.Tpm20HashAlgo) ([]byte, []byte) {
+func createValidQuote(t *testing.T, requestedIndices []int, pcrValues map[int32][]byte, nonce []byte, key crypto.PrivateKey, hashAlgo cpb.Tpm20HashAlgo) ([]byte, []byte) {
 	t.Helper()
 
 	var (
@@ -233,9 +391,23 @@ func createValidQuote(t *testing.T, requestedIndices []int, pcrValues map[int32]
 
 	quoted := tpm2.Marshal(attest)
 	hash := computeDigest(quoted)
-	sig, err := rsa.SignPKCS1v15(rand.Reader, key, cryptoHash, hash)
-	if err != nil {
-		t.Fatalf("failed to sign quote: %v", err)
+	var (
+		sig []byte
+		err error
+	)
+	switch k := key.(type) {
+	case *rsa.PrivateKey:
+		sig, err = rsa.SignPKCS1v15(rand.Reader, k, cryptoHash, hash)
+		if err != nil {
+			t.Fatalf("failed to sign quote with RSA: %v", err)
+		}
+	case *ecdsa.PrivateKey:
+		sig, err = ecdsa.SignASN1(rand.Reader, k, hash)
+		if err != nil {
+			t.Fatalf("failed to sign quote with ECDSA: %v", err)
+		}
+	default:
+		t.Fatalf("unsupported key type in createValidQuote: %T", key)
 	}
 
 	return quoted, sig
@@ -287,6 +459,112 @@ func TestVerifyRemoteAttestationSuccess(t *testing.T) {
 	}
 }
 
+func TestVerifyRemoteAttestationECDSASuccess(t *testing.T) {
+	tests := []struct {
+		name      string
+		curve     elliptic.Curve
+		hashAlgo  cpb.Tpm20HashAlgo
+		tpmAlg    tpm2.TPMAlgID
+		digestLen int
+	}{
+		{
+			name:      "P256_SHA256",
+			curve:     elliptic.P256(),
+			hashAlgo:  cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
+			tpmAlg:    tpm2.TPMAlgSHA256,
+			digestLen: 32,
+		},
+		{
+			name:      "P384_SHA384",
+			curve:     elliptic.P384(),
+			hashAlgo:  cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384,
+			tpmAlg:    tpm2.TPMAlgSHA384,
+			digestLen: 48,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			chain := generateTestECDSACertChain(t, tc.curve)
+			requestedIndices := []int{0, 4, 7}
+			pcrValues := map[int32][]byte{
+				0: bytesRepeat(0x01, tc.digestLen),
+				4: bytesRepeat(0x02, tc.digestLen),
+				7: bytesRepeat(0x03, tc.digestLen),
+			}
+			expectedPCRs := map[int][]byte{
+				0: bytesRepeat(0x01, tc.digestLen),
+				4: bytesRepeat(0x02, tc.digestLen),
+				7: bytesRepeat(0x03, tc.digestLen),
+			}
+			expectedNonce := []byte("test-random-nonce-12345678901234")
+
+			quoted, asn1Sig := createValidQuote(t, requestedIndices, pcrValues, expectedNonce, chain.oiakKey, tc.hashAlgo)
+
+			var hash []byte
+			if tc.hashAlgo == cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256 {
+				h := sha256.Sum256(quoted)
+				hash = h[:]
+			} else {
+				h := sha512.Sum384(quoted)
+				hash = h[:]
+			}
+
+			sigFormats := []struct {
+				formatName string
+				sig        []byte
+			}{
+				{"ASN1", asn1Sig},
+				{"RawIEEEP1363", createRawECDSASignature(t, chain.oiakKey, hash)},
+				{"TPMTSignature", createTPMTECDSASignature(t, chain.oiakKey, hash, tc.tpmAlg)},
+				{"TPMSSignatureECC", createTPMSSignatureECC(t, chain.oiakKey, hash, tc.tpmAlg)},
+			}
+
+			for _, sf := range sigFormats {
+				t.Run(sf.formatName, func(t *testing.T) {
+					resp := createAttestResponse(chain.oiakPEM, quoted, sf.sig, pcrValues)
+					if err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, expectedNonce, chain.rootPool, chain.interPool, tc.hashAlgo); err != nil {
+						t.Fatalf("VerifyRemoteAttestation() failed with format %s: %v", sf.formatName, err)
+					}
+				})
+			}
+		})
+	}
+
+	t.Run("HybridChain_RSAIntermediate_ECDSAOIAK", func(t *testing.T) {
+		rsaChain := generateTestCertChain(t)
+		ecdsaKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		if err != nil {
+			t.Fatalf("failed to generate ecdsa key: %v", err)
+		}
+		template := &x509.Certificate{
+			SerialNumber: big.NewInt(99),
+			Subject:      pkix.Name{CommonName: "Hybrid ECDSA OIAK"},
+			NotBefore:    time.Now().Add(-1 * time.Hour),
+			NotAfter:     time.Now().Add(24 * time.Hour),
+			KeyUsage:     x509.KeyUsageDigitalSignature,
+			ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+		}
+		ecdsaDER, err := x509.CreateCertificate(rand.Reader, template, rsaChain.interCert, &ecdsaKey.PublicKey, rsaChain.interKey)
+		if err != nil {
+			t.Fatalf("failed to create hybrid ecdsa cert: %v", err)
+		}
+		ecdsaPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ecdsaDER})
+
+		requestedIndices := []int{0}
+		pcrValues := map[int32][]byte{0: bytesRepeat(0xAA, 32)}
+		expectedPCRs := map[int][]byte{0: bytesRepeat(0xAA, 32)}
+		nonce := []byte("test-nonce")
+
+		quoted, sig := createValidQuote(t, requestedIndices, pcrValues, nonce, ecdsaKey, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256)
+		resp := createAttestResponse(string(ecdsaPEM), quoted, sig, pcrValues)
+
+		if err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, rsaChain.rootPool, rsaChain.interPool, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256); err != nil {
+			t.Fatalf("hybrid chain verification failed: %v", err)
+		}
+	})
+}
+
 func TestVerifyRemoteAttestationCertificateErrors(t *testing.T) {
 	chain := generateTestCertChain(t)
 	requestedIndices := []int{0}
@@ -320,29 +598,29 @@ func TestVerifyRemoteAttestationCertificateErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("NonRSAPublicKey", func(t *testing.T) {
-		ecdsaKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	t.Run("UnsupportedPublicKeyType", func(t *testing.T) {
+		edPub, _, err := ed25519.GenerateKey(rand.Reader)
 		if err != nil {
-			t.Fatalf("failed to generate ecdsa key: %v", err)
+			t.Fatalf("failed to generate ed25519 key: %v", err)
 		}
 		template := &x509.Certificate{
 			SerialNumber: big.NewInt(99),
-			Subject:      pkix.Name{CommonName: "ECDSA Cert"},
+			Subject:      pkix.Name{CommonName: "Ed25519 Cert"},
 			NotBefore:    time.Now().Add(-1 * time.Hour),
 			NotAfter:     time.Now().Add(24 * time.Hour),
 			KeyUsage:     x509.KeyUsageDigitalSignature,
 			ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
 		}
-		ecdsaDER, err := x509.CreateCertificate(rand.Reader, template, chain.interCert, &ecdsaKey.PublicKey, chain.interKey)
+		edDER, err := x509.CreateCertificate(rand.Reader, template, chain.interCert, edPub, chain.interKey)
 		if err != nil {
-			t.Fatalf("failed to create ecdsa cert: %v", err)
+			t.Fatalf("failed to create ed25519 cert: %v", err)
 		}
-		ecdsaPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ecdsaDER})
+		edPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: edDER})
 
-		resp := createAttestResponse(string(ecdsaPEM), quoted, sig, pcrValues)
+		resp := createAttestResponse(string(edPEM), quoted, sig, pcrValues)
 		err = VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384)
-		if err == nil || !strings.Contains(err.Error(), "OIAK certificate does not contain an RSA public key") {
-			t.Errorf("expected error 'OIAK certificate does not contain an RSA public key', got: %v", err)
+		if err == nil || !strings.Contains(err.Error(), "OIAK certificate does not contain an RSA or ECDSA public key") {
+			t.Errorf("expected error 'OIAK certificate does not contain an RSA or ECDSA public key', got: %v", err)
 		}
 	})
 }
@@ -366,6 +644,49 @@ func TestVerifyRemoteAttestationSignatureError(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "quote signature verification failed") {
 		t.Errorf("expected error 'quote signature verification failed', got: %v", err)
 	}
+}
+
+func TestVerifyRemoteAttestationECDSASignatureErrors(t *testing.T) {
+	chain := generateTestECDSACertChain(t, elliptic.P256())
+	requestedIndices := []int{0}
+	pcrValues := map[int32][]byte{0: bytesRepeat(0xAA, 32)}
+	expectedPCRs := map[int][]byte{0: bytesRepeat(0xAA, 32)}
+	nonce := []byte("test-nonce")
+	quoted, sig := createValidQuote(t, requestedIndices, pcrValues, nonce, chain.oiakKey, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256)
+
+	t.Run("CorruptedSignature", func(t *testing.T) {
+		corruptedSig := make([]byte, len(sig))
+		copy(corruptedSig, sig)
+		corruptedSig[len(corruptedSig)-1] ^= 0xFF
+
+		resp := createAttestResponse(chain.oiakPEM, quoted, corruptedSig, pcrValues)
+		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256)
+		if err == nil || !strings.Contains(err.Error(), "quote signature verification failed") {
+			t.Errorf("expected error 'quote signature verification failed', got: %v", err)
+		}
+	})
+
+	t.Run("WrongKeySignature", func(t *testing.T) {
+		otherKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		if err != nil {
+			t.Fatalf("failed to generate key: %v", err)
+		}
+		_, otherSig := createValidQuote(t, requestedIndices, pcrValues, nonce, otherKey, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256)
+
+		resp := createAttestResponse(chain.oiakPEM, quoted, otherSig, pcrValues)
+		err = VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256)
+		if err == nil || !strings.Contains(err.Error(), "quote signature verification failed") {
+			t.Errorf("expected error 'quote signature verification failed', got: %v", err)
+		}
+	})
+
+	t.Run("HashAlgoMismatch", func(t *testing.T) {
+		// Quote created with SHA256 verified with SHA384
+		err := VerifyRemoteAttestation(createAttestResponse(chain.oiakPEM, quoted, sig, pcrValues), expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384)
+		if err == nil || !strings.Contains(err.Error(), "quote signature verification failed") {
+			t.Errorf("expected error 'quote signature verification failed', got: %v", err)
+		}
+	})
 }
 
 func TestVerifyRemoteAttestationQuoteErrors(t *testing.T) {
