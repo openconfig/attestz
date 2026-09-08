@@ -113,7 +113,7 @@ func generateTestOwnerCACertAndKey(t *testing.T) (string, string) {
 
 func TestOwnerCA(t *testing.T) {
 	certPath, keyPath := generateTestOwnerCACertAndKey(t)
-	ca, err := newOwnerCA(certPath, keyPath)
+	ca, err := newOwnerCA(certPath, keyPath, "127.0.0.1")
 	if err != nil {
 		t.Fatalf("newOwnerCA() returned unexpected error: %v", err)
 	}
@@ -162,6 +162,25 @@ func TestOwnerCA(t *testing.T) {
 		t.Errorf("IssueAikCert() returned empty cert PEM")
 	}
 
+	// Verify SAN contains default clientIP
+	verifyCertSAN := func(certPem, certName string) {
+		t.Helper()
+		block, _ := pem.Decode([]byte(certPem))
+		if block == nil {
+			t.Fatalf("%s failed to decode cert PEM", certName)
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			t.Fatalf("%s failed to parse cert: %v", certName, err)
+		}
+		if len(cert.IPAddresses) != 1 || !cert.IPAddresses[0].Equal(net.ParseIP("127.0.0.1")) {
+			t.Errorf("%s IPAddresses = %v, want [127.0.0.1]", certName, cert.IPAddresses)
+		}
+	}
+	verifyCertSAN(iakResp.OwnerIakCertPem, "OwnerIakCert")
+	verifyCertSAN(idevidResp.OwnerIDevIDCertPem, "OwnerIDevIDCert")
+	verifyCertSAN(aikResp.AikCertPem, "AikCert")
+
 	// Test issueClientTLSCert
 	tlsCert, err := ca.issueClientTLSCert()
 	if err != nil {
@@ -172,13 +191,80 @@ func TestOwnerCA(t *testing.T) {
 	}
 }
 
+func TestSignCertSubjectAlternateName(t *testing.T) {
+	certPath, keyPath := generateTestOwnerCACertAndKey(t)
+	pubPem := generateTestKeyPem(t)
+	cardID := &cpb.ControlCardVendorId{ControlCardSerial: "test-card-serial"}
+
+	tests := []struct {
+		name        string
+		clientIPVal string
+		wantIPs     []string
+	}{
+		{
+			name:        "IPv4 address",
+			clientIPVal: "192.168.1.100",
+			wantIPs:     []string{"192.168.1.100"},
+		},
+		{
+			name:        "IPv6 address",
+			clientIPVal: "2001:db8::1",
+			wantIPs:     []string{"2001:db8::1"},
+		},
+		{
+			name:        "IPv6 loopback",
+			clientIPVal: "::1",
+			wantIPs:     []string{"::1"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ca, err := newOwnerCA(certPath, keyPath, tc.clientIPVal)
+			if err != nil {
+				t.Fatalf("newOwnerCA() failed: %v", err)
+			}
+			certPem, err := ca.signCert(cardID, pubPem)
+			if err != nil {
+				t.Fatalf("signCert() failed: %v", err)
+			}
+			block, _ := pem.Decode([]byte(certPem))
+			if block == nil {
+				t.Fatalf("failed to decode cert PEM")
+			}
+			cert, err := x509.ParseCertificate(block.Bytes)
+			if err != nil {
+				t.Fatalf("failed to parse cert: %v", err)
+			}
+
+			if len(tc.wantIPs) == 0 {
+				if len(cert.IPAddresses) != 0 {
+					t.Errorf("cert.IPAddresses = %v, want empty", cert.IPAddresses)
+				}
+			} else {
+				if len(cert.IPAddresses) != len(tc.wantIPs) {
+					t.Fatalf("cert.IPAddresses length = %d, want %d", len(cert.IPAddresses), len(tc.wantIPs))
+				}
+				for i, wantIP := range tc.wantIPs {
+					if !cert.IPAddresses[i].Equal(net.ParseIP(wantIP)) {
+						t.Errorf("cert.IPAddresses[%d] = %v, want %s", i, cert.IPAddresses[i], wantIP)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestNewOwnerCAErrors(t *testing.T) {
 	certPath, keyPath := generateTestOwnerCACertAndKey(t)
-	if _, err := newOwnerCA("nonexistent_cert.pem", keyPath); err == nil {
+	if _, err := newOwnerCA("nonexistent_cert.pem", keyPath, "127.0.0.1"); err == nil {
 		t.Errorf("newOwnerCA() with nonexistent cert should fail, got nil")
 	}
-	if _, err := newOwnerCA(certPath, "nonexistent_key.pem"); err == nil {
+	if _, err := newOwnerCA(certPath, "nonexistent_key.pem", "127.0.0.1"); err == nil {
 		t.Errorf("newOwnerCA() with nonexistent key should fail, got nil")
+	}
+	if _, err := newOwnerCA(certPath, keyPath, "invalid-ip"); err == nil {
+		t.Errorf("newOwnerCA() with invalid IP should fail, got nil")
 	}
 }
 

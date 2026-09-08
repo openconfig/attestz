@@ -52,8 +52,9 @@ var (
 )
 
 type ownerCA struct {
-	cert *x509.Certificate
-	key  crypto.PrivateKey
+	cert     *x509.Certificate
+	key      crypto.PrivateKey
+	clientIP net.IP
 }
 
 func readFile(path string) ([]byte, error) {
@@ -86,7 +87,7 @@ func parsePrivateKey(der []byte) (crypto.PrivateKey, error) {
 	return nil, errors.New("failed to parse private key: unsupported key format or corrupted DER")
 }
 
-func newOwnerCA(certFile, keyFile string) (*ownerCA, error) {
+func newOwnerCA(certFile, keyFile, clientIP string) (*ownerCA, error) {
 	certBytes, err := readFile(certFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read owner CA cert file: %w", err)
@@ -111,7 +112,14 @@ func newOwnerCA(certFile, keyFile string) (*ownerCA, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse owner CA private key: %w", err)
 	}
-	return &ownerCA{cert: cert, key: key}, nil
+	var ip net.IP
+	if clientIP != "" {
+		ip = net.ParseIP(clientIP)
+		if ip == nil {
+			return nil, fmt.Errorf("failed to parse client IP %q: invalid IP address", clientIP)
+		}
+	}
+	return &ownerCA{cert: cert, key: key, clientIP: ip}, nil
 }
 
 func (ca *ownerCA) signCert(cardID *cpb.ControlCardVendorId, pubPem string) (string, error) {
@@ -144,6 +152,7 @@ func (ca *ownerCA) signCert(cardID *cpb.ControlCardVendorId, pubPem string) (str
 		NotAfter:              time.Now().AddDate(5, 0, 0),
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
 		BasicConstraintsValid: true,
+		IPAddresses:           []net.IP{ca.clientIP},
 	}
 	certDer, err := x509.CreateCertificate(rand.Reader, tmpl, ca.cert, pubKey, ca.key)
 	if err != nil {
@@ -280,7 +289,7 @@ func main() {
 	if *ownerCAKey == "" {
 		log.Exit("Flag --owner_ca_key must be specified")
 	}
-	ownerCaClient, err := newOwnerCA(*ownerCACert, *ownerCAKey)
+	ownerCaClient, err := newOwnerCA(*ownerCACert, *ownerCAKey, *clientIP)
 	if err != nil {
 		log.Exitf("Failed to initialize Switch Owner CA: %v", err)
 	}
