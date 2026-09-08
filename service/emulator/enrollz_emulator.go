@@ -301,7 +301,7 @@ func main() {
 		creds = credentials.NewTLS(&tls.Config{
 			Certificates:       []tls.Certificate{clientTLSCred},
 			RootCAs:            caPool,
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: true, // Emulator only testing
 		})
 	}
 
