@@ -38,11 +38,12 @@ import (
 )
 
 var (
-	addr             = flag.String("addr", "localhost:50051", "Address of the TpmAttestzService gRPC server")
-	ownerCACert      = flag.String("owner_ca_cert", "", "Path to the owner CA certificate file")
-	ownerCAKey       = flag.String("owner_ca_key", "", "Path to the owner CA private key file")
-	expectedPCRsFlag = flag.String("expected_pcrs", "", `JSON string mapping PCR index to hex digest (e.g. '{"0":"a1b2...","4":"c3d4..."}')`)
-	hashAlgoFlag     = flag.String("hash_algo", "SHA384", `TPM 2.0 PCR hash algorithm ("SHA256" or "SHA384")`)
+	addr                = flag.String("addr", "localhost:50051", "Address of the TpmAttestzService gRPC server")
+	ownerCACert         = flag.String("owner_ca_cert", "", "Path to the owner CA certificate file")
+	ownerCAKey          = flag.String("owner_ca_key", "", "Path to the owner CA private key file")
+	expectedPCRsFlag    = flag.String("expected_pcrs", "", `JSON string mapping PCR index to hex digest (e.g. '{"0":"a1b2...","4":"c3d4..."}')`)
+	hashAlgoFlag        = flag.String("hash_algo", "SHA384", `TPM 2.0 PCR hash algorithm ("SHA256" or "SHA384")`)
+	controlCardRoleFlag = flag.String("control_card_role", "CONTROL_CARD_ROLE_ACTIVE", `Control card role to attest ("CONTROL_CARD_ROLE_ACTIVE", "CONTROL_CARD_ROLE_STANDBY", or "CONTROL_CARD_ROLE_CHASSIS")`)
 )
 
 // parseExpectedPCRs parses a JSON string mapping PCR index to hex digest, and PCR indices.
@@ -83,6 +84,14 @@ func parseHashAlgo(s string) (cpb.Tpm20HashAlgo, error) {
 	}
 }
 
+// parseControlCardRole parses a string into a ControlCardRole using generated protobuf maps.
+func parseControlCardRole(s string) (cpb.ControlCardRole, error) {
+	if v, ok := cpb.ControlCardRole_value[s]; ok {
+		return cpb.ControlCardRole(v), nil
+	}
+	return cpb.ControlCardRole_CONTROL_CARD_ROLE_UNSPECIFIED, fmt.Errorf("unsupported control card role %q", s)
+}
+
 func main() {
 	flag.Parse()
 	ctx := context.Background()
@@ -90,6 +99,11 @@ func main() {
 	hashAlgo, err := parseHashAlgo(*hashAlgoFlag)
 	if err != nil {
 		log.Exitf("Invalid --hash_algo: %v", err)
+	}
+
+	controlCardRole, err := parseControlCardRole(*controlCardRoleFlag)
+	if err != nil {
+		log.Exitf("Invalid --control_card_role: %v", err)
 	}
 
 	expectedPCRs, pcrIndices, err := parseExpectedPCRs(*expectedPCRsFlag)
@@ -113,7 +127,6 @@ func main() {
 	conn, err := grpc.NewClient(*addr, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
 		RootCAs:      trustedRoots,
 		Certificates: []tls.Certificate{clientCert},
-		InsecureSkipVerify: true,
 	})))
 	if err != nil {
 		log.Exitf("Failed to create gRPC client for %s: %v", *addr, err)
@@ -129,7 +142,7 @@ func main() {
 	resp, err := client.Attest(ctx, &apb.AttestRequest{
 		ControlCardSelection: &cpb.ControlCardSelection{
 			ControlCardId: &cpb.ControlCardSelection_Role{
-				Role: cpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE,
+				Role: controlCardRole,
 			},
 		},
 		Nonce:      nonce,

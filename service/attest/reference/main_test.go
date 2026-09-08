@@ -49,6 +49,38 @@ func TestParseHashAlgo(t *testing.T) {
 	}
 }
 
+func TestParseControlCardRole(t *testing.T) {
+	tests := []struct {
+		input   string
+		want    cpb.ControlCardRole
+		wantErr bool
+	}{
+		{input: "CONTROL_CARD_ROLE_ACTIVE", want: cpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE},
+		{input: "CONTROL_CARD_ROLE_STANDBY", want: cpb.ControlCardRole_CONTROL_CARD_ROLE_STANDBY},
+		{input: "CONTROL_CARD_ROLE_CHASSIS", want: cpb.ControlCardRole_CONTROL_CARD_ROLE_CHASSIS},
+		{input: "CONTROL_CARD_ROLE_UNSPECIFIED", want: cpb.ControlCardRole_CONTROL_CARD_ROLE_UNSPECIFIED},
+		{input: "control_card_role_active", wantErr: true},
+		{input: "ControlCardRole_CONTROL_CARD_ROLE_ACTIVE", wantErr: true},
+		{input: "ACTIVE", wantErr: true},
+		{input: "active", wantErr: true},
+		{input: "  active  ", wantErr: true},
+		{input: "standby", wantErr: true},
+		{input: "chassis", wantErr: true},
+		{input: "unspecified", wantErr: true},
+		{input: "INVALID", wantErr: true},
+		{input: "", wantErr: true},
+	}
+	for _, tc := range tests {
+		got, err := parseControlCardRole(tc.input)
+		if (err != nil) != tc.wantErr {
+			t.Errorf("parseControlCardRole(%q) error = %v, wantErr %v", tc.input, err, tc.wantErr)
+		}
+		if !tc.wantErr && got != tc.want {
+			t.Errorf("parseControlCardRole(%q) = %v, want %v", tc.input, got, tc.want)
+		}
+	}
+}
+
 func TestParseExpectedPCRs(t *testing.T) {
 	tests := []struct {
 		name        string
