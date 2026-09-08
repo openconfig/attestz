@@ -317,7 +317,9 @@ func main() {
 	deps := &enrollzDeps{
 		SwitchOwnerCaClient: ownerCaClient,
 		EnrollzDeviceClient: devClient,
-		TpmCertVerifier:     &biz.DefaultTpmCertVerifier{},
+		TpmCertVerifier: &biz.DefaultTpmCertVerifier{
+			SkipSerialNumberInCert: true,
+		},
 	}
 	req := &biz.EnrollControlCardReq{
 		ControlCardSelections: []*cpb.ControlCardSelection{
@@ -327,10 +329,9 @@ func main() {
 				},
 			},
 		},
-		Deps:                     deps,
-		CertVerificationOpts:     x509.VerifyOptions{Roots: caPool},
-		SSLProfileID:           "tls",
-		SkipSerialNumberInCert: true,
+		Deps:                 deps,
+		CertVerificationOpts: x509.VerifyOptions{Roots: caPool},
+		SSLProfileID:         "tls",
 	}
 
 	ctx := context.Background()

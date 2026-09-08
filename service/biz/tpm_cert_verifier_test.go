@@ -654,14 +654,15 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 
 			// Call TpmCertVerifier's default impl of VerifyIakAndIDevIDCerts().
 			req := &VerifyIakAndIDevIDCertsReq{
-				ControlCardID:            test.cardID,
-				IakCertPem:               iakCertPemReq,
-				IDevIDCertPem:            iDevIDCertPemReq,
-				CertVerificationOpts:     certVerificationOptsReq,
-				SkipSerialNumberInCert:   test.skipSerialNumberInCert,
+				ControlCardID:        test.cardID,
+				IakCertPem:           iakCertPemReq,
+				IDevIDCertPem:        iDevIDCertPemReq,
+				CertVerificationOpts: certVerificationOptsReq,
 			}
 			ctx := context.Background()
-			defTpmCertVerifier := DefaultTpmCertVerifier{}
+			defTpmCertVerifier := DefaultTpmCertVerifier{
+				SkipSerialNumberInCert: test.skipSerialNumberInCert,
+			}
 			gotResp, gotErr := defTpmCertVerifier.VerifyIakAndIDevIDCerts(ctx, req)
 
 			if test.wantError {
@@ -988,13 +989,14 @@ func TestVerifyTpmCert(t *testing.T) {
 
 			// Call TpmCertVerifier's default impl of VerifyTpmCert().
 			req := &VerifyTpmCertReq{
-				ControlCardID:            cardID,
-				CertPem:                  certPemReq,
-				CertVerificationOpts:     certVerificationOptsReq,
-				SkipSerialNumberInCert:   test.skipSerialNumberInCert,
+				ControlCardID:        cardID,
+				CertPem:              certPemReq,
+				CertVerificationOpts: certVerificationOptsReq,
 			}
 			ctx := context.Background()
-			defTpmCertVerifier := DefaultTpmCertVerifier{}
+			defTpmCertVerifier := DefaultTpmCertVerifier{
+				SkipSerialNumberInCert: test.skipSerialNumberInCert,
+			}
 			gotResp, gotErr := defTpmCertVerifier.VerifyTpmCert(ctx, req)
 
 			if test.wantError {
