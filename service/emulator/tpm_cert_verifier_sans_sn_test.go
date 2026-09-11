@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package biz
+package main
 
 import (
 	"context"
@@ -32,6 +32,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	cpb "github.com/openconfig/attestz/proto/common_definitions"
+	"github.com/openconfig/attestz/service/biz"
 )
 
 type caCert struct {
@@ -367,32 +368,6 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
 		},
 		{
-			desc:                    "Failure: IAK & IDevID cert subject serials do not match expected control card serial in request",
-			wantError:               true,
-			cardID:                  cardID,
-			iakCertAsymAlgo:         eccP384Algo,
-			iakCertSubjectSerial:    "AN0TH3RS3R1ALNUMB3R",
-			iakCertNotBefore:        time.Now(),
-			iakCertNotAfter:         time.Now().AddDate(0, 0, 10),
-			iDevIDCertAsymAlgo:      eccP384Algo,
-			iDevIDCertSubjectSerial: "AN0TH3RS3R1ALNUMB3R",
-			iDevIDCertNotBefore:     time.Now(),
-			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
-		},
-		{
-			desc:                    "Failure: IAK cert and IDevID cert subject serials do not match",
-			wantError:               true,
-			cardID:                  cardID,
-			iakCertAsymAlgo:         eccP384Algo,
-			iakCertSubjectSerial:    certSerial,
-			iakCertNotBefore:        time.Now(),
-			iakCertNotAfter:         time.Now().AddDate(0, 0, 10),
-			iDevIDCertAsymAlgo:      eccP384Algo,
-			iDevIDCertSubjectSerial: "AN0TH3RS3R1ALNUMB3R",
-			iDevIDCertNotBefore:     time.Now(),
-			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
-		},
-		{
 			desc:                    "Failure: malformed PEM IAK cert",
 			wantError:               true,
 			cardID:                  cardID,
@@ -528,6 +503,45 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
 			customIDevIDCaRootPem:   unknownCaCert.certPem,
 		},
+		{
+			desc:                    "Success: IAK & IDevID cert subject serials match expected control card serial in request",
+			wantError:               false,
+			cardID:                  cardID,
+			iakCertAsymAlgo:         eccP384Algo,
+			iakCertSubjectSerial:    certSerial,
+			iakCertNotBefore:        time.Now(),
+			iakCertNotAfter:         time.Now().AddDate(0, 0, 10),
+			iDevIDCertAsymAlgo:      eccP384Algo,
+			iDevIDCertSubjectSerial: certSerial,
+			iDevIDCertNotBefore:     time.Now(),
+			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
+		},
+		{
+			desc:                    "Success: IAK & IDevID cert subject serials do not match expected control card serial in request",
+			wantError:               false,
+			cardID:                  cardID,
+			iakCertAsymAlgo:         eccP384Algo,
+			iakCertSubjectSerial:    "AN0TH3RS3R1ALNUMB3R",
+			iakCertNotBefore:        time.Now(),
+			iakCertNotAfter:         time.Now().AddDate(0, 0, 10),
+			iDevIDCertAsymAlgo:      eccP384Algo,
+			iDevIDCertSubjectSerial: "AN0TH3RS3R1ALNUMB3R",
+			iDevIDCertNotBefore:     time.Now(),
+			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
+		},
+		{
+			desc:                    "Success: IAK cert and IDevID cert subject serials do not match",
+			wantError:               false,
+			cardID:                  cardID,
+			iakCertAsymAlgo:         eccP384Algo,
+			iakCertSubjectSerial:    certSerial,
+			iakCertNotBefore:        time.Now(),
+			iakCertNotAfter:         time.Now().AddDate(0, 0, 10),
+			iDevIDCertAsymAlgo:      eccP384Algo,
+			iDevIDCertSubjectSerial: "AN0TH3RS3R1ALNUMB3R",
+			iDevIDCertNotBefore:     time.Now(),
+			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
+		},
 	}
 
 	for _, test := range tests {
@@ -606,16 +620,16 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 				Roots: roots,
 			}
 
-			// Call TpmCertVerifier's default impl of VerifyIakAndIDevIDCerts().
-			req := &VerifyIakAndIDevIDCertsReq{
+			// Call TpmCertVerifierSansSerial's impl of VerifyIakAndIDevIDCerts().
+			req := &biz.VerifyIakAndIDevIDCertsReq{
 				ControlCardID:        test.cardID,
 				IakCertPem:           iakCertPemReq,
 				IDevIDCertPem:        iDevIDCertPemReq,
 				CertVerificationOpts: certVerificationOptsReq,
 			}
 			ctx := context.Background()
-			defTpmCertVerifier := DefaultTpmCertVerifier{}
-			gotResp, gotErr := defTpmCertVerifier.VerifyIakAndIDevIDCerts(ctx, req)
+			tpmCertVerifier := TpmCertVerifierSansSerial{}
+			gotResp, gotErr := tpmCertVerifier.VerifyIakAndIDevIDCerts(ctx, req)
 
 			if test.wantError {
 				// Error was expected, so do not verify the actual response.
@@ -850,10 +864,18 @@ func TestVerifyTpmCert(t *testing.T) {
 			customCaRootPem:    unknownCaCert.certPem,
 		},
 		{
-			desc:              "Failure: Cert subject serial does not match expected control card serial in request",
-			wantError:         true,
+			desc:              "Success: Cert subject serial does not match expected control card serial in request",
+			wantError:         false,
 			certAsymAlgo:      eccP384Algo,
 			certSubjectSerial: "AN0TH3RS3R1ALNUMB3R",
+			certNotBefore:     time.Now(),
+			certNotAfter:      time.Now().AddDate(1, 0, 0),
+		},
+		{
+			desc:              "Success: Cert subject serial matches expected control card serial in request",
+			wantError:         false,
+			certAsymAlgo:      eccP384Algo,
+			certSubjectSerial: cardSerial,
 			certNotBefore:     time.Now(),
 			certNotAfter:      time.Now().AddDate(1, 0, 0),
 		},
@@ -918,15 +940,15 @@ func TestVerifyTpmCert(t *testing.T) {
 				Roots: roots,
 			}
 
-			// Call TpmCertVerifier's default impl of VerifyTpmCert().
-			req := &VerifyTpmCertReq{
+			// Call TpmCertVerifierSansSerial's impl of VerifyTpmCert().
+			req := &biz.VerifyTpmCertReq{
 				ControlCardID:        cardID,
 				CertPem:              certPemReq,
 				CertVerificationOpts: certVerificationOptsReq,
 			}
 			ctx := context.Background()
-			defTpmCertVerifier := DefaultTpmCertVerifier{}
-			gotResp, gotErr := defTpmCertVerifier.VerifyTpmCert(ctx, req)
+			tpmCertVerifier := TpmCertVerifierSansSerial{}
+			gotResp, gotErr := tpmCertVerifier.VerifyTpmCert(ctx, req)
 
 			if test.wantError {
 				// Error was expected, so do not verify the actual response.

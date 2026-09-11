@@ -314,9 +314,7 @@ func main() {
 	deps := &enrollzDeps{
 		SwitchOwnerCaClient: ownerCaClient,
 		EnrollzDeviceClient: devClient,
-		TpmCertVerifier: &biz.DefaultTpmCertVerifier{
-			SkipSerialNumberInCert: true,
-		},
+		TpmCertVerifier:     &TpmCertVerifierSansSerial{},
 	}
 	req := &biz.EnrollControlCardReq{
 		ControlCardSelections: []*cpb.ControlCardSelection{
