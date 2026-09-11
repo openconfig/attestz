@@ -12,18 +12,90 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+load("@bazel_lib//lib:testing.bzl", "assert_archive_contains")
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load", "oci_push")
+load("@tar.bzl", "mutate", "tar")
+
 
 go_library(
     name = "enrollz_emulator_lib",
-    srcs = ["enrollz_emulator.go"],
+    srcs = [
+        "enrollz_emulator.go",
+        "tpm_cert_verifier_sans_sn.go",
+    ],
     importpath = "github.com/openconfig/attestz/service/emulator",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_golang_glog//:glog"],
+    deps = [
+        "//proto:common_definitions_go_proto",
+        "//proto:tpm_enrollz_go",
+        "//service/biz:enrollz_biz",
+        "@com_github_golang_glog//:glog",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_google_grpc//credentials/insecure",
+    ],
 )
 
 go_binary(
     name = "enrollz_emulator",
     embed = [":enrollz_emulator_lib"],
+    pure = "on",
     visibility = ["//visibility:public"],
 )
+
+go_test(
+    name = "enrollz_emulator_test",
+    srcs = ["enrollz_emulator_test.go"],
+    embed = [":enrollz_emulator_lib"],
+    deps = [
+        "//proto:common_definitions_go_proto",
+        "//proto:tpm_enrollz_go",
+        "//service/biz:enrollz_biz",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials/insecure",
+    ],
+)
+
+go_test(
+    name = "tpm_cert_verifier_sans_sn_test",
+    srcs = ["tpm_cert_verifier_sans_sn_test.go"],
+    embed = [":enrollz_emulator_lib"],
+    deps = [
+        "//proto:common_definitions_go_proto",
+        "//proto:tpm_attestz_go_proto",
+        "//service/biz:enrollz_biz",
+        "@com_github_google_go_cmp//cmp",
+        "@org_golang_google_protobuf//testing/protocmp",
+    ],
+)
+
+tar(
+    name = "emulator_layer",
+    srcs = [":enrollz_emulator"],
+    out = "emulator_layer.tar",
+    mutate = mutate(strip_prefix = package_name() + "/enrollz_emulator_"),
+)
+
+assert_archive_contains(
+    name = "test_emulator_layer",
+    archive = "emulator_layer.tar",
+    expected = ["enrollz_emulator"],
+)
+
+oci_image(
+    name = "enrollz_emulator_image",
+    base = "@distroless_base",
+    entrypoint = ["/enrollz_emulator"],
+    tars = [
+        ":emulator_layer",
+    ],
+)
+
+oci_load(
+    name = "load_enrollz_emulator_image",
+    image = ":enrollz_emulator_image",
+    repo_tags = ["open-config-enrollz-emulator:latest"],
+)
+
+
