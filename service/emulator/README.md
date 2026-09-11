@@ -23,10 +23,9 @@ bazel run //service/emulator:enrollz_emulator -- \
 ### Flags
 
 - `--vendor_ca_trust_bundle`: Path to switch vendor CA trust bundle PEM file (required).
-- `--client_ip`: IP address or `host:port` of the client device (default: `127.0.0.1`, default port: `4321`).
+- `--client_ip`: IP address of the switch (default: `127.0.0.1`). The port is `4321`
 - `--owner_ca_cert`: Path to switch owner CA certificate PEM file (required in TLS mode).
 - `--owner_ca_key`: Path to switch owner CA private key PEM file (required in TLS mode).
-- `--insecure`: Use plaintext (insecure) gRPC connection instead of TLS (default: `false`).
 - `--alsologtostderr`: Logs output to stderr.
 
 ## End-to-End Example with Device Emulator

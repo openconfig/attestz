@@ -36,7 +36,6 @@ import (
 	log "github.com/golang/glog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 
 	cpb "github.com/openconfig/attestz/proto/common_definitions"
 	epb "github.com/openconfig/attestz/proto/tpm_enrollz"
@@ -45,10 +44,9 @@ import (
 
 var (
 	vendorCATrustBundle = flag.String("vendor_ca_trust_bundle", "", "Path to switch vendor CA trust bundle PEM file")
-	clientIP            = flag.String("client_ip", "127.0.0.1", "IP address or host:port of the client device")
+	clientIP            = flag.String("client_ip", "127.0.0.1", "IP address of the switch device")
 	ownerCACert         = flag.String("owner_ca_cert", "service/emulator/owner_ca_cert.pem", "Path to switch owner CA certificate PEM file")
 	ownerCAKey          = flag.String("owner_ca_key", "service/emulator/owner_ca_key.pem", "Path to switch owner CA private key PEM file")
-	insecureConn        = flag.Bool("insecure", false, "Use plaintext (insecure) connection instead of TLS")
 )
 
 type ownerCA struct {
@@ -295,26 +293,16 @@ func main() {
 	}
 
 	// 3. Build an enrollz client to communicate with the device.
-	addr := *clientIP
-	if _, _, err := net.SplitHostPort(*clientIP); err != nil {
-		addr = net.JoinHostPort(*clientIP, "4321")
+	addr := net.JoinHostPort(*clientIP, "4321")
+	clientTLSCred, err := ownerCaClient.issueClientTLSCert()
+	if err != nil {
+		log.Exitf("Failed to issue client TLS cert: %v", err)
 	}
-	var creds credentials.TransportCredentials
-	if *insecureConn {
-		creds = insecure.NewCredentials()
-	} else {
-		clientTLSCred, err := ownerCaClient.issueClientTLSCert()
-		if err != nil {
-			log.Exitf("Failed to issue client TLS cert: %v", err)
-		}
-		creds = credentials.NewTLS(&tls.Config{
-			Certificates:       []tls.Certificate{clientTLSCred},
-			RootCAs:            caPool,
-			InsecureSkipVerify: true, // Emulator only testing
-		})
-	}
-
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(creds))
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
+		Certificates:       []tls.Certificate{clientTLSCred},
+		RootCAs:            caPool,
+		InsecureSkipVerify: true, // Emulator only testing
+	})))
 	if err != nil {
 		log.Exitf("Failed to connect to device at %s: %v", addr, err)
 	}
