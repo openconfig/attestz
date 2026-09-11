@@ -8,7 +8,6 @@ require (
 	github.com/google/go-tpm v0.9.8
 	google.golang.org/grpc v1.83.1
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.6.2
-	google.golang.org/grpc/security/advancedtls v1.0.0
 	google.golang.org/protobuf v1.36.11
 )
 
