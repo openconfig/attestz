@@ -26,6 +26,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"net/url"
 	"testing"
 	"time"
 
@@ -98,9 +99,28 @@ const (
 	ed25519Algo
 )
 
+func parseURI(t *testing.T, rawURI string) *url.URL {
+	t.Helper()
+	u, err := url.Parse(rawURI)
+	if err != nil {
+		t.Fatalf("failed to parse URI %q: %v", rawURI, err)
+	}
+	return u
+}
+
+func parseURIs(t *testing.T, rawURIs ...string) []*url.URL {
+	t.Helper()
+	var uris []*url.URL
+	for _, raw := range rawURIs {
+		uris = append(uris, parseURI(t, raw))
+	}
+	return uris
+}
+
 type certCreationParams struct {
 	asymAlgo          asymAlgo
 	certSubjectSerial string
+	uris              []*url.URL
 	signingCert       *x509.Certificate
 	signingPrivKey    any
 	notBefore         time.Time
@@ -120,6 +140,7 @@ func generateSignedCert(t *testing.T, params *certCreationParams) *signedTpmCert
 		Subject: pkix.Name{
 			SerialNumber: params.certSubjectSerial,
 		},
+		URIs:      params.uris,
 		NotBefore: params.notBefore,
 		NotAfter:  params.notAfter,
 	}
@@ -223,11 +244,13 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 		// iakCert
 		iakCertAsymAlgo      asymAlgo
 		iakCertSubjectSerial string
+		iakCertURIs          []*url.URL
 		iakCertNotBefore     time.Time
 		iakCertNotAfter      time.Time
 		// iDevIDCert
 		iDevIDCertAsymAlgo      asymAlgo
 		iDevIDCertSubjectSerial string
+		iDevIDCertURIs          []*url.URL
 		iDevIDCertNotBefore     time.Time
 		iDevIDCertNotAfter      time.Time
 		// To test against malformed PEM certs.
@@ -528,6 +551,70 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
 			customIDevIDCaRootPem:   unknownCaCert.certPem,
 		},
+		{
+			desc:                "Success: IAK and IDevID certs with serial in SAN URIs",
+			wantError:           false,
+			cardID:              cardID,
+			iakCertAsymAlgo:     eccP384Algo,
+			iakCertURIs:         parseURIs(t, "urn:serial:"+cardSerial),
+			iakCertNotBefore:    time.Now(),
+			iakCertNotAfter:     time.Now().AddDate(0, 0, 10),
+			iDevIDCertAsymAlgo:  eccP384Algo,
+			iDevIDCertURIs:      parseURIs(t, "urn:serial:"+cardSerial),
+			iDevIDCertNotBefore: time.Now(),
+			iDevIDCertNotAfter:  time.Now().AddDate(1, 0, 0),
+		},
+		{
+			desc:                    "Success: IAK cert with SAN URI and IDevID cert with Subject serial",
+			wantError:               false,
+			cardID:                  cardID,
+			iakCertAsymAlgo:         eccP384Algo,
+			iakCertURIs:             parseURIs(t, "urn:serial:"+cardSerial),
+			iakCertNotBefore:        time.Now(),
+			iakCertNotAfter:         time.Now().AddDate(0, 0, 10),
+			iDevIDCertAsymAlgo:      eccP384Algo,
+			iDevIDCertSubjectSerial: certSerial,
+			iDevIDCertNotBefore:     time.Now(),
+			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
+		},
+		{
+			desc:                    "Success: IAK cert with ambiguous Subject serial and valid SAN URI",
+			wantError:               false,
+			cardID:                  cardID,
+			iakCertAsymAlgo:         eccP384Algo,
+			iakCertSubjectSerial:    "SN:foo SN:bar",
+			iakCertURIs:             parseURIs(t, "urn:serial:"+cardSerial),
+			iakCertNotBefore:        time.Now(),
+			iakCertNotAfter:         time.Now().AddDate(0, 0, 10),
+			iDevIDCertAsymAlgo:      eccP384Algo,
+			iDevIDCertSubjectSerial: certSerial,
+			iDevIDCertNotBefore:     time.Now(),
+			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
+		},
+		{
+			desc:                    "Failure: cannot extract serial number from IAK cert",
+			wantError:               true,
+			cardID:                  cardID,
+			iakCertAsymAlgo:         eccP384Algo,
+			iakCertNotBefore:        time.Now(),
+			iakCertNotAfter:         time.Now().AddDate(0, 0, 10),
+			iDevIDCertAsymAlgo:      eccP384Algo,
+			iDevIDCertSubjectSerial: certSerial,
+			iDevIDCertNotBefore:     time.Now(),
+			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
+		},
+		{
+			desc:                    "Failure: cannot extract serial number from IDevID cert",
+			wantError:               true,
+			cardID:                  cardID,
+			iakCertAsymAlgo:         eccP384Algo,
+			iakCertSubjectSerial:    certSerial,
+			iakCertNotBefore:        time.Now(),
+			iakCertNotAfter:         time.Now().AddDate(0, 0, 10),
+			iDevIDCertAsymAlgo:      eccP384Algo,
+			iDevIDCertNotBefore:     time.Now(),
+			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
+		},
 	}
 
 	for _, test := range tests {
@@ -539,6 +626,7 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 			genIakCert := generateSignedCert(t, &certCreationParams{
 				asymAlgo:          test.iakCertAsymAlgo,
 				certSubjectSerial: test.iakCertSubjectSerial,
+				uris:              test.iakCertURIs,
 				signingCert:       genIakCaCert.certX509,
 				signingPrivKey:    genIakCaCert.privKey,
 				notBefore:         test.iakCertNotBefore,
@@ -576,6 +664,7 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 				genIDevIDCert := generateSignedCert(t, &certCreationParams{
 					asymAlgo:          test.iDevIDCertAsymAlgo,
 					certSubjectSerial: test.iDevIDCertSubjectSerial,
+					uris:              test.iDevIDCertURIs,
 					signingCert:       genIDevIDCaCert.certX509,
 					signingPrivKey:    genIDevIDCaCert.privKey,
 					notBefore:         test.iDevIDCertNotBefore,
@@ -702,6 +791,7 @@ func TestVerifyTpmCert(t *testing.T) {
 		wantError          bool
 		certAsymAlgo       asymAlgo
 		certSubjectSerial  string
+		certURIs           []*url.URL
 		certNotBefore      time.Time
 		certNotAfter       time.Time
 		useIntermediateCA  bool
@@ -857,6 +947,30 @@ func TestVerifyTpmCert(t *testing.T) {
 			certNotBefore:     time.Now(),
 			certNotAfter:      time.Now().AddDate(1, 0, 0),
 		},
+		{
+			desc:              "Success: ECC P384 cert with serial in SAN URI",
+			wantError:         false,
+			certAsymAlgo:      eccP384Algo,
+			certURIs:          parseURIs(t, "urn:serial:"+cardSerial),
+			certNotBefore:     time.Now(),
+			certNotAfter:      time.Now().AddDate(1, 0, 0),
+		},
+		{
+			desc:              "Success: ECC P384 cert with ambiguous Subject serial but valid SAN URI",
+			wantError:         false,
+			certAsymAlgo:      eccP384Algo,
+			certSubjectSerial: "SN:foo SN:bar",
+			certURIs:          parseURIs(t, "urn:serial:"+cardSerial),
+			certNotBefore:     time.Now(),
+			certNotAfter:      time.Now().AddDate(1, 0, 0),
+		},
+		{
+			desc:              "Failure: cannot extract serial number from cert",
+			wantError:         true,
+			certAsymAlgo:      eccP384Algo,
+			certNotBefore:     time.Now(),
+			certNotAfter:      time.Now().AddDate(1, 0, 0),
+		},
 	}
 
 	for _, test := range tests {
@@ -872,6 +986,7 @@ func TestVerifyTpmCert(t *testing.T) {
 				genTpmCert = generateSignedCert(t, &certCreationParams{
 					asymAlgo:          test.certAsymAlgo,
 					certSubjectSerial: test.certSubjectSerial,
+					uris:              test.certURIs,
 					signingCert:       interCa.certX509,
 					signingPrivKey:    interCa.privKey,
 					notBefore:         test.certNotBefore,
@@ -883,6 +998,7 @@ func TestVerifyTpmCert(t *testing.T) {
 				genTpmCert = generateSignedCert(t, &certCreationParams{
 					asymAlgo:          test.certAsymAlgo,
 					certSubjectSerial: test.certSubjectSerial,
+					uris:              test.certURIs,
 					signingCert:       genCaCert.certX509,
 					signingPrivKey:    genCaCert.privKey,
 					notBefore:         test.certNotBefore,
@@ -945,3 +1061,257 @@ func TestVerifyTpmCert(t *testing.T) {
 		})
 	}
 }
+
+func TestGetCertSerialNumber(t *testing.T) {
+	tests := []struct {
+		desc string
+		cert *x509.Certificate
+		want string
+	}{
+		{
+			desc: "nil certificate",
+			cert: nil,
+			want: "",
+		},
+		{
+			desc: "empty certificate",
+			cert: &x509.Certificate{},
+			want: "",
+		},
+		{
+			desc: "raw serial number in Subject.SerialNumber",
+			cert: &x509.Certificate{
+				Subject: pkix.Name{
+					SerialNumber: "ABCD1234",
+				},
+			},
+			want: "ABCD1234",
+		},
+		{
+			desc: "raw serial number with leading and trailing whitespace",
+			cert: &x509.Certificate{
+				Subject: pkix.Name{
+					SerialNumber: "   ABCD1234  \t\n",
+				},
+			},
+			want: "ABCD1234",
+		},
+		{
+			desc: "PID and SN format in Subject.SerialNumber",
+			cert: &x509.Certificate{
+				Subject: pkix.Name{
+					SerialNumber: "PID:ZZ-Y-XX SN:ABCD1234",
+				},
+			},
+			want: "ABCD1234",
+		},
+		{
+			desc: "SN prefix only in Subject.SerialNumber",
+			cert: &x509.Certificate{
+				Subject: pkix.Name{
+					SerialNumber: "SN:ABCD1234",
+				},
+			},
+			want: "ABCD1234",
+		},
+		{
+			desc: "SN with whitespace in Subject.SerialNumber",
+			cert: &x509.Certificate{
+				Subject: pkix.Name{
+					SerialNumber: "PID:ZZ-Y-XX SN:   ABCD1234  ",
+				},
+			},
+			want: "ABCD1234",
+		},
+		{
+			desc: "Subject.SerialNumber with empty serial after SN falls through to SAN URI",
+			cert: &x509.Certificate{
+				Subject: pkix.Name{
+					SerialNumber: "PID:ZZ-Y-XX SN:",
+				},
+				URIs: []*url.URL{
+					parseURI(t, "urn:serial:FALLBACK123"),
+				},
+			},
+			want: "FALLBACK123",
+		},
+		{
+			desc: "Subject.SerialNumber with whitespace-only serial after SN falls through to SAN URI",
+			cert: &x509.Certificate{
+				Subject: pkix.Name{
+					SerialNumber: "PID:ZZ-Y-XX SN:   ",
+				},
+				URIs: []*url.URL{
+					parseURI(t, "urn:serial:FALLBACK123"),
+				},
+			},
+			want: "FALLBACK123",
+		},
+		{
+			desc: "Subject.SerialNumber with whitespace only falls through to SAN URI",
+			cert: &x509.Certificate{
+				Subject: pkix.Name{
+					SerialNumber: "   ",
+				},
+				URIs: []*url.URL{
+					parseURI(t, "urn:serial:FALLBACK123"),
+				},
+			},
+			want: "FALLBACK123",
+		},
+		{
+			desc: "Subject.SerialNumber with multiple SN: is ambiguous and falls through to SAN URI",
+			cert: &x509.Certificate{
+				Subject: pkix.Name{
+					SerialNumber: "SN:111 SN:222",
+				},
+				URIs: []*url.URL{
+					parseURI(t, "urn:serial:SAN123"),
+				},
+			},
+			want: "SAN123",
+		},
+		{
+			desc: "Subject.SerialNumber with multiple SN: and no SAN URI returns empty",
+			cert: &x509.Certificate{
+				Subject: pkix.Name{
+					SerialNumber: "SN:111 SN:222",
+				},
+			},
+			want: "",
+		},
+		{
+			desc: "Subject.SerialNumber with whitespace only and no SAN URI returns empty",
+			cert: &x509.Certificate{
+				Subject: pkix.Name{
+					SerialNumber: "    ",
+				},
+			},
+			want: "",
+		},
+		{
+			desc: "SAN URI urn:serial",
+			cert: &x509.Certificate{
+				URIs: []*url.URL{
+					parseURI(t, "urn:serial:ABCD1234"),
+				},
+			},
+			want: "ABCD1234",
+		},
+		{
+			desc: "SAN URI case-insensitive scheme and prefix",
+			cert: &x509.Certificate{
+				URIs: []*url.URL{
+					parseURI(t, "URN:SERIAL:ABCD1234"),
+				},
+			},
+			want: "ABCD1234",
+		},
+		{
+			desc: "SAN URI mixed-case prefix",
+			cert: &x509.Certificate{
+				URIs: []*url.URL{
+					parseURI(t, "Urn:Serial:ABCD1234"),
+				},
+			},
+			want: "ABCD1234",
+		},
+		{
+			desc: "SAN URI with whitespace around serial",
+			cert: &x509.Certificate{
+				URIs: []*url.URL{
+					parseURI(t, "urn:serial:  ABCD1234  "),
+				},
+			},
+			want: "ABCD1234",
+		},
+		{
+			desc: "Subject.SerialNumber takes precedence over SAN URI",
+			cert: &x509.Certificate{
+				Subject: pkix.Name{
+					SerialNumber: "SUBJ1234",
+				},
+				URIs: []*url.URL{
+					parseURI(t, "urn:serial:SAN5678"),
+				},
+			},
+			want: "SUBJ1234",
+		},
+		{
+			desc: "Multiple URIs with non-serial URI followed by urn:serial",
+			cert: &x509.Certificate{
+				URIs: []*url.URL{
+					parseURI(t, "https://example.com/cert"),
+					parseURI(t, "urn:other:1234"),
+					parseURI(t, "urn:serial:ABCD1234"),
+				},
+			},
+			want: "ABCD1234",
+		},
+		{
+			desc: "Multiple URIs with nil URI followed by urn:serial",
+			cert: &x509.Certificate{
+				URIs: []*url.URL{
+					nil,
+					parseURI(t, "urn:serial:ABCD1234"),
+				},
+			},
+			want: "ABCD1234",
+		},
+		{
+			desc: "Multiple urn:serial URIs returns first matching",
+			cert: &x509.Certificate{
+				URIs: []*url.URL{
+					parseURI(t, "urn:serial:FIRST"),
+					parseURI(t, "urn:serial:SECOND"),
+				},
+			},
+			want: "FIRST",
+		},
+		{
+			desc: "SAN URI with empty serial",
+			cert: &x509.Certificate{
+				URIs: []*url.URL{
+					parseURI(t, "urn:serial:"),
+				},
+			},
+			want: "",
+		},
+		{
+			desc: "SAN URI with whitespace-only serial",
+			cert: &x509.Certificate{
+				URIs: []*url.URL{
+					parseURI(t, "urn:serial:   "),
+				},
+			},
+			want: "",
+		},
+		{
+			desc: "SAN URIs with no urn:serial prefix",
+			cert: &x509.Certificate{
+				URIs: []*url.URL{
+					parseURI(t, "https://example.com/device/1234"),
+					parseURI(t, "urn:uuid:f81d4fae-7dec-11d0-a765-00a0c91e6bf6"),
+				},
+			},
+			want: "",
+		},
+		{
+			desc: "SAN URIs containing only nil",
+			cert: &x509.Certificate{
+				URIs: []*url.URL{nil},
+			},
+			want: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			got := getCertSerialNumber(tc.cert)
+			if got != tc.want {
+				t.Errorf("getCertSerialNumber(%v) = %q, want %q", tc.cert, got, tc.want)
+			}
+		})
+	}
+}
+
