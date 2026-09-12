@@ -417,19 +417,37 @@ func TestVerifyRemoteAttestationSuccess(t *testing.T) {
 	chain := generateTestCertChain(t)
 
 	tests := []struct {
-		name      string
-		hashAlgo  cpb.Tpm20HashAlgo
-		digestLen int
+		name           string
+		hashAlgo       cpb.Tpm20HashAlgo
+		cryptoHash     crypto.Hash
+		digestLen      int
+		useTPM2BAttest bool
 	}{
 		{
-			name:      "SHA256",
-			hashAlgo:  cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
-			digestLen: 32,
+			name:       "SHA256",
+			hashAlgo:   cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
+			cryptoHash: crypto.SHA256,
+			digestLen:  32,
 		},
 		{
-			name:      "SHA384",
-			hashAlgo:  cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384,
-			digestLen: 48,
+			name:           "SHA256_TPM2BAttest",
+			hashAlgo:       cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256,
+			cryptoHash:     crypto.SHA256,
+			digestLen:      32,
+			useTPM2BAttest: true,
+		},
+		{
+			name:       "SHA384",
+			hashAlgo:   cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384,
+			cryptoHash: crypto.SHA384,
+			digestLen:  48,
+		},
+		{
+			name:           "SHA384_TPM2BAttest",
+			hashAlgo:       cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384,
+			cryptoHash:     crypto.SHA384,
+			digestLen:      48,
+			useTPM2BAttest: true,
 		},
 	}
 
@@ -449,6 +467,16 @@ func TestVerifyRemoteAttestationSuccess(t *testing.T) {
 			expectedNonce := []byte("test-random-nonce-12345678901234")
 
 			quoted, sig := createValidQuote(t, requestedIndices, pcrValues, expectedNonce, chain.oiakKey, tc.hashAlgo)
+			if tc.useTPM2BAttest {
+				quoted = tpm2.Marshal(tpm2.BytesAs2B[tpm2.TPMSAttest](quoted))
+				h := tc.cryptoHash.New()
+				h.Write(quoted)
+				var err error
+				sig, err = rsa.SignPKCS1v15(rand.Reader, chain.oiakKey, tc.cryptoHash, h.Sum(nil))
+				if err != nil {
+					t.Fatalf("failed to sign TPM2BAttest quote: %v", err)
+				}
+			}
 
 			resp := createAttestResponse(chain.oiakPEM, quoted, sig, pcrValues)
 
@@ -457,6 +485,30 @@ func TestVerifyRemoteAttestationSuccess(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("MultiBlockPEM", func(t *testing.T) {
+		requestedIndices := []int32{0, 4, 7}
+		pcrValues := map[int32][]byte{
+			0: bytesRepeat(0x01, 48),
+			4: bytesRepeat(0x02, 48),
+			7: bytesRepeat(0x03, 48),
+		}
+		expectedPCRs := map[int][]byte{
+			0: bytesRepeat(0x01, 48),
+			4: bytesRepeat(0x02, 48),
+			7: bytesRepeat(0x03, 48),
+		}
+		expectedNonce := []byte("test-random-nonce-12345678901234")
+
+		quoted, sig := createValidQuote(t, requestedIndices, pcrValues, expectedNonce, chain.oiakKey, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384)
+		interPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: chain.interCert.Raw})
+		multiBlockPEM := chain.oiakPEM + string(interPEM)
+		resp := createAttestResponse(multiBlockPEM, quoted, sig, pcrValues)
+
+		if err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, expectedNonce, chain.rootPool, nil, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384); err != nil {
+			t.Fatalf("VerifyRemoteAttestation() with multi-block PEM failed unexpectedly: %v", err)
+		}
+	})
 }
 
 func TestVerifyRemoteAttestationECDSASuccess(t *testing.T) {

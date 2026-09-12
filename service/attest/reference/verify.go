@@ -59,18 +59,42 @@ func VerifyRemoteAttestation(resp *apb.AttestResponse, expectedPCRs map[int][]by
 		return fmt.Errorf("unsupported hash algorithm %v: must be SHA256 or SHA384", hashAlgo)
 	}
 	// 1. Parse and cryptographically verify the OIAK against the Root/Intermediate CA chain.
-	block, _ := pem.Decode([]byte(resp.GetAttestationCert().GetOiakCert()))
-	if block == nil {
+	var certs []*x509.Certificate
+	for rest := []byte(resp.GetAttestationCert().GetOiakCert()); len(rest) > 0; {
+		var block *pem.Block
+		block, rest = pem.Decode(rest)
+		if block == nil {
+			break
+		}
+		if block.Type != "CERTIFICATE" {
+			continue
+		}
+		c, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return fmt.Errorf("failed to parse OIAK certificate: %v", err)
+		}
+		certs = append(certs, c)
+	}
+	if len(certs) == 0 {
 		return errors.New("failed to decode OIAK PEM block")
 	}
-	cert, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return fmt.Errorf("failed to parse OIAK certificate: %v", err)
+	cert := certs[0]
+
+	interPool := intermediates
+	if len(certs) > 1 {
+		if interPool != nil {
+			interPool = interPool.Clone()
+		} else {
+			interPool = x509.NewCertPool()
+		}
+		for _, c := range certs[1:] {
+			interPool.AddCert(c)
+		}
 	}
 
 	opts := x509.VerifyOptions{
 		Roots:         trustedRoots,
-		Intermediates: intermediates,
+		Intermediates: interPool,
 		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
 	}
 	if _, err := cert.Verify(opts); err != nil {
@@ -93,9 +117,16 @@ func VerifyRemoteAttestation(resp *apb.AttestResponse, expectedPCRs map[int][]by
 	}
 
 	// 3. Verify unencoded, raw binary data for the TPM2 PCR Quote (TPMS_ATTEST).
-	attest, err := tpm2.Unmarshal[tpm2.TPMSAttest](resp.GetQuoted())
-	if err != nil {
-		return fmt.Errorf("bad Quote attestation: %v", err)
+	var attest *tpm2.TPMSAttest
+	if attest2B, err := tpm2.Unmarshal[tpm2.TPM2BAttest](resp.GetQuoted()); err == nil {
+		attest, _ = attest2B.Contents()
+	}
+	if attest == nil {
+		var err error
+		attest, err = tpm2.Unmarshal[tpm2.TPMSAttest](resp.GetQuoted())
+		if err != nil {
+			return fmt.Errorf("bad Quote attestation: %v", err)
+		}
 	}
 
 	// 4. Check that TPM2 magic number is TPM_GENERATED_VALUE.
@@ -176,15 +207,15 @@ func VerifyRemoteAttestation(resp *apb.AttestResponse, expectedPCRs map[int][]by
 }
 
 func verifyRSASignature(pubKey *rsa.PublicKey, cryptoHash crypto.Hash, hash, sig []byte) error {
-	if err := rsa.VerifyPKCS1v15(pubKey, cryptoHash, hash, sig); err == nil {
-		return nil
-	}
 	if tpmSig, err := tpm2.Unmarshal[tpm2.TPMTSignature](sig); err == nil {
 		if rsaSig, err := tpmSig.Signature.RSASSA(); err == nil {
 			if err := rsa.VerifyPKCS1v15(pubKey, cryptoHash, hash, rsaSig.Sig.Buffer); err == nil {
 				return nil
 			}
 		}
+	}
+	if err := rsa.VerifyPKCS1v15(pubKey, cryptoHash, hash, sig); err == nil {
+		return nil
 	}
 	return errors.New("RSA PKCS#1 v1.5 verification failed")
 }
