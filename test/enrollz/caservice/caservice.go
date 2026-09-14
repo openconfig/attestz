@@ -14,6 +14,7 @@
 package caservice
 
 import (
+	"context"
 	"crypto/x509"
 	"fmt"
 )
@@ -64,6 +65,12 @@ type PKIProvider interface {
 	// - Generate or retrieve a client certificate signed by a CA that the device trusts during enrollment.
 	// - Returns `certPEM` (PEM-encoded client certificate) and `keyPEM` (PEM-encoded PKCS#8 private key).
 	GenerateClientCredentials() (certPEM, keyPEM []byte, err error)
+}
+
+// NewEngine is a placeholder constructor for Engine.
+// Implementers should replace this with their concrete PKI constructor.
+func NewEngine(ctx context.Context, vendorCACert, ownerCACert, ownerCAKey string) (PKIProvider, error) {
+	return &Engine{}, nil
 }
 
 // Engine is a minimal reference implementation skeleton for PKIProvider.
