@@ -56,8 +56,8 @@ func TestEnrollz_InitialEnrollment_TPM20_IDevID_SingleControlCard(t *testing.T) 
 		t.Fatalf("EnrollDevice(%+v) failed: %v", req, err)
 	}
 
-	if len(resp.GetCardResults()) == 0 {
-		t.Fatalf("EnrollDevice returned no card results")
+	if len(resp.GetCardResults()) != 1 {
+		t.Fatalf("EnrollDevice returned %d card results, want 1", len(resp.GetCardResults()))
 	}
 
 	card := resp.GetCardResults()[0]
