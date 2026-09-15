@@ -81,7 +81,7 @@ func TestMain(m *testing.M) {
 		sut.Stop(ctx)
 		glog.Exitf("Failed to prepare DUT: %v", err)
 	}
-	glog.Infof("DUT (%s:%s) is ready; starting test suite.", dutTarget.IP, dutTarget.Port)
+	glog.Infof("DUT (%s:%s) is ready; starting test suite.", dutTarget.Host, dutTarget.Port)
 
 	m.Run()
 }

@@ -1,3 +1,4 @@
+//
 // Copyright 2026 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,6 +12,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+//
 
 // Package enrollz_test implements integration tests for the OpenConfig Enrollz gNSI service.
 //
@@ -25,6 +27,8 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/grpc/codes"
+
 	ocdpb "github.com/openconfig/attestz/proto/common_definitions"
 	sutpb "github.com/openconfig/attestz/test/enrollz/proto"
 )
@@ -34,10 +38,10 @@ func TestEnrollz_InitialEnrollment_TPM20_IDevID_SingleControlCard(t *testing.T) 
 	defer cancel()
 
 	req := &sutpb.EnrollDeviceRequest{
-		IpAddress:       dutTarget.IP,
-		Port:            dutTarget.Port,
-		ControlCardRole: ocdpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE,
-		SslProfileId:    "tls",
+		IpAddress:        dutTarget.Host,
+		Port:             dutTarget.Port,
+		ControlCardRoles: []ocdpb.ControlCardRole{ocdpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE},
+		SslProfileId:     "tls",
 	}
 
 	resp, err := enrollzSUTClient.EnrollDevice(ctx, req)
@@ -45,15 +49,22 @@ func TestEnrollz_InitialEnrollment_TPM20_IDevID_SingleControlCard(t *testing.T) 
 		t.Fatalf("EnrollDevice(%+v) failed: %v", req, err)
 	}
 
-	if resp.GetStatus() != sutpb.EnrollDeviceResponse_STATUS_SUCCESS {
-		t.Fatalf("Enrollz enrollment failed with status: %v without error", resp.GetStatus())
+	if len(resp.GetCardResults()) == 0 {
+		t.Fatalf("EnrollDevice returned no card results")
 	}
 
-	t.Logf("Enrollz enrollment succeeded")
+	card := resp.GetCardResults()[0]
+	if card.GetStatus().GetCode() != int32(codes.OK) {
+		t.Fatalf("Enrollment for card %v failed: [%v] %s",
+			card.GetControlCardRole(),
+			codes.Code(card.GetStatus().GetCode()),
+			card.GetStatus().GetMessage(),
+		)
+	}
 }
 
 func TestEnrollz_InitialEnrollment_TPM20_IDevID_MultipleControlCards(t *testing.T) {
-	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
 	defer cancel()
 
 	roles := []ocdpb.ControlCardRole{
@@ -61,25 +72,31 @@ func TestEnrollz_InitialEnrollment_TPM20_IDevID_MultipleControlCards(t *testing.
 		ocdpb.ControlCardRole_CONTROL_CARD_ROLE_STANDBY,
 	}
 
-	for _, role := range roles {
-		req := &sutpb.EnrollDeviceRequest{
-			IpAddress:       dutTarget.IP,
-			Port:            dutTarget.Port,
-			ControlCardRole: role,
-			SslProfileId:    "tls",
-		}
-
-		resp, err := enrollzSUTClient.EnrollDevice(ctx, req)
-		if err != nil {
-			t.Fatalf("EnrollDevice(%+v) failed: %v", req, err)
-		}
-		if resp.GetStatus() != sutpb.EnrollDeviceResponse_STATUS_SUCCESS {
-			t.Fatalf("Enrollz enrollment for control card %v failed with status: %v without error", req.GetControlCardRole(), resp.GetStatus())
-		}
-		t.Logf("Enrollz enrollment succeeded for control card: %v", req.GetControlCardRole())
+	req := &sutpb.EnrollDeviceRequest{
+		IpAddress:        dutTarget.Host,
+		Port:             dutTarget.Port,
+		ControlCardRoles: roles,
+		SslProfileId:     "tls",
 	}
 
-	t.Logf("Enrollz enrollment succeeded")
+	resp, err := enrollzSUTClient.EnrollDevice(ctx, req)
+	if err != nil {
+		t.Fatalf("EnrollDevice(%+v) failed: %v", req, err)
+	}
+
+	if len(resp.GetCardResults()) != len(roles) {
+		t.Fatalf("EnrollDevice returned %d card results, want %d", len(resp.GetCardResults()), len(roles))
+	}
+
+	for _, card := range resp.GetCardResults() {
+		if card.GetStatus().GetCode() != int32(codes.OK) {
+			t.Fatalf("Enrollz enrollment for control card %v failed: [%v] %s",
+				card.GetControlCardRole(),
+				codes.Code(card.GetStatus().GetCode()),
+				card.GetStatus().GetMessage(),
+			)
+		}
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
