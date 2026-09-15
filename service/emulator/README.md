@@ -23,7 +23,8 @@ bazel run //service/emulator:enrollz_emulator -- \
 ### Flags
 
 - `--vendor_ca_trust_bundle`: Path to switch vendor CA trust bundle PEM file (required).
-- `--client_ip`: IP address of the switch (default: `127.0.0.1`). The port is `4321`
+- `--client_ip`: IP address of the switch (default: `127.0.0.1`).
+- `--port`: Port of the switch (default: `4321`).
 - `--owner_ca_cert`: Path to switch owner CA certificate PEM file (required in TLS mode).
 - `--owner_ca_key`: Path to switch owner CA private key PEM file (required in TLS mode).
 - `--alsologtostderr`: Logs output to stderr.

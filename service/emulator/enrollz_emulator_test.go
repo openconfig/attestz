@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"flag"
 	"math/big"
 	"net"
 	"os"
@@ -265,6 +266,19 @@ func TestNewOwnerCAErrors(t *testing.T) {
 	}
 	if _, err := newOwnerCA(certPath, keyPath, "invalid-ip"); err == nil {
 		t.Errorf("newOwnerCA() with invalid IP should fail, got nil")
+	}
+	if _, err := newOwnerCA(certPath, keyPath, ""); err == nil {
+		t.Errorf("newOwnerCA() with empty IP should fail, got nil")
+	}
+}
+
+func TestFlags(t *testing.T) {
+	portFlag := flag.Lookup("port")
+	if portFlag == nil {
+		t.Fatal("flag --port is not defined")
+	}
+	if portFlag.DefValue != "4321" {
+		t.Errorf("--port default value = %q, want %q", portFlag.DefValue, "4321")
 	}
 }
 

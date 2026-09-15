@@ -45,6 +45,7 @@ import (
 var (
 	vendorCATrustBundle = flag.String("vendor_ca_trust_bundle", "", "Path to switch vendor CA trust bundle PEM file")
 	clientIP            = flag.String("client_ip", "127.0.0.1", "IP address of the switch device")
+	port                = flag.String("port", "4321", "Port of the switch device")
 	ownerCACert         = flag.String("owner_ca_cert", "service/emulator/owner_ca_cert.pem", "Path to switch owner CA certificate PEM file")
 	ownerCAKey          = flag.String("owner_ca_key", "service/emulator/owner_ca_key.pem", "Path to switch owner CA private key PEM file")
 )
@@ -110,12 +111,12 @@ func newOwnerCA(certFile, keyFile, clientIP string) (*ownerCA, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse owner CA private key: %w", err)
 	}
-	var ip net.IP
-	if clientIP != "" {
-		ip = net.ParseIP(clientIP)
-		if ip == nil {
-			return nil, fmt.Errorf("failed to parse client IP %q: invalid IP address", clientIP)
-		}
+	if clientIP == "" {
+		return nil, errors.New("client IP cannot be empty")
+	}
+	ip := net.ParseIP(clientIP)
+	if ip == nil {
+		return nil, fmt.Errorf("failed to parse client IP %q: invalid IP address", clientIP)
 	}
 	return &ownerCA{cert: cert, key: key, clientIP: ip}, nil
 }
@@ -287,13 +288,19 @@ func main() {
 	if *ownerCAKey == "" {
 		log.Exit("Flag --owner_ca_key must be specified")
 	}
+	if *clientIP == "" {
+		log.Exit("Flag --client_ip must be specified")
+	}
 	ownerCaClient, err := newOwnerCA(*ownerCACert, *ownerCAKey, *clientIP)
 	if err != nil {
 		log.Exitf("Failed to initialize Switch Owner CA: %v", err)
 	}
 
 	// 3. Build an enrollz client to communicate with the device.
-	addr := net.JoinHostPort(*clientIP, "4321")
+	if *port == "" {
+		log.Exit("Flag --port must be specified")
+	}
+	addr := net.JoinHostPort(*clientIP, *port)
 	clientTLSCred, err := ownerCaClient.issueClientTLSCert()
 	if err != nil {
 		log.Exitf("Failed to issue client TLS cert: %v", err)
