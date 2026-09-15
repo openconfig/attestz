@@ -14,92 +14,74 @@
 // limitations under the License.
 //
 
-// Package enrollz_test implements integration tests for the OpenConfig Enrollz gNSI service.
-//
-// Additional test cases can be added to this file (or in separate *_test.go files)
-// as needed depending on test requirements. Each test case can directly use the
-// package-level `dutTarget` for device connection details and `enrollzSUTClient`
-// to invoke enrollment through the SUT controller.
+// Package enrollz_test implements integration tests for OpenConfig Enrollz gNSI service.
 package enrollz_test
 
 import (
 	"context"
+	"flag"
 	"testing"
-	"time"
 
-	"google.golang.org/grpc/codes"
-
-	ocdpb "github.com/openconfig/attestz/proto/common_definitions"
+	"github.com/golang/glog"
+	"github.com/openconfig/attestz/test/dut"
 	sutpb "github.com/openconfig/attestz/test/enrollz/proto"
+	"github.com/openconfig/monax"
+	"github.com/openconfig/monax/monaxtest"
+	"github.com/openconfig/monax/runtime/kubernetesruntime"
 )
 
-func TestEnrollz_InitialEnrollment_TPM20_IDevID_SingleControlCard(t *testing.T) {
-	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
-	defer cancel()
+var (
+	config           monax.Config
+	dutTarget        *dut.Target
+	enrollzSUTClient sutpb.ControllerClient
+)
 
-	req := &sutpb.EnrollDeviceRequest{
-		IpAddress:        dutTarget.IP,
-		Port:             dutTarget.Port,
-		ControlCardRoles: []ocdpb.ControlCardRole{ocdpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE},
-		SslProfileId:     "tls",
-	}
-
-	resp, err := enrollzSUTClient.EnrollDevice(ctx, req)
-	if err != nil {
-		t.Fatalf("EnrollDevice(%+v) failed: %v", req, err)
-	}
-
-	if len(resp.GetCardResults()) == 0 {
-		t.Fatalf("EnrollDevice returned no card results")
-	}
-
-	card := resp.GetCardResults()[0]
-	if card.GetStatus().GetCode() != int32(codes.OK) {
-		t.Fatalf("Enrollment for card %v failed: [%v] %s",
-			card.GetControlCardRole(),
-			codes.Code(card.GetStatus().GetCode()),
-			card.GetStatus().GetMessage(),
-		)
-	}
+func init() {
+	flag.StringVar(&config.AbstractSUTPath, "abstract_sut", "./sut/abstract_sut.txtpb", "Path to the Monax abstract SUT file")
+	flag.StringVar(&config.LibraryPath, "library", "./sut/library.txtpb", "Path to the Monax library file")
+	flag.StringVar(&config.RuntimeParametersPath, "runtime_parameters", "./sut/kubernetes_runtime_parameters.txtpb", "Path to the Monax runtime parameters file")
 }
 
-func TestEnrollz_InitialEnrollment_TPM20_IDevID_MultipleControlCards(t *testing.T) {
-	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
-	defer cancel()
+// TestMain initializes the SUT and runs the tests.
+func TestMain(m *testing.M) {
+	flag.Parse()
+	defer glog.Flush()
 
-	roles := []ocdpb.ControlCardRole{
-		ocdpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE,
-		ocdpb.ControlCardRole_CONTROL_CARD_ROLE_STANDBY,
-	}
+	glog.Infof("=========================================================================")
+	glog.Infof("Building Enrollz Controller SUT and preparing DUT for Enrollz testing...")
+	glog.Infof("=========================================================================")
 
-	req := &sutpb.EnrollDeviceRequest{
-		IpAddress:        dutTarget.IP,
-		Port:             dutTarget.Port,
-		ControlCardRoles: roles,
-		SslProfileId:     "tls",
-	}
+	ctx := context.Background()
 
-	resp, err := enrollzSUTClient.EnrollDevice(ctx, req)
+	sut, err := monaxtest.Start(ctx, &config, kubernetesruntime.New)
 	if err != nil {
-		t.Fatalf("EnrollDevice(%+v) failed: %v", req, err)
+		glog.Exitf("Failed to initialize SUT: %v", err)
 	}
-
-	if len(resp.GetCardResults()) != len(roles) {
-		t.Fatalf("EnrollDevice returned %d card results, want %d", len(resp.GetCardResults()), len(roles))
-	}
-
-	for _, card := range resp.GetCardResults() {
-		if card.GetStatus().GetCode() != int32(codes.OK) {
-			t.Fatalf("Enrollz enrollment for control card %v failed: [%v] %s",
-				card.GetControlCardRole(),
-				codes.Code(card.GetStatus().GetCode()),
-				card.GetStatus().GetMessage(),
-			)
+	defer func() {
+		if err := sut.Stop(ctx); err != nil {
+			glog.Errorf("Failed to stop SUT: %v", err)
 		}
+	}()
+	if err := sut.Status(ctx); err != nil {
+		glog.Exitf("SUT is unhealthy: %v", err)
 	}
-}
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Add any additional test cases in this file as needed to cover specific switch workflows, rotation scenarios, or negative tests.
-// e.g., TestEnrollz_CertificateRenewal, TestEnrollz_Negative_UntrustedRootCA, etc.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	conn, err := sut.Interfaces().GRPC(ctx, "openconfig.attestz.test.enrollz.Controller")
+	if err != nil {
+		glog.Exitf("Failed to connect to Enrollz SUT Controller: %v", err)
+	}
+	defer conn.Close()
+	enrollzSUTClient = sutpb.NewControllerClient(conn)
+
+	glog.Infof("===========================================================================")
+	glog.Infof("The Enrollz Controller SUT is now ready and running in a Monax container.")
+	glog.Infof("===========================================================================")
+
+	if dutTarget, err = dut.PrepareDUT(); err != nil {
+		sut.Stop(ctx)
+		glog.Exitf("Failed to prepare DUT: %v", err)
+	}
+	glog.Infof("DUT (%s:%s) is ready; starting test suite.", dutTarget.IP, dutTarget.Port)
+
+	m.Run()
+}
