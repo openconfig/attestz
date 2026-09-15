@@ -72,7 +72,6 @@ go_library(
     importpath = "github.com/openconfig/attestz/service/attest",
     visibility = ["//visibility:public"],
     deps = [
-        "//proto:common_definitions_go_proto",
         "//proto:tpm_attestz_go",
         "@com_github_google_go_tpm//tpm2",
     ],

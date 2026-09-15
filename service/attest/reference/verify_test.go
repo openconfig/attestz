@@ -480,11 +480,61 @@ func TestVerifyRemoteAttestationSuccess(t *testing.T) {
 
 			resp := createAttestResponse(chain.oiakPEM, quoted, sig, pcrValues)
 
-			if err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, expectedNonce, chain.rootPool, chain.interPool, tc.hashAlgo); err != nil {
+			if err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, expectedNonce, chain.rootPool, chain.interPool); err != nil {
 				t.Fatalf("VerifyRemoteAttestation() failed unexpectedly: %v", err)
 			}
 		})
 	}
+
+	t.Run("CrossHashSignature_SHA256Bank_SHA384QuoteSig", func(t *testing.T) {
+		requestedIndices := []int32{0, 4}
+		pcrValues := map[int32][]byte{
+			0: bytesRepeat(0x01, 32),
+			4: bytesRepeat(0x02, 32),
+		}
+		expectedPCRs := map[int][]byte{
+			0: bytesRepeat(0x01, 32),
+			4: bytesRepeat(0x02, 32),
+		}
+		expectedNonce := []byte("test-random-nonce-12345678901234")
+
+		quoted, _ := createValidQuote(t, requestedIndices, pcrValues, expectedNonce, chain.oiakKey, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256)
+		h384 := sha512.Sum384(quoted)
+		sig384, err := rsa.SignPKCS1v15(rand.Reader, chain.oiakKey, crypto.SHA384, h384[:])
+		if err != nil {
+			t.Fatalf("failed to sign quote with SHA384: %v", err)
+		}
+
+		resp := createAttestResponse(chain.oiakPEM, quoted, sig384, pcrValues)
+		if err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, expectedNonce, chain.rootPool, chain.interPool); err != nil {
+			t.Fatalf("VerifyRemoteAttestation() failed unexpectedly for SHA256 bank with SHA384 quote signature: %v", err)
+		}
+	})
+
+	t.Run("CrossHashSignature_SHA384Bank_SHA256QuoteSig", func(t *testing.T) {
+		requestedIndices := []int32{0, 4}
+		pcrValues := map[int32][]byte{
+			0: bytesRepeat(0x01, 48),
+			4: bytesRepeat(0x02, 48),
+		}
+		expectedPCRs := map[int][]byte{
+			0: bytesRepeat(0x01, 48),
+			4: bytesRepeat(0x02, 48),
+		}
+		expectedNonce := []byte("test-random-nonce-12345678901234")
+
+		quoted, _ := createValidQuote(t, requestedIndices, pcrValues, expectedNonce, chain.oiakKey, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384)
+		h256 := sha256.Sum256(quoted)
+		sig256, err := rsa.SignPKCS1v15(rand.Reader, chain.oiakKey, crypto.SHA256, h256[:])
+		if err != nil {
+			t.Fatalf("failed to sign quote with SHA256: %v", err)
+		}
+
+		resp := createAttestResponse(chain.oiakPEM, quoted, sig256, pcrValues)
+		if err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, expectedNonce, chain.rootPool, chain.interPool); err != nil {
+			t.Fatalf("VerifyRemoteAttestation() failed unexpectedly for SHA384 bank with SHA256 quote signature: %v", err)
+		}
+	})
 
 	t.Run("MultiBlockPEM", func(t *testing.T) {
 		requestedIndices := []int32{0, 4, 7}
@@ -505,7 +555,7 @@ func TestVerifyRemoteAttestationSuccess(t *testing.T) {
 		multiBlockPEM := chain.oiakPEM + string(interPEM)
 		resp := createAttestResponse(multiBlockPEM, quoted, sig, pcrValues)
 
-		if err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, expectedNonce, chain.rootPool, nil, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384); err != nil {
+		if err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, expectedNonce, chain.rootPool, nil); err != nil {
 			t.Fatalf("VerifyRemoteAttestation() with multi-block PEM failed unexpectedly: %v", err)
 		}
 	})
@@ -575,7 +625,7 @@ func TestVerifyRemoteAttestationECDSASuccess(t *testing.T) {
 			for _, sf := range sigFormats {
 				t.Run(sf.formatName, func(t *testing.T) {
 					resp := createAttestResponse(chain.oiakPEM, quoted, sf.sig, pcrValues)
-					if err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, expectedNonce, chain.rootPool, chain.interPool, tc.hashAlgo); err != nil {
+					if err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, expectedNonce, chain.rootPool, chain.interPool); err != nil {
 						t.Fatalf("VerifyRemoteAttestation() failed with format %s: %v", sf.formatName, err)
 					}
 				})
@@ -611,7 +661,7 @@ func TestVerifyRemoteAttestationECDSASuccess(t *testing.T) {
 		quoted, sig := createValidQuote(t, requestedIndices, pcrValues, nonce, ecdsaKey, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256)
 		resp := createAttestResponse(string(ecdsaPEM), quoted, sig, pcrValues)
 
-		if err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, rsaChain.rootPool, rsaChain.interPool, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256); err != nil {
+		if err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, rsaChain.rootPool, rsaChain.interPool); err != nil {
 			t.Fatalf("hybrid chain verification failed: %v", err)
 		}
 	})
@@ -627,7 +677,7 @@ func TestVerifyRemoteAttestationCertificateErrors(t *testing.T) {
 
 	t.Run("InvalidPEM", func(t *testing.T) {
 		resp := createAttestResponse("not-a-valid-pem", quoted, sig, pcrValues)
-		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384)
+		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool)
 		if err == nil || !strings.Contains(err.Error(), "failed to decode OIAK PEM block") {
 			t.Errorf("expected error 'failed to decode OIAK PEM block', got: %v", err)
 		}
@@ -636,7 +686,7 @@ func TestVerifyRemoteAttestationCertificateErrors(t *testing.T) {
 	t.Run("InvalidCertBytes", func(t *testing.T) {
 		corruptedPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: []byte("corrupted certificate bytes")})
 		resp := createAttestResponse(string(corruptedPEM), quoted, sig, pcrValues)
-		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384)
+		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool)
 		if err == nil || !strings.Contains(err.Error(), "failed to parse OIAK certificate") {
 			t.Errorf("expected error 'failed to parse OIAK certificate', got: %v", err)
 		}
@@ -644,7 +694,7 @@ func TestVerifyRemoteAttestationCertificateErrors(t *testing.T) {
 
 	t.Run("UntrustedChain", func(t *testing.T) {
 		resp := createAttestResponse(chain.oiakPEM, quoted, sig, pcrValues)
-		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.untrustedPool, chain.interPool, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384)
+		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.untrustedPool, chain.interPool)
 		if err == nil || !strings.Contains(err.Error(), "certificate chain of trust validation failed") {
 			t.Errorf("expected error 'certificate chain of trust validation failed', got: %v", err)
 		}
@@ -670,7 +720,7 @@ func TestVerifyRemoteAttestationCertificateErrors(t *testing.T) {
 		edPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: edDER})
 
 		resp := createAttestResponse(string(edPEM), quoted, sig, pcrValues)
-		err = VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384)
+		err = VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool)
 		if err == nil || !strings.Contains(err.Error(), "OIAK certificate does not contain an RSA or ECDSA public key") {
 			t.Errorf("expected error 'OIAK certificate does not contain an RSA or ECDSA public key', got: %v", err)
 		}
@@ -692,7 +742,7 @@ func TestVerifyRemoteAttestationSignatureError(t *testing.T) {
 
 	resp := createAttestResponse(chain.oiakPEM, quoted, corruptedSig, pcrValues)
 
-	err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384)
+	err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool)
 	if err == nil || !strings.Contains(err.Error(), "quote signature verification failed") {
 		t.Errorf("expected error 'quote signature verification failed', got: %v", err)
 	}
@@ -712,7 +762,7 @@ func TestVerifyRemoteAttestationECDSASignatureErrors(t *testing.T) {
 		corruptedSig[len(corruptedSig)-1] ^= 0xFF
 
 		resp := createAttestResponse(chain.oiakPEM, quoted, corruptedSig, pcrValues)
-		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256)
+		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool)
 		if err == nil || !strings.Contains(err.Error(), "quote signature verification failed") {
 			t.Errorf("expected error 'quote signature verification failed', got: %v", err)
 		}
@@ -726,15 +776,20 @@ func TestVerifyRemoteAttestationECDSASignatureErrors(t *testing.T) {
 		_, otherSig := createValidQuote(t, requestedIndices, pcrValues, nonce, otherKey, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256)
 
 		resp := createAttestResponse(chain.oiakPEM, quoted, otherSig, pcrValues)
-		err = VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256)
+		err = VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool)
 		if err == nil || !strings.Contains(err.Error(), "quote signature verification failed") {
 			t.Errorf("expected error 'quote signature verification failed', got: %v", err)
 		}
 	})
 
-	t.Run("HashAlgoMismatch", func(t *testing.T) {
-		// Quote created with SHA256 verified with SHA384
-		err := VerifyRemoteAttestation(createAttestResponse(chain.oiakPEM, quoted, sig, pcrValues), expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384)
+	t.Run("UnsupportedSignatureHashSHA512", func(t *testing.T) {
+		// Quote signed with SHA512 should fail signature verification (only SHA256 and SHA384 supported).
+		h512 := sha512.Sum512(quoted)
+		sig512, err := ecdsa.SignASN1(rand.Reader, chain.oiakKey, h512[:])
+		if err != nil {
+			t.Fatalf("failed to sign with SHA512: %v", err)
+		}
+		err = VerifyRemoteAttestation(createAttestResponse(chain.oiakPEM, quoted, sig512, pcrValues), expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool)
 		if err == nil || !strings.Contains(err.Error(), "quote signature verification failed") {
 			t.Errorf("expected error 'quote signature verification failed', got: %v", err)
 		}
@@ -760,7 +815,7 @@ func TestVerifyRemoteAttestationQuoteErrors(t *testing.T) {
 		sig, _ := rsa.SignPKCS1v15(rand.Reader, chain.oiakKey, crypto.SHA384, hash[:])
 
 		resp := createAttestResponse(chain.oiakPEM, corruptedQuoted, sig, pcrValues)
-		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384)
+		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool)
 		if err == nil || !strings.Contains(err.Error(), "bad Quote attestation") {
 			t.Errorf("expected error 'bad Quote attestation', got: %v", err)
 		}
@@ -783,7 +838,7 @@ func TestVerifyRemoteAttestationQuoteErrors(t *testing.T) {
 		sig, _ := rsa.SignPKCS1v15(rand.Reader, chain.oiakKey, crypto.SHA384, hash[:])
 
 		resp := createAttestResponse(chain.oiakPEM, quoted, sig, pcrValues)
-		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384)
+		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool)
 		if err == nil || !strings.Contains(err.Error(), "wrong magic value") {
 			t.Errorf("expected error 'wrong magic value', got: %v", err)
 		}
@@ -801,7 +856,7 @@ func TestVerifyRemoteAttestationQuoteErrors(t *testing.T) {
 		sig, _ := rsa.SignPKCS1v15(rand.Reader, chain.oiakKey, crypto.SHA384, hash[:])
 
 		resp := createAttestResponse(chain.oiakPEM, quoted, sig, pcrValues)
-		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384)
+		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool)
 		if err == nil || !strings.Contains(err.Error(), "wrong Quote attestation type") {
 			t.Errorf("expected error 'wrong Quote attestation type', got: %v", err)
 		}
@@ -812,7 +867,7 @@ func TestVerifyRemoteAttestationQuoteErrors(t *testing.T) {
 		quoted, sig := createValidQuote(t, requestedIndices, pcrValues, wrongNonce, chain.oiakKey, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384)
 
 		resp := createAttestResponse(chain.oiakPEM, quoted, sig, pcrValues)
-		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384)
+		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool)
 		if err == nil || !strings.Contains(err.Error(), "wrong nonce") {
 			t.Errorf("expected error 'wrong nonce', got: %v", err)
 		}
@@ -823,7 +878,7 @@ func TestVerifyRemoteAttestationQuoteErrors(t *testing.T) {
 		quoted, sig := createValidQuote(t, []int32{0}, pcrValues, nonce, chain.oiakKey, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384)
 
 		resp := createAttestResponse(chain.oiakPEM, quoted, sig, pcrValues)
-		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384)
+		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool)
 		if err == nil || !strings.Contains(err.Error(), "PCR selection strictly mismatched against requested quote indices") {
 			t.Errorf("expected error 'PCR selection strictly mismatched against requested quote indices', got: %v", err)
 		}
@@ -849,7 +904,7 @@ func TestVerifyRemoteAttestationPCRValuesErrors(t *testing.T) {
 			0: bytesRepeat(0x11, 48),
 		}
 		resp := createAttestResponse(chain.oiakPEM, quoted, sig, incompletePCRValues)
-		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384)
+		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool)
 		if err == nil || !strings.Contains(err.Error(), "device failed to map standard requested PCR index 4") {
 			t.Errorf("expected error 'device failed to map standard requested PCR index 4', got: %v", err)
 		}
@@ -861,7 +916,7 @@ func TestVerifyRemoteAttestationPCRValuesErrors(t *testing.T) {
 			4: bytesRepeat(0x99, 48), // tampered value
 		}
 		resp := createAttestResponse(chain.oiakPEM, quoted, sig, tamperedPCRValues)
-		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384)
+		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool)
 		if err == nil || !strings.Contains(err.Error(), "integrity violation: raw PCR values provided do not logically yield the quote's PCR digest") {
 			t.Errorf("expected error 'integrity violation: raw PCR values provided do not logically yield the quote's PCR digest', got: %v", err)
 		}
@@ -874,7 +929,7 @@ func TestVerifyRemoteAttestationPCRValuesErrors(t *testing.T) {
 			8: bytesRepeat(0x33, 48), // PCR 8 not in resp.PcrValues
 		}
 		resp := createAttestResponse(chain.oiakPEM, quoted, sig, pcrValues)
-		err := VerifyRemoteAttestation(resp, expPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384)
+		err := VerifyRemoteAttestation(resp, expPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool)
 		if err == nil || !strings.Contains(err.Error(), "policy failure: expected PCR 8 was totally absent from payload") {
 			t.Errorf("expected error 'policy failure: expected PCR 8 was totally absent from payload', got: %v", err)
 		}
@@ -886,41 +941,58 @@ func TestVerifyRemoteAttestationPCRValuesErrors(t *testing.T) {
 			4: bytesRepeat(0x22, 48),
 		}
 		resp := createAttestResponse(chain.oiakPEM, quoted, sig, pcrValues)
-		err := VerifyRemoteAttestation(resp, expPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384)
+		err := VerifyRemoteAttestation(resp, expPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool)
 		if err == nil || !strings.Contains(err.Error(), "policy failure: PCR 0 expected") {
 			t.Errorf("expected error 'policy failure: PCR 0 expected ...', got: %v", err)
 		}
 	})
 }
 
-func TestVerifyRemoteAttestationHashAlgoErrors(t *testing.T) {
+func TestVerifyRemoteAttestationUnsupportedHashErrors(t *testing.T) {
 	chain := generateTestCertChain(t)
 	requestedIndices := []int32{0}
 	pcrValues := map[int32][]byte{0: bytesRepeat(0xAA, 48)}
 	expectedPCRs := map[int][]byte{0: bytesRepeat(0xAA, 48)}
 	nonce := []byte("test-nonce")
-	quoted, sig := createValidQuote(t, requestedIndices, pcrValues, nonce, chain.oiakKey, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384)
-	resp := createAttestResponse(chain.oiakPEM, quoted, sig, pcrValues)
 
-	t.Run("UnsupportedAlgorithmUnspecified", func(t *testing.T) {
-		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_UNSPECIFIED)
-		if err == nil || !strings.Contains(err.Error(), "unsupported hash algorithm") {
-			t.Errorf("expected error 'unsupported hash algorithm', got: %v", err)
+	t.Run("UnsupportedQuoteSignatureHashSHA512", func(t *testing.T) {
+		quoted, _ := createValidQuote(t, requestedIndices, pcrValues, nonce, chain.oiakKey, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384)
+		h512 := sha512.Sum512(quoted)
+		sig512, err := rsa.SignPKCS1v15(rand.Reader, chain.oiakKey, crypto.SHA512, h512[:])
+		if err != nil {
+			t.Fatalf("failed to sign with SHA512: %v", err)
 		}
-	})
-
-	t.Run("UnsupportedAlgorithmSHA512", func(t *testing.T) {
-		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA512)
-		if err == nil || !strings.Contains(err.Error(), "unsupported hash algorithm") {
-			t.Errorf("expected error 'unsupported hash algorithm', got: %v", err)
-		}
-	})
-
-	t.Run("AlgorithmMismatch", func(t *testing.T) {
-		// Quoted with SHA384 but verified with SHA256 should fail signature verification.
-		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool, cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256)
+		resp := createAttestResponse(chain.oiakPEM, quoted, sig512, pcrValues)
+		err = VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool)
 		if err == nil || !strings.Contains(err.Error(), "quote signature verification failed") {
 			t.Errorf("expected error 'quote signature verification failed', got: %v", err)
+		}
+	})
+
+	t.Run("UnsupportedPCRSelectHashSHA512", func(t *testing.T) {
+		attest := tpm2.TPMSAttest{
+			Magic:     tpm2.TPMGeneratedValue,
+			Type:      tpm2.TPMSTAttestQuote,
+			ExtraData: tpm2.TPM2BData{Buffer: nonce},
+			Attested: tpm2.NewTPMUAttest(tpm2.TPMSTAttestQuote, &tpm2.TPMSQuoteInfo{
+				PCRSelect: tpm2.TPMLPCRSelection{
+					PCRSelections: []tpm2.TPMSPCRSelection{
+						{
+							Hash:      tpm2.TPMAlgSHA512,
+							PCRSelect: []byte{0x01, 0x00, 0x00},
+						},
+					},
+				},
+				PCRDigest: tpm2.TPM2BDigest{Buffer: bytesRepeat(0x00, 48)},
+			}),
+		}
+		quoted := tpm2.Marshal(attest)
+		h384 := sha512.Sum384(quoted)
+		sig, _ := rsa.SignPKCS1v15(rand.Reader, chain.oiakKey, crypto.SHA384, h384[:])
+		resp := createAttestResponse(chain.oiakPEM, quoted, sig, pcrValues)
+		err := VerifyRemoteAttestation(resp, expectedPCRs, requestedIndices, nonce, chain.rootPool, chain.interPool)
+		if err == nil || !strings.Contains(err.Error(), "PCR selection strictly mismatched against requested quote indices") {
+			t.Errorf("expected error 'PCR selection strictly mismatched against requested quote indices', got: %v", err)
 		}
 	})
 }

@@ -155,7 +155,7 @@ func main() {
 
 	log.Infof("AttestResponse:\n%s", prototext.Format(resp))
 
-	if err := VerifyRemoteAttestation(resp, expectedPCRs, pcrIndices, nonce, trustedRoots, nil, hashAlgo); err != nil {
+	if err := VerifyRemoteAttestation(resp, expectedPCRs, pcrIndices, nonce, trustedRoots, nil); err != nil {
 		log.Exitf("Remote attestation verification failed: %v", err)
 	}
 	log.Infof("Remote attestation verification succeeded")

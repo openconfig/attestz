@@ -29,35 +29,11 @@ import (
 	"sort"
 
 	"github.com/google/go-tpm/tpm2"
-	cpb "github.com/openconfig/attestz/proto/common_definitions"
 	apb "github.com/openconfig/attestz/proto/tpm_attestz"
 )
 
 // VerifyRemoteAttestation fully validates evidence. Requires standard root/intermediate CA pools.
-func VerifyRemoteAttestation(resp *apb.AttestResponse, expectedPCRs map[int][]byte, requestedIndices []int32, expectedNonce []byte, trustedRoots *x509.CertPool, intermediates *x509.CertPool, hashAlgo cpb.Tpm20HashAlgo) error {
-	var (
-		cryptoHash    crypto.Hash
-		tpmAlg        tpm2.TPMAlgID
-		computeDigest func([]byte) []byte
-	)
-	switch hashAlgo {
-	case cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA256:
-		cryptoHash = crypto.SHA256
-		tpmAlg = tpm2.TPMAlgSHA256
-		computeDigest = func(b []byte) []byte {
-			d := sha256.Sum256(b)
-			return d[:]
-		}
-	case cpb.Tpm20HashAlgo_TPM_2_0_HASH_ALGO_SHA384:
-		cryptoHash = crypto.SHA384
-		tpmAlg = tpm2.TPMAlgSHA384
-		computeDigest = func(b []byte) []byte {
-			d := sha512.Sum384(b)
-			return d[:]
-		}
-	default:
-		return fmt.Errorf("unsupported hash algorithm %v: must be SHA256 or SHA384", hashAlgo)
-	}
+func VerifyRemoteAttestation(resp *apb.AttestResponse, expectedPCRs map[int][]byte, requestedIndices []int32, expectedNonce []byte, trustedRoots *x509.CertPool, intermediates *x509.CertPool) error {
 	// 1. Parse and cryptographically verify the OIAK against the Root/Intermediate CA chain.
 	var certs []*x509.Certificate
 	for rest := []byte(resp.GetAttestationCert().GetOiakCert()); len(rest) > 0; {
@@ -102,15 +78,21 @@ func VerifyRemoteAttestation(resp *apb.AttestResponse, expectedPCRs map[int][]by
 	}
 
 	// 2. Extract public key to verify Quote signature against the Quote.
-	hash := computeDigest(resp.GetQuoted())
+	quoted := resp.GetQuoted()
+	sha256QuoteHash := sha256.Sum256(quoted)
+	sha384QuoteHash := sha512.Sum384(quoted)
 	switch pubKey := cert.PublicKey.(type) {
 	case *rsa.PublicKey:
-		if err := verifyRSASignature(pubKey, cryptoHash, hash, resp.GetQuoteSignature()); err != nil {
-			return fmt.Errorf("quote signature verification failed: %v", err)
+		if err := verifyRSASignature(pubKey, crypto.SHA256, sha256QuoteHash[:], resp.GetQuoteSignature()); err != nil {
+			if err := verifyRSASignature(pubKey, crypto.SHA384, sha384QuoteHash[:], resp.GetQuoteSignature()); err != nil {
+				return fmt.Errorf("quote signature verification failed: %v", err)
+			}
 		}
 	case *ecdsa.PublicKey:
-		if err := verifyECDSASignature(pubKey, hash, resp.GetQuoteSignature()); err != nil {
-			return fmt.Errorf("quote signature verification failed: %v", err)
+		if err := verifyECDSASignature(pubKey, sha256QuoteHash[:], resp.GetQuoteSignature()); err != nil {
+			if err := verifyECDSASignature(pubKey, sha384QuoteHash[:], resp.GetQuoteSignature()); err != nil {
+				return fmt.Errorf("quote signature verification failed: %v", err)
+			}
 		}
 	default:
 		return errors.New("OIAK certificate does not contain an RSA or ECDSA public key")
@@ -161,19 +143,25 @@ func VerifyRemoteAttestation(resp *apb.AttestResponse, expectedPCRs map[int][]by
 		}
 	}
 
-	expectedPcrSelect := tpm2.TPMLPCRSelection{
+	expectedSHA256Select := tpm2.Marshal(tpm2.TPMLPCRSelection{
 		PCRSelections: []tpm2.TPMSPCRSelection{
 			{
-				Hash:      tpmAlg,
+				Hash:      tpm2.TPMAlgSHA256,
 				PCRSelect: pcrBitmask,
 			},
 		},
-	}
-
-	expectedBytes := tpm2.Marshal(expectedPcrSelect)
+	})
+	expectedSHA384Select := tpm2.Marshal(tpm2.TPMLPCRSelection{
+		PCRSelections: []tpm2.TPMSPCRSelection{
+			{
+				Hash:      tpm2.TPMAlgSHA384,
+				PCRSelect: pcrBitmask,
+			},
+		},
+	})
 	quoteBytes := tpm2.Marshal(quote.PCRSelect)
 
-	if !bytes.Equal(expectedBytes, quoteBytes) {
+	if !bytes.Equal(expectedSHA256Select, quoteBytes) && !bytes.Equal(expectedSHA384Select, quoteBytes) {
 		return fmt.Errorf("PCR selection strictly mismatched against requested quote indices")
 	}
 
@@ -187,8 +175,9 @@ func VerifyRemoteAttestation(resp *apb.AttestResponse, expectedPCRs map[int][]by
 		pcrConcat = append(pcrConcat, devicePcrBytes...)
 	}
 
-	reportedDigest := computeDigest(pcrConcat)
-	if !bytes.Equal(quote.PCRDigest.Buffer, reportedDigest) {
+	sha256PcrDigest := sha256.Sum256(pcrConcat)
+	sha384PcrDigest := sha512.Sum384(pcrConcat)
+	if !bytes.Equal(quote.PCRDigest.Buffer, sha256PcrDigest[:]) && !bytes.Equal(quote.PCRDigest.Buffer, sha384PcrDigest[:]) {
 		return fmt.Errorf("integrity violation: raw PCR values provided do not logically yield the quote's PCR digest")
 	}
 
