@@ -16,6 +16,11 @@
 
 // Package enrollz_test implements integration tests for the OpenConfig Enrollz gNSI service.
 //
+// NOTE: The test cases in this file are not meant to all be executed together.
+// Vendors should select and run the specific test case(s) matching their hardware
+// configuration using the `-run` flag. Alternatively, they may delete or comment out
+// any test cases that do not apply to their switch chassis before running `go test`.
+//
 // Additional test cases can be added to this file (or in separate *_test.go files)
 // as needed depending on test requirements. Each test case can directly use the
 // package-level `dutTarget` for device connection details and `enrollzSUTClient`
@@ -33,6 +38,8 @@ import (
 	sutpb "github.com/openconfig/attestz/test/enrollz/proto"
 )
 
+// TestEnrollz_InitialEnrollment_TPM20_IDevID_SingleControlCard tests the initial enrollment
+// workflow using TPM 2.0 and an IDevID certificate for switches with a single control card.
 func TestEnrollz_InitialEnrollment_TPM20_IDevID_SingleControlCard(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
 	defer cancel()
@@ -63,6 +70,9 @@ func TestEnrollz_InitialEnrollment_TPM20_IDevID_SingleControlCard(t *testing.T) 
 	}
 }
 
+// TestEnrollz_InitialEnrollment_TPM20_IDevID_MultipleControlCards tests the initial enrollment
+// workflow using TPM 2.0 and an IDevID certificate for switches with dual/redundant control
+// cards.
 func TestEnrollz_InitialEnrollment_TPM20_IDevID_MultipleControlCards(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
 	defer cancel()
