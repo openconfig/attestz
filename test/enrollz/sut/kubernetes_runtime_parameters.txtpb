@@ -1,0 +1,9 @@
+parameters: {
+  [type.googleapis.com/monax.kubernetes.KubernetesRuntimeParameters]: {
+    name: "Enrollz_Test"
+    kubernetes: {
+      kubeconfig_path: "${HOME}/.kube/config"
+      service_type: SERVICE_TYPE_NODE_PORT
+    }
+  }
+}

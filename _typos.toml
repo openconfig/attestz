@@ -1,3 +1,13 @@
+[files]
+extend-exclude=[
+    # Exclude test certificate fixtures: base64-encoded PEM strings contain random
+    # character sequences that trigger false-positive spell-check errors.
+    "test/enrollz/sut/controller/certs_test.go",
+    # Exclude Go module dependency and checksum files containing hashes/hashes-like strings.
+    "**/go.mod",
+    "**/go.sum",
+]
+
 [type.svg]
 extend-glob = ["*.svg"]
 check-file = false

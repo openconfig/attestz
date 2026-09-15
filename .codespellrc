@@ -1,2 +1,3 @@
 [codespell]
 ignore-words-list = parms
+skip = *certs_test.go,*.mod,*.sum

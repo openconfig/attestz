@@ -1,14 +1,14 @@
 //
-// Copyright 2026 Google Inc. All Rights Reserved.
+// Copyright 2026 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//    http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" B1IS,
+// distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
@@ -24,6 +24,7 @@ package proto
 
 import (
 	common_definitions "github.com/openconfig/attestz/proto/common_definitions"
+	status "google.golang.org/genproto/googleapis/rpc/status"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -38,55 +39,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type EnrollDeviceResponse_Status int32
-
-const (
-	EnrollDeviceResponse_STATUS_UNSPECIFIED EnrollDeviceResponse_Status = 0
-	EnrollDeviceResponse_STATUS_SUCCESS     EnrollDeviceResponse_Status = 1
-	EnrollDeviceResponse_STATUS_FAILURE     EnrollDeviceResponse_Status = 2
-)
-
-// Enum value maps for EnrollDeviceResponse_Status.
-var (
-	EnrollDeviceResponse_Status_name = map[int32]string{
-		0: "STATUS_UNSPECIFIED",
-		1: "STATUS_SUCCESS",
-		2: "STATUS_FAILURE",
-	}
-	EnrollDeviceResponse_Status_value = map[string]int32{
-		"STATUS_UNSPECIFIED": 0,
-		"STATUS_SUCCESS":     1,
-		"STATUS_FAILURE":     2,
-	}
-)
-
-func (x EnrollDeviceResponse_Status) Enum() *EnrollDeviceResponse_Status {
-	p := new(EnrollDeviceResponse_Status)
-	*p = x
-	return p
-}
-
-func (x EnrollDeviceResponse_Status) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (EnrollDeviceResponse_Status) Descriptor() protoreflect.EnumDescriptor {
-	return file_sut_proto_enumTypes[0].Descriptor()
-}
-
-func (EnrollDeviceResponse_Status) Type() protoreflect.EnumType {
-	return &file_sut_proto_enumTypes[0]
-}
-
-func (x EnrollDeviceResponse_Status) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use EnrollDeviceResponse_Status.Descriptor instead.
-func (EnrollDeviceResponse_Status) EnumDescriptor() ([]byte, []int) {
-	return file_sut_proto_rawDescGZIP(), []int{1, 0}
-}
-
 // EnrollDeviceRequest contains the connection parameters and target hardware
 // specifications required to execute the Enrollz workflow against a DUT.
 type EnrollDeviceRequest struct {
@@ -98,12 +50,13 @@ type EnrollDeviceRequest struct {
 	// Target port for the gNSI service running on the DUT.
 	// The default value is "9339" (gNSI port).
 	Port string `protobuf:"bytes,3,opt,name=port,proto3" json:"port,omitempty"`
-	// The control card role to enroll (e.g., ACTIVE, STANDBY, CHASSIS).
+	// The control card roles to enroll (e.g., [ACTIVE, STANDBY]). The types of
+	// control cards supported (e.g., ACTIVE, STANDBY, CHASSIS) depend on the DUT.
 	//   - ACTIVE: Primary supervisor or single control processor.
 	//   - STANDBY: Backup supervisor in dual-supervisor modular chassis.
 	//   - CHASSIS: Physical chassis enclosure module (proxied via the ACTIVE
 	//     card).
-	ControlCardRole common_definitions.ControlCardRole `protobuf:"varint,4,opt,name=control_card_role,json=controlCardRole,proto3,enum=openconfig.attestz.ControlCardRole" json:"control_card_role,omitempty"`
+	ControlCardRoles []common_definitions.ControlCardRole `protobuf:"varint,4,rep,packed,name=control_card_roles,json=controlCardRoles,proto3,enum=openconfig.attestz.ControlCardRole" json:"control_card_roles,omitempty"`
 	// The SSL profile identifier on the DUT where the re-certified owner IDevID
 	// (oIDevID) certificate will be bound for TLS authentication. Required
 	// whenever oIDevID is rotated.
@@ -163,11 +116,11 @@ func (x *EnrollDeviceRequest) GetPort() string {
 	return ""
 }
 
-func (x *EnrollDeviceRequest) GetControlCardRole() common_definitions.ControlCardRole {
+func (x *EnrollDeviceRequest) GetControlCardRoles() []common_definitions.ControlCardRole {
 	if x != nil {
-		return x.ControlCardRole
+		return x.ControlCardRoles
 	}
-	return common_definitions.ControlCardRole(0)
+	return nil
 }
 
 func (x *EnrollDeviceRequest) GetSslProfileId() string {
@@ -180,12 +133,8 @@ func (x *EnrollDeviceRequest) GetSslProfileId() string {
 // EnrollDeviceResponse reports the outcome of the Enrollz enrollment workflow.
 type EnrollDeviceResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The resulting status of the enrollment procedure.
-	Status EnrollDeviceResponse_Status `protobuf:"varint,1,opt,name=status,proto3,enum=openconfig.attestz.test.EnrollDeviceResponse_Status" json:"status,omitempty"`
-	// Optional: Detailed diagnostic or error message if status is FAILURE.
-	// Explains specific root causes (e.g., connection failure, certificate
-	// validation failure, serial mismatch, or gRPC rotation error).
-	ErrorMessage  string `protobuf:"bytes,2,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	// Information and status for each control card attempted.
+	CardResults   []*ControlCardEnrollmentResult `protobuf:"bytes,1,rep,name=card_results,json=cardResults,proto3" json:"card_results,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -220,39 +169,90 @@ func (*EnrollDeviceResponse) Descriptor() ([]byte, []int) {
 	return file_sut_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *EnrollDeviceResponse) GetStatus() EnrollDeviceResponse_Status {
+func (x *EnrollDeviceResponse) GetCardResults() []*ControlCardEnrollmentResult {
+	if x != nil {
+		return x.CardResults
+	}
+	return nil
+}
+
+// ControlCardEnrollmentResult carries the outcome and artifacts for a single
+// card.
+type ControlCardEnrollmentResult struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The control card role that was enrolled (ACTIVE, STANDBY, or CHASSIS).
+	ControlCardRole common_definitions.ControlCardRole `protobuf:"varint,1,opt,name=control_card_role,json=controlCardRole,proto3,enum=openconfig.attestz.ControlCardRole" json:"control_card_role,omitempty"`
+	// The status of this specific card:
+	// - OK (0): Card was successfully enrolled.
+	// - FAILED_PRECONDITION: DUT cert verification failed (e.g. serial mismatch,
+	// cert verify failed, etc).
+	// - UNAVAILABLE: DUT communication or GetIakCert failed for this card.
+	Status        *status.Status `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ControlCardEnrollmentResult) Reset() {
+	*x = ControlCardEnrollmentResult{}
+	mi := &file_sut_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ControlCardEnrollmentResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ControlCardEnrollmentResult) ProtoMessage() {}
+
+func (x *ControlCardEnrollmentResult) ProtoReflect() protoreflect.Message {
+	mi := &file_sut_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ControlCardEnrollmentResult.ProtoReflect.Descriptor instead.
+func (*ControlCardEnrollmentResult) Descriptor() ([]byte, []int) {
+	return file_sut_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ControlCardEnrollmentResult) GetControlCardRole() common_definitions.ControlCardRole {
+	if x != nil {
+		return x.ControlCardRole
+	}
+	return common_definitions.ControlCardRole(0)
+}
+
+func (x *ControlCardEnrollmentResult) GetStatus() *status.Status {
 	if x != nil {
 		return x.Status
 	}
-	return EnrollDeviceResponse_STATUS_UNSPECIFIED
-}
-
-func (x *EnrollDeviceResponse) GetErrorMessage() string {
-	if x != nil {
-		return x.ErrorMessage
-	}
-	return ""
+	return nil
 }
 
 var File_sut_proto protoreflect.FileDescriptor
 
 const file_sut_proto_rawDesc = "" +
 	"\n" +
-	"\tsut.proto\x12\x17openconfig.attestz.test\x1a<github.com/openconfig/attestz/proto/common_definitions.proto\"\xdb\x01\n" +
+	"\tsut.proto\x12\x17openconfig.attestz.test\x1a\x17google/rpc/status.proto\x1a<github.com/openconfig/attestz/proto/common_definitions.proto\"\xdd\x01\n" +
 	"\x13EnrollDeviceRequest\x12\x1d\n" +
 	"\n" +
 	"ip_address\x18\x01 \x01(\tR\tipAddress\x12\x1a\n" +
 	"\bhostname\x18\x02 \x01(\tR\bhostname\x12\x12\n" +
-	"\x04port\x18\x03 \x01(\tR\x04port\x12O\n" +
-	"\x11control_card_role\x18\x04 \x01(\x0e2#.openconfig.attestz.ControlCardRoleR\x0fcontrolCardRole\x12$\n" +
-	"\x0essl_profile_id\x18\x05 \x01(\tR\fsslProfileId\"\xd3\x01\n" +
-	"\x14EnrollDeviceResponse\x12L\n" +
-	"\x06status\x18\x01 \x01(\x0e24.openconfig.attestz.test.EnrollDeviceResponse.StatusR\x06status\x12#\n" +
-	"\rerror_message\x18\x02 \x01(\tR\ferrorMessage\"H\n" +
-	"\x06Status\x12\x16\n" +
-	"\x12STATUS_UNSPECIFIED\x10\x00\x12\x12\n" +
-	"\x0eSTATUS_SUCCESS\x10\x01\x12\x12\n" +
-	"\x0eSTATUS_FAILURE\x10\x022y\n" +
+	"\x04port\x18\x03 \x01(\tR\x04port\x12Q\n" +
+	"\x12control_card_roles\x18\x04 \x03(\x0e2#.openconfig.attestz.ControlCardRoleR\x10controlCardRoles\x12$\n" +
+	"\x0essl_profile_id\x18\x05 \x01(\tR\fsslProfileId\"o\n" +
+	"\x14EnrollDeviceResponse\x12W\n" +
+	"\fcard_results\x18\x01 \x03(\v24.openconfig.attestz.test.ControlCardEnrollmentResultR\vcardResults\"\x9a\x01\n" +
+	"\x1bControlCardEnrollmentResult\x12O\n" +
+	"\x11control_card_role\x18\x01 \x01(\x0e2#.openconfig.attestz.ControlCardRoleR\x0fcontrolCardRole\x12*\n" +
+	"\x06status\x18\x02 \x01(\v2\x12.google.rpc.StatusR\x06status2y\n" +
 	"\n" +
 	"Controller\x12k\n" +
 	"\fEnrollDevice\x12,.openconfig.attestz.test.EnrollDeviceRequest\x1a-.openconfig.attestz.test.EnrollDeviceResponseB2Z0github.com/openconfig/attestz/test/enrollz/protob\x06proto3"
@@ -269,24 +269,26 @@ func file_sut_proto_rawDescGZIP() []byte {
 	return file_sut_proto_rawDescData
 }
 
-var file_sut_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_sut_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_sut_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_sut_proto_goTypes = []any{
-	(EnrollDeviceResponse_Status)(0),        // 0: openconfig.attestz.test.EnrollDeviceResponse.Status
-	(*EnrollDeviceRequest)(nil),             // 1: openconfig.attestz.test.EnrollDeviceRequest
-	(*EnrollDeviceResponse)(nil),            // 2: openconfig.attestz.test.EnrollDeviceResponse
+	(*EnrollDeviceRequest)(nil),             // 0: openconfig.attestz.test.EnrollDeviceRequest
+	(*EnrollDeviceResponse)(nil),            // 1: openconfig.attestz.test.EnrollDeviceResponse
+	(*ControlCardEnrollmentResult)(nil),     // 2: openconfig.attestz.test.ControlCardEnrollmentResult
 	(common_definitions.ControlCardRole)(0), // 3: openconfig.attestz.ControlCardRole
+	(*status.Status)(nil),                   // 4: google.rpc.Status
 }
 var file_sut_proto_depIdxs = []int32{
-	3, // 0: openconfig.attestz.test.EnrollDeviceRequest.control_card_role:type_name -> openconfig.attestz.ControlCardRole
-	0, // 1: openconfig.attestz.test.EnrollDeviceResponse.status:type_name -> openconfig.attestz.test.EnrollDeviceResponse.Status
-	1, // 2: openconfig.attestz.test.Controller.EnrollDevice:input_type -> openconfig.attestz.test.EnrollDeviceRequest
-	2, // 3: openconfig.attestz.test.Controller.EnrollDevice:output_type -> openconfig.attestz.test.EnrollDeviceResponse
-	3, // [3:4] is the sub-list for method output_type
-	2, // [2:3] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	3, // 0: openconfig.attestz.test.EnrollDeviceRequest.control_card_roles:type_name -> openconfig.attestz.ControlCardRole
+	2, // 1: openconfig.attestz.test.EnrollDeviceResponse.card_results:type_name -> openconfig.attestz.test.ControlCardEnrollmentResult
+	3, // 2: openconfig.attestz.test.ControlCardEnrollmentResult.control_card_role:type_name -> openconfig.attestz.ControlCardRole
+	4, // 3: openconfig.attestz.test.ControlCardEnrollmentResult.status:type_name -> google.rpc.Status
+	0, // 4: openconfig.attestz.test.Controller.EnrollDevice:input_type -> openconfig.attestz.test.EnrollDeviceRequest
+	1, // 5: openconfig.attestz.test.Controller.EnrollDevice:output_type -> openconfig.attestz.test.EnrollDeviceResponse
+	5, // [5:6] is the sub-list for method output_type
+	4, // [4:5] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_sut_proto_init() }
@@ -299,14 +301,13 @@ func file_sut_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_sut_proto_rawDesc), len(file_sut_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   2,
+			NumEnums:      0,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_sut_proto_goTypes,
 		DependencyIndexes: file_sut_proto_depIdxs,
-		EnumInfos:         file_sut_proto_enumTypes,
 		MessageInfos:      file_sut_proto_msgTypes,
 	}.Build()
 	File_sut_proto = out.File
