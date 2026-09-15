@@ -25,6 +25,6 @@ spec:
   selector:
     app: enrollz-sut
   ports:
-  - name: grpc
-    port: 9999
-    targetPort: grpc
+    - name: grpc
+      port: 9999
+      targetPort: grpc

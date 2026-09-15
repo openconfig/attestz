@@ -36,37 +36,37 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       volumes:
-      - name: custom-certs-volume
-        secret:
-          secretName: enrollz-custom-certs
-          defaultMode: 0440
-          optional: true
-      containers:
-      - name: enrollz-sut
-        image: openconfig/enrollz-sut
-        imagePullPolicy: IfNotPresent
-        securityContext:
-          runAsUser: 1000
-          runAsGroup: 1000
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
-          capabilities:
-            drop:
-            - ALL
-        envFrom:
-        - configMapRef:
-            name: enrollz-sut-config
-            optional: true
-        volumeMounts:
         - name: custom-certs-volume
-          mountPath: /etc/enrollz/certs
-          readOnly: true
-        args:
-        - --controller_port=9999
-        - --logtostderr
-        - --vendor_ca_cert_path=/etc/enrollz/certs/vendorca.crt
-        - --owner_ca_cert_path=/etc/enrollz/certs/ownerca.crt
-        - --owner_ca_key_path=/etc/enrollz/certs/ownerca.key
-        ports:
-        - name: grpc
-          containerPort: 9999
+          secret:
+            secretName: enrollz-custom-certs
+            defaultMode: 0440
+            optional: true
+      containers:
+        - name: enrollz-sut
+          image: openconfig/enrollz-sut
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          envFrom:
+            - configMapRef:
+                name: enrollz-sut-config
+                optional: true
+          volumeMounts:
+            - name: custom-certs-volume
+              mountPath: /etc/enrollz/certs
+              readOnly: true
+          args:
+            - --controller_port=9999
+            - --logtostderr
+            - --vendor_ca_cert_path=/etc/enrollz/certs/vendorca.crt
+            - --owner_ca_cert_path=/etc/enrollz/certs/ownerca.crt
+            - --owner_ca_key_path=/etc/enrollz/certs/ownerca.key
+          ports:
+            - name: grpc
+              containerPort: 9999
