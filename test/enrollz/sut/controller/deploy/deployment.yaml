@@ -1,0 +1,72 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  # Namespace is omitted intentionally; Monax dynamically provisions and injects
+  # an ephemeral namespace (monax-<uuid>) at test runtime.
+  name: enrollz-sut
+  labels:
+    app: enrollz-sut
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: enrollz-sut
+  template:
+    metadata:
+      labels:
+        app: enrollz-sut
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+      - name: custom-certs-volume
+        secret:
+          secretName: enrollz-custom-certs
+          defaultMode: 0440
+          optional: true
+      containers:
+      - name: enrollz-sut
+        image: openconfig/enrollz-sut
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        envFrom:
+        - configMapRef:
+            name: enrollz-sut-config
+            optional: true
+        volumeMounts:
+        - name: custom-certs-volume
+          mountPath: /etc/enrollz/certs
+          readOnly: true
+        args:
+        - --controller_port=9999
+        - --logtostderr
+        - --vendor_ca_cert_path=/etc/enrollz/certs/vendorca.crt
+        - --owner_ca_cert_path=/etc/enrollz/certs/ownerca.crt
+        - --owner_ca_key_path=/etc/enrollz/certs/ownerca.key
+        ports:
+        - name: grpc
+          containerPort: 9999
