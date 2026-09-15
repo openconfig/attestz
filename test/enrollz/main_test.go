@@ -20,6 +20,7 @@ package enrollz_test
 import (
 	"context"
 	"flag"
+	"fmt"
 	"testing"
 
 	"github.com/golang/glog"
@@ -47,28 +48,34 @@ func TestMain(m *testing.M) {
 	flag.Parse()
 	defer glog.Flush()
 
+	if err := runTests(m); err != nil {
+		glog.Exitf("%v", err)
+	}
+}
+
+// runTests manages the lifecycle of the Monax SUT container and executes the test suite.
+func runTests(m *testing.M) error {
 	glog.Infof("=========================================================================")
 	glog.Infof("Building Enrollz Controller SUT and preparing DUT for Enrollz testing...")
 	glog.Infof("=========================================================================")
 
 	ctx := context.Background()
-
 	sut, err := monaxtest.Start(ctx, &config, kubernetesruntime.New)
 	if err != nil {
-		glog.Exitf("Failed to initialize SUT: %v", err)
+		return fmt.Errorf("failed to initialize SUT: %w", err)
 	}
 	defer func() {
-		if err := sut.Stop(ctx); err != nil {
-			glog.Errorf("Failed to stop SUT: %v", err)
+		if stopErr := sut.Stop(ctx); stopErr != nil {
+			glog.Errorf("Failed to stop SUT: %v", stopErr)
 		}
 	}()
 	if err := sut.Status(ctx); err != nil {
-		glog.Exitf("SUT is unhealthy: %v", err)
+		return fmt.Errorf("SUT is unhealthy: %w", err)
 	}
 
 	conn, err := sut.Interfaces().GRPC(ctx, "openconfig.attestz.test.enrollz.Controller")
 	if err != nil {
-		glog.Exitf("Failed to connect to Enrollz SUT Controller: %v", err)
+		return fmt.Errorf("failed to connect to Enrollz SUT Controller: %w", err)
 	}
 	defer conn.Close()
 	enrollzSUTClient = sutpb.NewControllerClient(conn)
@@ -78,10 +85,12 @@ func TestMain(m *testing.M) {
 	glog.Infof("===========================================================================")
 
 	if dutTarget, err = dut.PrepareDUT(); err != nil {
-		sut.Stop(ctx)
-		glog.Exitf("Failed to prepare DUT: %v", err)
+		return fmt.Errorf("failed to prepare DUT: %w", err)
 	}
 	glog.Infof("DUT (%s:%s) is ready; starting test suite.", dutTarget.Host, dutTarget.Port)
 
-	m.Run()
+	if code := m.Run(); code != 0 {
+		return fmt.Errorf("test suite failed with exit code %d", code)
+	}
+	return nil
 }
