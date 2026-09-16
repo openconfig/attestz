@@ -240,22 +240,22 @@ var File_sut_proto protoreflect.FileDescriptor
 
 const file_sut_proto_rawDesc = "" +
 	"\n" +
-	"\tsut.proto\x12\x17openconfig.attestz.test\x1a\x17google/rpc/status.proto\x1a<github.com/openconfig/attestz/proto/common_definitions.proto\"\xdd\x01\n" +
+	"\tsut.proto\x12\x1fopenconfig.attestz.test.enrollz\x1a<github.com/openconfig/attestz/proto/common_definitions.proto\x1a\x17google/rpc/status.proto\"\xdd\x01\n" +
 	"\x13EnrollDeviceRequest\x12\x1d\n" +
 	"\n" +
 	"ip_address\x18\x01 \x01(\tR\tipAddress\x12\x1a\n" +
 	"\bhostname\x18\x02 \x01(\tR\bhostname\x12\x12\n" +
 	"\x04port\x18\x03 \x01(\tR\x04port\x12Q\n" +
 	"\x12control_card_roles\x18\x04 \x03(\x0e2#.openconfig.attestz.ControlCardRoleR\x10controlCardRoles\x12$\n" +
-	"\x0essl_profile_id\x18\x05 \x01(\tR\fsslProfileId\"o\n" +
-	"\x14EnrollDeviceResponse\x12W\n" +
-	"\fcard_results\x18\x01 \x03(\v24.openconfig.attestz.test.ControlCardEnrollmentResultR\vcardResults\"\x9a\x01\n" +
+	"\x0essl_profile_id\x18\x05 \x01(\tR\fsslProfileId\"w\n" +
+	"\x14EnrollDeviceResponse\x12_\n" +
+	"\fcard_results\x18\x01 \x03(\v2<.openconfig.attestz.test.enrollz.ControlCardEnrollmentResultR\vcardResults\"\x9a\x01\n" +
 	"\x1bControlCardEnrollmentResult\x12O\n" +
 	"\x11control_card_role\x18\x01 \x01(\x0e2#.openconfig.attestz.ControlCardRoleR\x0fcontrolCardRole\x12*\n" +
-	"\x06status\x18\x02 \x01(\v2\x12.google.rpc.StatusR\x06status2y\n" +
+	"\x06status\x18\x02 \x01(\v2\x12.google.rpc.StatusR\x06status2\x89\x01\n" +
 	"\n" +
-	"Controller\x12k\n" +
-	"\fEnrollDevice\x12,.openconfig.attestz.test.EnrollDeviceRequest\x1a-.openconfig.attestz.test.EnrollDeviceResponseB2Z0github.com/openconfig/attestz/test/enrollz/protob\x06proto3"
+	"Controller\x12{\n" +
+	"\fEnrollDevice\x124.openconfig.attestz.test.enrollz.EnrollDeviceRequest\x1a5.openconfig.attestz.test.enrollz.EnrollDeviceResponseB2Z0github.com/openconfig/attestz/test/enrollz/protob\x06proto3"
 
 var (
 	file_sut_proto_rawDescOnce sync.Once
@@ -271,19 +271,19 @@ func file_sut_proto_rawDescGZIP() []byte {
 
 var file_sut_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_sut_proto_goTypes = []any{
-	(*EnrollDeviceRequest)(nil),             // 0: openconfig.attestz.test.EnrollDeviceRequest
-	(*EnrollDeviceResponse)(nil),            // 1: openconfig.attestz.test.EnrollDeviceResponse
-	(*ControlCardEnrollmentResult)(nil),     // 2: openconfig.attestz.test.ControlCardEnrollmentResult
+	(*EnrollDeviceRequest)(nil),             // 0: openconfig.attestz.test.enrollz.EnrollDeviceRequest
+	(*EnrollDeviceResponse)(nil),            // 1: openconfig.attestz.test.enrollz.EnrollDeviceResponse
+	(*ControlCardEnrollmentResult)(nil),     // 2: openconfig.attestz.test.enrollz.ControlCardEnrollmentResult
 	(common_definitions.ControlCardRole)(0), // 3: openconfig.attestz.ControlCardRole
 	(*status.Status)(nil),                   // 4: google.rpc.Status
 }
 var file_sut_proto_depIdxs = []int32{
-	3, // 0: openconfig.attestz.test.EnrollDeviceRequest.control_card_roles:type_name -> openconfig.attestz.ControlCardRole
-	2, // 1: openconfig.attestz.test.EnrollDeviceResponse.card_results:type_name -> openconfig.attestz.test.ControlCardEnrollmentResult
-	3, // 2: openconfig.attestz.test.ControlCardEnrollmentResult.control_card_role:type_name -> openconfig.attestz.ControlCardRole
-	4, // 3: openconfig.attestz.test.ControlCardEnrollmentResult.status:type_name -> google.rpc.Status
-	0, // 4: openconfig.attestz.test.Controller.EnrollDevice:input_type -> openconfig.attestz.test.EnrollDeviceRequest
-	1, // 5: openconfig.attestz.test.Controller.EnrollDevice:output_type -> openconfig.attestz.test.EnrollDeviceResponse
+	3, // 0: openconfig.attestz.test.enrollz.EnrollDeviceRequest.control_card_roles:type_name -> openconfig.attestz.ControlCardRole
+	2, // 1: openconfig.attestz.test.enrollz.EnrollDeviceResponse.card_results:type_name -> openconfig.attestz.test.enrollz.ControlCardEnrollmentResult
+	3, // 2: openconfig.attestz.test.enrollz.ControlCardEnrollmentResult.control_card_role:type_name -> openconfig.attestz.ControlCardRole
+	4, // 3: openconfig.attestz.test.enrollz.ControlCardEnrollmentResult.status:type_name -> google.rpc.Status
+	0, // 4: openconfig.attestz.test.enrollz.Controller.EnrollDevice:input_type -> openconfig.attestz.test.enrollz.EnrollDeviceRequest
+	1, // 5: openconfig.attestz.test.enrollz.Controller.EnrollDevice:output_type -> openconfig.attestz.test.enrollz.EnrollDeviceResponse
 	5, // [5:6] is the sub-list for method output_type
 	4, // [4:5] is the sub-list for method input_type
 	4, // [4:4] is the sub-list for extension type_name

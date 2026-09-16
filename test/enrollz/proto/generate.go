@@ -17,4 +17,4 @@
 // Package proto provides Enrollz SUT controller proto definitions.
 package proto
 
-//go:generate protoc -I. -I../../.. --go_out=. --go_opt=paths=source_relative --go_opt=Mproto/common_definitions.proto=github.com/openconfig/attestz/proto/common_definitions --go-grpc_out=. --go-grpc_opt=paths=source_relative sut.proto
+//go:generate protoc -I. -I../../proto -Igithub.com/openconfig/attestz=../../.. --go_out=. --go_opt=paths=source_relative --go_opt=Mgithub.com/openconfig/attestz/proto/common_definitions.proto=github.com/openconfig/attestz/proto/common_definitions --go_opt=Mgoogle/rpc/status.proto=google.golang.org/genproto/googleapis/rpc/status --go-grpc_out=. --go-grpc_opt=paths=source_relative --go-grpc_opt=Mgoogle/rpc/status.proto=google.golang.org/genproto/googleapis/rpc/status sut.proto

@@ -1,0 +1,6 @@
+# Placeholder file to keep this directory tracked by Git.
+# Vendors baking default certificates into the SUT container image should place:
+#   - vendorca.crt
+#   - ownerca.crt 
+#   - ownerca.key 
+# in this directory before building the Dockerfile.

@@ -52,9 +52,9 @@ func loadConfig() *Config {
 	flag.Parse()
 
 	// Resolve paths: Check custom/mounted Secret paths first, fall back to baked-in test certs
-	cfg.VendorCACert = resolveCertPath(cfg.VendorCACert, "/app/certs/fakevendorca.crt")
-	cfg.OwnerCACert = resolveCertPath(cfg.OwnerCACert, "/app/certs/fakeownerca.crt")
-	cfg.OwnerCAKey = resolveCertPath(cfg.OwnerCAKey, "/app/certs/fakeownerca.key")
+	cfg.VendorCACert = resolveCertPath(cfg.VendorCACert, "/app/certs/vendorca.crt")
+	cfg.OwnerCACert = resolveCertPath(cfg.OwnerCACert, "/app/certs/ownerca.crt")
+	cfg.OwnerCAKey = resolveCertPath(cfg.OwnerCAKey, "/app/certs/ownerca.key")
 
 	return cfg
 }
