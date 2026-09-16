@@ -33,7 +33,7 @@ import (
 )
 
 // VerifyRemoteAttestation fully validates evidence. Requires standard root/intermediate CA pools.
-func VerifyRemoteAttestation(resp *apb.AttestResponse, expectedPCRs map[int][]byte, requestedIndices []int32, expectedNonce []byte, trustedRoots *x509.CertPool, intermediates *x509.CertPool) error {
+func VerifyRemoteAttestation(resp *apb.AttestResponse, expectedPCRs map[int32][]byte, requestedIndices []int32, expectedNonce []byte, trustedRoots *x509.CertPool, intermediates *x509.CertPool) error {
 	// 1. Parse and cryptographically verify the OIAK against the Root/Intermediate CA chain.
 	var certs []*x509.Certificate
 	for rest := []byte(resp.GetAttestationCert().GetOiakCert()); len(rest) > 0; {
@@ -101,7 +101,9 @@ func VerifyRemoteAttestation(resp *apb.AttestResponse, expectedPCRs map[int][]by
 	// 3. Verify unencoded, raw binary data for the TPM2 PCR Quote (TPMS_ATTEST).
 	var attest *tpm2.TPMSAttest
 	if attest2B, err := tpm2.Unmarshal[tpm2.TPM2BAttest](resp.GetQuoted()); err == nil {
-		attest, _ = attest2B.Contents()
+		if contents, err := attest2B.Contents(); err == nil {
+			attest = contents
+		}
 	}
 	if attest == nil {
 		var err error
@@ -168,7 +170,7 @@ func VerifyRemoteAttestation(resp *apb.AttestResponse, expectedPCRs map[int][]by
 	// 8. Verify the PCR composite digest matches recomputed concatenation of device PCRs.
 	var pcrConcat []byte
 	for _, idx := range sortedIndices {
-		devicePcrBytes, ok := resp.GetPcrValues()[int32(idx)]
+		devicePcrBytes, ok := resp.GetPcrValues()[idx]
 		if !ok {
 			return fmt.Errorf("device failed to map standard requested PCR index %d", idx)
 		}
@@ -183,7 +185,7 @@ func VerifyRemoteAttestation(resp *apb.AttestResponse, expectedPCRs map[int][]by
 
 	// 9. Verify individual device PCRs match the individual reference PCRs.
 	for expIdx, expVal := range expectedPCRs {
-		reportedVal, ok := resp.GetPcrValues()[int32(expIdx)]
+		reportedVal, ok := resp.GetPcrValues()[expIdx]
 		if !ok {
 			return fmt.Errorf("policy failure: expected PCR %d was totally absent from payload", expIdx)
 		}
@@ -216,7 +218,7 @@ func verifyECDSASignature(pubKey *ecdsa.PublicKey, hash, sig []byte) error {
 	}
 
 	// Try raw IEEE P1363 (r || s) format.
-	curveOrderByteLen := (pubKey.Curve.Params().N.BitLen() + 7) / 8
+	curveOrderByteLen := (pubKey.Params().N.BitLen() + 7) / 8
 	if len(sig) == 2*curveOrderByteLen {
 		r := new(big.Int).SetBytes(sig[:curveOrderByteLen])
 		s := new(big.Int).SetBytes(sig[curveOrderByteLen:])

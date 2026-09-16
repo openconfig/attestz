@@ -47,21 +47,21 @@ var (
 )
 
 // parseExpectedPCRs parses a JSON string mapping PCR index to hex digest, and PCR indices.
-func parseExpectedPCRs(jsonStr string) (map[int][]byte, []int32, error) {
+func parseExpectedPCRs(jsonStr string) (map[int32][]byte, []int32, error) {
 	if jsonStr == "" {
 		return nil, nil, errors.New("expected_pcrs flag is required")
 	}
-	var rawMap map[int]string
+	var rawMap map[int32]string
 	if err := json.Unmarshal([]byte(jsonStr), &rawMap); err != nil {
 		return nil, nil, fmt.Errorf("failed to parse expected_pcrs JSON: %w", err)
 	}
 	if len(rawMap) == 0 {
 		return nil, nil, errors.New("expected_pcrs cannot be empty")
 	}
-	pcrs := make(map[int][]byte, len(rawMap))
+	pcrs := make(map[int32][]byte, len(rawMap))
 	indices := make([]int32, 0, len(rawMap))
 	for idx, v := range rawMap {
-		indices = append(indices, int32(idx))
+		indices = append(indices, idx)
 		val, err := hex.DecodeString(v)
 		if err != nil {
 			return nil, nil, fmt.Errorf("invalid hex value for PCR %d: %w", idx, err)

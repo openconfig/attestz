@@ -85,14 +85,14 @@ func TestParseExpectedPCRs(t *testing.T) {
 	tests := []struct {
 		name        string
 		input       string
-		wantMap     map[int][]byte
+		wantMap     map[int32][]byte
 		wantIndices []int32
 		wantErr     bool
 	}{
 		{
 			name:  "valid",
 			input: `{"0":"010203","4":"040506"}`,
-			wantMap: map[int][]byte{
+			wantMap: map[int32][]byte{
 				0: {0x01, 0x02, 0x03},
 				4: {0x04, 0x05, 0x06},
 			},
