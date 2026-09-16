@@ -30,7 +30,7 @@ func TestResolveCertPath(t *testing.T) {
 	}
 
 	nonExistentFile := filepath.Join(tempDir, "missing_cert.crt")
-	defaultFallback := "/app/certs/fakevendorca.crt"
+	defaultFallback := "/app/certs/vendorca.crt"
 
 	tests := []struct {
 		name       string

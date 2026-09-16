@@ -15,7 +15,7 @@
 //
 syntax = "proto3";
 
-package openconfig.attestz.test;
+package openconfig.attestz.test.enrollz;
 
 import "github.com/openconfig/attestz/proto/common_definitions.proto";
 import "google/rpc/status.proto";
