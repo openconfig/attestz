@@ -36,5 +36,6 @@ jobs:
       # test runs, as it requires a live Kubernetes cluster (kind), a physical/virtual
       # DUT switch, and a vendor-specific caservice PKI implementation.
       # Unit tests under test/enrollz/sut/controller still run.
+      coverage-excludes-regex: "github.com/openconfig/attestz/test/enrollz$"
       tests-excludes-regex: "github.com/openconfig/attestz/test/enrollz$"
       race-tests-excludes-regex: "github.com/openconfig/attestz/test/enrollz$"
