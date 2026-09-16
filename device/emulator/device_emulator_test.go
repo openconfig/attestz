@@ -347,11 +347,15 @@ func TestRotateOIakCert(t *testing.T) {
 	// Test single card rotation
 	singleReq := &epb.RotateOIakCertRequest{
 		SslProfileId: "single-ssl-profile",
-		ControlCardSelection: &cpb.ControlCardSelection{
-			ControlCardId: &cpb.ControlCardSelection_Role{Role: cpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE},
+		Updates: []*epb.ControlCardCertUpdate{
+			{
+				ControlCardSelection: &cpb.ControlCardSelection{
+					ControlCardId: &cpb.ControlCardSelection_Role{Role: cpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE},
+				},
+				OiakCert:    "updated-active-oiak-pem",
+				OidevidCert: "updated-active-oidevid-pem",
+			},
 		},
-		OiakCert:    "updated-active-oiak-pem",
-		OidevidCert: "updated-active-oidevid-pem",
 	}
 	_, err = server.RotateOIakCert(ctx, singleReq)
 	if err != nil {
@@ -396,7 +400,11 @@ func TestEnrollzAgainstDeviceServer(t *testing.T) {
 
 	grpcServer := grpc.NewServer()
 	epb.RegisterTpmEnrollzServiceServer(grpcServer, server)
-	go grpcServer.Serve(lis)
+	go func() {
+		if err := grpcServer.Serve(lis); err != nil {
+			t.Errorf("grpcServer.Serve() failed: %v", err)
+		}
+	}()
 	defer grpcServer.Stop()
 
 	conn, err := grpc.NewClient(lis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -469,7 +477,11 @@ func TestEnrollzAgainstDeviceServerMTLS(t *testing.T) {
 
 	grpcServer := grpc.NewServer(grpc.Creds(serverCreds))
 	epb.RegisterTpmEnrollzServiceServer(grpcServer, server)
-	go grpcServer.Serve(lis)
+	go func() {
+		if err := grpcServer.Serve(lis); err != nil {
+			t.Errorf("grpcServer.Serve() failed: %v", err)
+		}
+	}()
 	defer grpcServer.Stop()
 
 	vendorPool := x509.NewCertPool()

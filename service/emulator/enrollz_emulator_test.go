@@ -406,7 +406,11 @@ func TestDeviceClient(t *testing.T) {
 
 	grpcServer := grpc.NewServer()
 	epb.RegisterTpmEnrollzServiceServer(grpcServer, mockServer)
-	go grpcServer.Serve(lis)
+	go func() {
+		if err := grpcServer.Serve(lis); err != nil {
+			t.Errorf("grpcServer.Serve() failed: %v", err)
+		}
+	}()
 	defer grpcServer.Stop()
 
 	conn, err := grpc.NewClient(lis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -427,33 +431,7 @@ func TestDeviceClient(t *testing.T) {
 		t.Errorf("GetControlCardSerial() = %q, want %q", iakResp.GetControlCardId().GetControlCardSerial(), "test-serial")
 	}
 
-	// Verify RotateOIakCert with deprecated fields
-	deprecatedReq := &epb.RotateOIakCertRequest{
-		ControlCardSelection: &cpb.ControlCardSelection{
-			ControlCardId: &cpb.ControlCardSelection_Role{Role: cpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE},
-		},
-		OiakCert:     "test-oiak-cert",
-		OidevidCert:  "test-oidevid-cert",
-		SslProfileId: "test-profile",
-	}
-	rotateResp, err := client.RotateOIakCert(ctx, deprecatedReq)
-	if err != nil {
-		t.Errorf("RotateOIakCert() failed: %v", err)
-	}
-	if rotateResp == nil {
-		t.Errorf("RotateOIakCert() returned nil response")
-	}
-	if got := mockServer.rotateOIakReq.GetOiakCert(); got != "test-oiak-cert" {
-		t.Errorf("GetOiakCert() = %q, want %q", got, "test-oiak-cert")
-	}
-	if got := mockServer.rotateOIakReq.GetOidevidCert(); got != "test-oidevid-cert" {
-		t.Errorf("GetOidevidCert() = %q, want %q", got, "test-oidevid-cert")
-	}
-	if gotRole := mockServer.rotateOIakReq.GetControlCardSelection().GetRole(); gotRole != cpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE {
-		t.Errorf("GetRole() = %v, want %v", gotRole, cpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE)
-	}
-
-	// Verify RotateOIakCert with updates already set
+	// Verify RotateOIakCert
 	updatesReq := &epb.RotateOIakCertRequest{
 		Updates: []*epb.ControlCardCertUpdate{
 			{
@@ -464,11 +442,11 @@ func TestDeviceClient(t *testing.T) {
 			},
 		},
 	}
-	rotateResp2, err := client.RotateOIakCert(ctx, updatesReq)
+	rotateResp, err := client.RotateOIakCert(ctx, updatesReq)
 	if err != nil {
-		t.Errorf("RotateOIakCert() with updates failed: %v", err)
+		t.Errorf("RotateOIakCert() failed: %v", err)
 	}
-	if rotateResp2 == nil {
+	if rotateResp == nil {
 		t.Errorf("RotateOIakCert() returned nil response")
 	}
 	if gotUpdates := mockServer.rotateOIakReq.GetUpdates(); len(gotUpdates) != 1 {

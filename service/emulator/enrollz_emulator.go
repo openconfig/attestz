@@ -308,7 +308,7 @@ func main() {
 	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
 		Certificates:       []tls.Certificate{clientTLSCred},
 		RootCAs:            caPool,
-		InsecureSkipVerify: true, // Emulator only testing
+		InsecureSkipVerify: true, //nolint:gosec // Emulator only testing
 	})))
 	if err != nil {
 		log.Exitf("Failed to connect to device at %s: %v", addr, err)

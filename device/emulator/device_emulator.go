@@ -312,19 +312,11 @@ func (s *DeviceServer) RotateOIakCert(_ context.Context, req *epb.RotateOIakCert
 	defer s.mu.Unlock()
 
 	s.sslProfileID = req.GetSslProfileId()
-	if len(req.GetUpdates()) > 0 {
-		for _, update := range req.GetUpdates() {
-			card := s.getCard(update.GetControlCardSelection())
-			if card != nil {
-				card.OwnerIakCertPem = update.GetOiakCert()
-				card.OwnerIdevidCertPem = update.GetOidevidCert()
-			}
-		}
-	} else if req.GetControlCardSelection() != nil {
-		card := s.getCard(req.GetControlCardSelection())
+	for _, update := range req.GetUpdates() {
+		card := s.getCard(update.GetControlCardSelection())
 		if card != nil {
-			card.OwnerIakCertPem = req.GetOiakCert()
-			card.OwnerIdevidCertPem = req.GetOidevidCert()
+			card.OwnerIakCertPem = update.GetOiakCert()
+			card.OwnerIdevidCertPem = update.GetOidevidCert()
 		}
 	}
 	return &epb.RotateOIakCertResponse{}, nil
@@ -391,7 +383,7 @@ func main() {
 	}
 
 	if *caCertOut != "" {
-		if err := os.WriteFile(*caCertOut, []byte(server.CaCertPem()), 0644); err != nil {
+		if err := os.WriteFile(*caCertOut, []byte(server.CaCertPem()), 0600); err != nil {
 			log.Exitf("Failed to write vendor CA certificate to %s: %v", *caCertOut, err)
 		}
 		log.Infof("Wrote switch vendor CA certificate to %s", *caCertOut)
