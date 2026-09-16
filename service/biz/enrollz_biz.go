@@ -435,10 +435,19 @@ func rotateOIakCert(ctx context.Context, deps EnrollzInfraDeps, sslProfileID str
 		// Rotate oIAK and oIDevID certs for each control card separately.
 		for _, certData := range controlCardCerts {
 			rotateOIakCertReq := &epb.RotateOIakCertRequest{
-				SslProfileId:         sslProfileID,
+				SslProfileId: sslProfileID,
+				// Populate legacy V0 fields for older devices.
 				ControlCardSelection: certData.ControlCardSelection,
 				OiakCert:             certData.OiakCert,
 				OidevidCert:          certData.OidevidCert,
+				// Newer devices expect V1 (updates) to be filled.
+				Updates: []*epb.ControlCardCertUpdate{
+					{
+						ControlCardSelection: certData.ControlCardSelection,
+						OiakCert:             certData.OiakCert,
+						OidevidCert:          certData.OidevidCert,
+					},
+				},
 			}
 			rotateOIakCertResp, err := deps.RotateOIakCert(ctx, rotateOIakCertReq)
 			if err != nil {

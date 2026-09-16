@@ -2474,12 +2474,26 @@ func TestRotateOIakCert(t *testing.T) {
 					ControlCardSelection: controlCardSelection1,
 					OiakCert:             oIakCert1,
 					OidevidCert:          oIdevIDCert1,
+					Updates: []*epb.ControlCardCertUpdate{
+						{
+							ControlCardSelection: controlCardSelection1,
+							OiakCert:             oIakCert1,
+							OidevidCert:          oIdevIDCert1,
+						},
+					},
 				},
 				{
 					SslProfileId:         sslProfileID,
 					ControlCardSelection: controlCardSelection2,
 					OiakCert:             oIakCert2,
 					OidevidCert:          oIdevIDCert2,
+					Updates: []*epb.ControlCardCertUpdate{
+						{
+							ControlCardSelection: controlCardSelection2,
+							OiakCert:             oIakCert2,
+							OidevidCert:          oIdevIDCert2,
+						},
+					},
 				},
 			},
 			mockErrs: []error{nil, nil},
@@ -2500,6 +2514,13 @@ func TestRotateOIakCert(t *testing.T) {
 					ControlCardSelection: controlCardSelection1,
 					OiakCert:             oIakCert1,
 					OidevidCert:          oIdevIDCert1,
+					Updates: []*epb.ControlCardCertUpdate{
+						{
+							ControlCardSelection: controlCardSelection1,
+							OiakCert:             oIakCert1,
+							OidevidCert:          oIdevIDCert1,
+						},
+					},
 				},
 			},
 			mockErrs: []error{nil},
@@ -2560,6 +2581,13 @@ func TestRotateOIakCert(t *testing.T) {
 					ControlCardSelection: controlCardSelection1,
 					OiakCert:             oIakCert1,
 					OidevidCert:          oIdevIDCert1,
+					Updates: []*epb.ControlCardCertUpdate{
+						{
+							ControlCardSelection: controlCardSelection1,
+							OiakCert:             oIakCert1,
+							OidevidCert:          oIdevIDCert1,
+						},
+					},
 				},
 			},
 			mockErrs: []error{errorResp},
@@ -2586,12 +2614,26 @@ func TestRotateOIakCert(t *testing.T) {
 					ControlCardSelection: controlCardSelection1,
 					OiakCert:             oIakCert1,
 					OidevidCert:          oIdevIDCert1,
+					Updates: []*epb.ControlCardCertUpdate{
+						{
+							ControlCardSelection: controlCardSelection1,
+							OiakCert:             oIakCert1,
+							OidevidCert:          oIdevIDCert1,
+						},
+					},
 				},
 				{
 					SslProfileId:         sslProfileID,
 					ControlCardSelection: controlCardSelection2,
 					OiakCert:             oIakCert2,
 					OidevidCert:          oIdevIDCert2,
+					Updates: []*epb.ControlCardCertUpdate{
+						{
+							ControlCardSelection: controlCardSelection2,
+							OiakCert:             oIakCert2,
+							OidevidCert:          oIdevIDCert2,
+						},
+					},
 				},
 			},
 			mockErrs: []error{nil, errorResp},
@@ -2613,6 +2655,13 @@ func TestRotateOIakCert(t *testing.T) {
 					ControlCardSelection: controlCardSelection1,
 					OiakCert:             oIakCert1,
 					OidevidCert:          oIdevIDCert1,
+					Updates: []*epb.ControlCardCertUpdate{
+						{
+							ControlCardSelection: controlCardSelection1,
+							OiakCert:             oIakCert1,
+							OidevidCert:          oIdevIDCert1,
+						},
+					},
 				},
 			},
 			mockErrs: []error{errorResp},
@@ -2760,12 +2809,26 @@ func TestIssueAndRotateOwnerCerts(t *testing.T) {
 					ControlCardSelection: controlCardSelection1,
 					OiakCert:             oIakCert1,
 					OidevidCert:          oIdevIDCert1,
+					Updates: []*epb.ControlCardCertUpdate{
+						{
+							ControlCardSelection: controlCardSelection1,
+							OiakCert:             oIakCert1,
+							OidevidCert:          oIdevIDCert1,
+						},
+					},
 				},
 				{
 					SslProfileId:         sslProfileID,
 					ControlCardSelection: controlCardSelection2,
 					OiakCert:             oIakCert2,
 					OidevidCert:          oIdevIDCert2,
+					Updates: []*epb.ControlCardCertUpdate{
+						{
+							ControlCardSelection: controlCardSelection2,
+							OiakCert:             oIakCert2,
+							OidevidCert:          oIdevIDCert2,
+						},
+					},
 				},
 			},
 		},
@@ -2952,12 +3015,26 @@ func TestIssueAndRotateOwnerCerts(t *testing.T) {
 					ControlCardSelection: controlCardSelection1,
 					OiakCert:             oIakCert1,
 					OidevidCert:          oIdevIDCert1,
+					Updates: []*epb.ControlCardCertUpdate{
+						{
+							ControlCardSelection: controlCardSelection1,
+							OiakCert:             oIakCert1,
+							OidevidCert:          oIdevIDCert1,
+						},
+					},
 				},
 				{
 					SslProfileId:         sslProfileID,
 					ControlCardSelection: controlCardSelection2,
 					OiakCert:             oIakCert2,
 					OidevidCert:          oIdevIDCert2,
+					Updates: []*epb.ControlCardCertUpdate{
+						{
+							ControlCardSelection: controlCardSelection2,
+							OiakCert:             oIakCert2,
+							OidevidCert:          oIdevIDCert2,
+						},
+					},
 				},
 			},
 		},
@@ -3072,12 +3149,14 @@ func TestVerifyIdentityWithVendorCerts(t *testing.T) {
 
 	tests := []struct {
 		// Test description.
-		desc          string
-		verifyIDevID  bool
-		mockStub      stubEnrollzInfraDeps
-		wantErr       error
-		wantIakPub    string
-		wantIDevIDPub string
+		desc                            string
+		verifyIDevID                    bool
+		mockStub                        stubEnrollzInfraDeps
+		wantErr                         error
+		wantIakPub                      string
+		wantIDevIDPub                   string
+		wantVerifyIakAndIDevIDCertsReqs []*VerifyIakAndIDevIDCertsReq
+		wantVerifyTpmCertReqs           []*VerifyTpmCertReq
 	}{
 		{
 			desc:         "Success with IDevID verification",
@@ -3095,6 +3174,12 @@ func TestVerifyIdentityWithVendorCerts(t *testing.T) {
 			},
 			wantIakPub:    iakPub,
 			wantIDevIDPub: idevidPub,
+			wantVerifyIakAndIDevIDCertsReqs: []*VerifyIakAndIDevIDCertsReq{{
+				ControlCardID:        vendorID,
+				IakCertPem:           iakCert,
+				IDevIDCertPem:        idevidCert,
+				CertVerificationOpts: certVerificationOpts,
+			}},
 		},
 		{
 			desc:         "Success without IDevID verification",
@@ -3109,6 +3194,11 @@ func TestVerifyIdentityWithVendorCerts(t *testing.T) {
 				}},
 			},
 			wantIakPub: iakPub,
+			wantVerifyTpmCertReqs: []*VerifyTpmCertReq{{
+				ControlCardID:        vendorID,
+				CertPem:              iakCert,
+				CertVerificationOpts: certVerificationOpts,
+			}},
 		},
 		{
 			desc:         "GetIakCert error",
@@ -3172,6 +3262,16 @@ func TestVerifyIdentityWithVendorCerts(t *testing.T) {
 			}
 			if cardData.IDevIDPubPem != test.wantIDevIDPub {
 				t.Errorf("verifyIdentityWithVendorCerts() IDevIDPubPem = %v, want %v", cardData.IDevIDPubPem, test.wantIDevIDPub)
+			}
+			if test.wantVerifyIakAndIDevIDCertsReqs != nil {
+				if diff := cmp.Diff(stub.verifyIakAndIDevIDCertsReqs, test.wantVerifyIakAndIDevIDCertsReqs, protocmp.Transform(), cmpopts.IgnoreUnexported(x509.VerifyOptions{})); diff != "" {
+					t.Errorf("VerifyIakAndIDevIDCertsReq diff = %v", diff)
+				}
+			}
+			if test.wantVerifyTpmCertReqs != nil {
+				if diff := cmp.Diff(stub.verifyTpmCertReqs, test.wantVerifyTpmCertReqs, protocmp.Transform(), cmpopts.IgnoreUnexported(x509.VerifyOptions{})); diff != "" {
+					t.Errorf("VerifyTpmCertReq diff = %v", diff)
+				}
 			}
 		})
 	}
