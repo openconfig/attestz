@@ -16,9 +16,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  # Namespace is omitted intentionally; Monax dynamically provisions and injects
-  # an ephemeral namespace (monax-<uuid>) at test runtime.
   name: enrollz-sut
+  annotations:
+    checkov.io/skip1: CKV_K8S_21=Namespace is dynamically injected by Monax at runtime
+    checkov.io/skip2: CKV_K8S_14=Image is built locally by Monax and loaded into kind
+    checkov.io/skip3: CKV_K8S_15=ImagePullPolicy IfNotPresent is required for local kind images
+    checkov.io/skip4: CKV_K8S_43=Local kind image does not use a remote registry digest
+    checkov.io/skip5: CKV_K8S_8=Liveness probe not required for ephemeral test SUT
+    checkov.io/skip6: CKV_K8S_9=Readiness probe not required for ephemeral test SUT
+    checkov.io/skip7: CKV_K8S_10=CPU request not required for local kind test container
+    checkov.io/skip8: CKV_K8S_11=CPU limit not required for local kind test container
+    checkov.io/skip9: CKV_K8S_12=Memory request not required for local kind test container
+    checkov.io/skip10: CKV_K8S_13=Memory limit not required for local kind test container
+    checkov.io/skip11: CKV2_K8S_6=NetworkPolicy is not required for ephemeral single-pod test SUT
   labels:
     app: enrollz-sut
 spec:
@@ -33,6 +43,8 @@ spec:
     spec:
       automountServiceAccountToken: false
       securityContext:
+        runAsNonRoot: true
+        fsGroup: 65532
         seccompProfile:
           type: RuntimeDefault
       volumes:
@@ -46,8 +58,9 @@ spec:
           image: openconfig/enrollz-sut
           imagePullPolicy: IfNotPresent
           securityContext:
-            runAsUser: 1000
-            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:

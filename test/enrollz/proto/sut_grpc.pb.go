@@ -35,7 +35,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Controller_EnrollDevice_FullMethodName = "/openconfig.attestz.test.Controller/EnrollDevice"
+	Controller_EnrollDevice_FullMethodName = "/openconfig.attestz.test.enrollz.Controller/EnrollDevice"
 )
 
 // ControllerClient is the client API for Controller service.
@@ -140,7 +140,7 @@ func _Controller_EnrollDevice_Handler(srv interface{}, ctx context.Context, dec 
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var Controller_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "openconfig.attestz.test.Controller",
+	ServiceName: "openconfig.attestz.test.enrollz.Controller",
 	HandlerType: (*ControllerServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

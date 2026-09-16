@@ -32,6 +32,7 @@ COPY test/enrollz/sut/controller/ test/enrollz/sut/controller/
 # Build the SUT binary
 RUN CGO_ENABLED=0 GOOS=linux go build -o /enrollz-sut ./test/enrollz/sut/controller/
 
+# checkov:skip=CKV_DOCKER_2: Distroless image has no shell for Docker HEALTHCHECK
 FROM gcr.io/distroless/static-debian12:nonroot
 
 WORKDIR /app
