@@ -94,16 +94,40 @@ func validateVerifyIakAndIDevIDCertsReq(req *VerifyIakAndIDevIDCertsReq) error {
 	return nil
 }
 
-// getCertSerialNumber extracts the serial number from the cert subject serial number.
-func getCertSerialNumber(serial string) (string, error) {
-	// iakX509.Subject.SerialNumber can come in the format PID:xxxxxxx SN:1234JF or just
-	// the serial number as is.
-	// Try to extract out the value after SN:
-	sn := strings.Split(serial, "SN:")
-	if len(sn) != 2 {
-		return sn[0], nil
+// getCertSerialNumber extracts the serial number from an x509 certificate.
+// It checks cert.Subject.SerialNumber first (supporting "PID:<pid> SN:<serial>" and raw "<serial>" formats),
+// and subjectAltName URIs for a "urn:serial:<serial>" URI.
+func getCertSerialNumber(cert *x509.Certificate) string {
+	if cert == nil {
+		return ""
 	}
-	return sn[1], nil
+	if cert.Subject.SerialNumber != "" {
+		parts := strings.Split(cert.Subject.SerialNumber, "SN:")
+		switch len(parts) {
+		case 1: // "SN:" not found
+			if s := strings.TrimSpace(parts[0]); s != "" {
+				return s
+			}
+		case 2: // "SN:" found once
+			if s := strings.TrimSpace(parts[1]); s != "" {
+				return s
+			}
+		}
+		// If len(parts) > 2, format is ambiguous, so we fall through to check SAN.
+	}
+	const uriSerialPrefix = "urn:serial:"
+	for _, u := range cert.URIs {
+		if u == nil {
+			continue
+		}
+		uriStr := u.String()
+		if strings.HasPrefix(strings.ToLower(uriStr), uriSerialPrefix) {
+			if s := strings.TrimSpace(uriStr[len(uriSerialPrefix):]); s != "" {
+				return s
+			}
+		}
+	}
+	return ""
 }
 
 // VerifyIakAndIDevIDCerts is the default/reference implementation of TpmCertVerifier.VerifyIakAndIDevIDCerts().
@@ -123,9 +147,9 @@ func (tcv *DefaultTpmCertVerifier) VerifyIakAndIDevIDCerts(ctx context.Context, 
 	log.InfoContext(ctx, "Successfully verified and parsed IAK cert")
 
 	// Verify IAK cert subject serial and expected control card serial numbers match.
-	iakSerialNumber, err := getCertSerialNumber(iakX509.Subject.SerialNumber)
-	if err != nil {
-		err = fmt.Errorf("failed to get serial number from IAK cert subject serial %v: %v", iakX509.Subject.SerialNumber, err)
+	iakSerialNumber := getCertSerialNumber(iakX509)
+	if iakSerialNumber == "" {
+		err = fmt.Errorf("failed to get serial number from IAK cert subject serial %v", iakX509.Subject.SerialNumber)
 		log.ErrorContext(ctx, err)
 		return nil, err
 	}
@@ -165,9 +189,9 @@ func (tcv *DefaultTpmCertVerifier) VerifyIakAndIDevIDCerts(ctx context.Context, 
 	log.InfoContext(ctx, "Successfully verified and parsed IDevID cert")
 
 	// Verify IAK and IDevID cert subject serials match.
-	iDevIDSerialNumber, err := getCertSerialNumber(iDevIDX509.Subject.SerialNumber)
-	if err != nil {
-		err = fmt.Errorf("failed to get serial number from iDevID cert subject serial %v: %v", iakX509.Subject.SerialNumber, err)
+	iDevIDSerialNumber := getCertSerialNumber(iDevIDX509)
+	if iDevIDSerialNumber == "" {
+		err = fmt.Errorf("failed to get serial number from iDevID cert subject serial %v", iakX509.Subject.SerialNumber)
 		log.ErrorContext(ctx, err)
 		return nil, err
 	}
@@ -223,9 +247,9 @@ func (tcv *DefaultTpmCertVerifier) VerifyTpmCert(ctx context.Context, req *Verif
 	log.InfoContext(ctx, "Successfully verified and parsed PEM cert into x509 structure")
 
 	// Verify cert subject serial and expected control card serial numbers match.
-	certSerialNumber, err := getCertSerialNumber(certX509.Subject.SerialNumber)
-	if err != nil {
-		err = fmt.Errorf("failed to get serial number from IAK cert subject serial %v: %v", certX509.Subject.SerialNumber, err)
+	certSerialNumber := getCertSerialNumber(certX509)
+	if certSerialNumber == "" {
+		err = fmt.Errorf("failed to get serial number from IAK cert subject serial %v", certX509.Subject.SerialNumber)
 		log.ErrorContext(ctx, err)
 		return nil, err
 	}
