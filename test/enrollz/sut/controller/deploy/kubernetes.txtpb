@@ -1,0 +1,23 @@
+components: {
+  id: "EnrollzControllerSUT"
+  kind: "kubernetes"
+  provided_interfaces: {
+    grpc: {
+      service_name: "openconfig.attestz.test.enrollz.Controller"
+    }
+  }
+  parameters: {
+    [type.googleapis.com/monax.kubernetes.KubernetesComponentParameters] {
+      deployment_path: "deployment.yaml"
+      service_path: "service.yaml"
+      docker: {
+        # Relative to this directory (points to attestz repo root):
+        context_path: "../../../../../"
+        # Relative to context_path:
+        dockerfile_path: "test/enrollz/sut/controller/deploy/Dockerfile"
+        build_image: true
+        load_to_kind: true
+      }
+    }
+  }
+}

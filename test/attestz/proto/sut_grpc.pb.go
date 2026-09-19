@@ -35,7 +35,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Controller_EnrollDevice_FullMethodName = "/openconfig.attestz.test.enrollz.Controller/EnrollDevice"
+	Controller_AttestDevice_FullMethodName = "/openconfig.attestz.test.attestz.Controller/AttestDevice"
 )
 
 // ControllerClient is the client API for Controller service.
@@ -43,14 +43,15 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
 // Controller defines the System Under Test (SUT) management interface for the
-// Enrollz integration test suite.
+// Attestz integration test suite.
 //
 // In a Monax integration test, test cases invoke this Controller service to
-// drive the TPM 2.0 Enrollz workflow against a target Device Under Test (DUT).
+// drive the TPM 2.0 Attestz remote attestation workflow against a target
+// Device Under Test (DUT).
 type ControllerClient interface {
-	// Initiates the TPM 2.0 Enrollz workflow for a specific control card on the
-	// DUT.
-	EnrollDevice(ctx context.Context, in *EnrollDeviceRequest, opts ...grpc.CallOption) (*EnrollDeviceResponse, error)
+	// Initiates the TPM 2.0 Attestz workflow for a target control card on the
+	// DUT, requesting PCR quotes and validating attestation evidence.
+	AttestDevice(ctx context.Context, in *AttestDeviceRequest, opts ...grpc.CallOption) (*AttestDeviceResponse, error)
 }
 
 type controllerClient struct {
@@ -61,10 +62,10 @@ func NewControllerClient(cc grpc.ClientConnInterface) ControllerClient {
 	return &controllerClient{cc}
 }
 
-func (c *controllerClient) EnrollDevice(ctx context.Context, in *EnrollDeviceRequest, opts ...grpc.CallOption) (*EnrollDeviceResponse, error) {
+func (c *controllerClient) AttestDevice(ctx context.Context, in *AttestDeviceRequest, opts ...grpc.CallOption) (*AttestDeviceResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(EnrollDeviceResponse)
-	err := c.cc.Invoke(ctx, Controller_EnrollDevice_FullMethodName, in, out, cOpts...)
+	out := new(AttestDeviceResponse)
+	err := c.cc.Invoke(ctx, Controller_AttestDevice_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -76,14 +77,15 @@ func (c *controllerClient) EnrollDevice(ctx context.Context, in *EnrollDeviceReq
 // for forward compatibility.
 //
 // Controller defines the System Under Test (SUT) management interface for the
-// Enrollz integration test suite.
+// Attestz integration test suite.
 //
 // In a Monax integration test, test cases invoke this Controller service to
-// drive the TPM 2.0 Enrollz workflow against a target Device Under Test (DUT).
+// drive the TPM 2.0 Attestz remote attestation workflow against a target
+// Device Under Test (DUT).
 type ControllerServer interface {
-	// Initiates the TPM 2.0 Enrollz workflow for a specific control card on the
-	// DUT.
-	EnrollDevice(context.Context, *EnrollDeviceRequest) (*EnrollDeviceResponse, error)
+	// Initiates the TPM 2.0 Attestz workflow for a target control card on the
+	// DUT, requesting PCR quotes and validating attestation evidence.
+	AttestDevice(context.Context, *AttestDeviceRequest) (*AttestDeviceResponse, error)
 	mustEmbedUnimplementedControllerServer()
 }
 
@@ -94,8 +96,8 @@ type ControllerServer interface {
 // pointer dereference when methods are called.
 type UnimplementedControllerServer struct{}
 
-func (UnimplementedControllerServer) EnrollDevice(context.Context, *EnrollDeviceRequest) (*EnrollDeviceResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method EnrollDevice not implemented")
+func (UnimplementedControllerServer) AttestDevice(context.Context, *AttestDeviceRequest) (*AttestDeviceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AttestDevice not implemented")
 }
 func (UnimplementedControllerServer) mustEmbedUnimplementedControllerServer() {}
 func (UnimplementedControllerServer) testEmbeddedByValue()                    {}
@@ -118,20 +120,20 @@ func RegisterControllerServer(s grpc.ServiceRegistrar, srv ControllerServer) {
 	s.RegisterService(&Controller_ServiceDesc, srv)
 }
 
-func _Controller_EnrollDevice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(EnrollDeviceRequest)
+func _Controller_AttestDevice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AttestDeviceRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ControllerServer).EnrollDevice(ctx, in)
+		return srv.(ControllerServer).AttestDevice(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Controller_EnrollDevice_FullMethodName,
+		FullMethod: Controller_AttestDevice_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ControllerServer).EnrollDevice(ctx, req.(*EnrollDeviceRequest))
+		return srv.(ControllerServer).AttestDevice(ctx, req.(*AttestDeviceRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -140,12 +142,12 @@ func _Controller_EnrollDevice_Handler(srv interface{}, ctx context.Context, dec 
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var Controller_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "openconfig.attestz.test.enrollz.Controller",
+	ServiceName: "openconfig.attestz.test.attestz.Controller",
 	HandlerType: (*ControllerServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "EnrollDevice",
-			Handler:    _Controller_EnrollDevice_Handler,
+			MethodName: "AttestDevice",
+			Handler:    _Controller_AttestDevice_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

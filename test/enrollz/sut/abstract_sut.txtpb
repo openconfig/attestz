@@ -1,0 +1,5 @@
+required_interfaces: {
+  grpc: {
+    service_name: "openconfig.attestz.test.enrollz.Controller"
+  }
+}

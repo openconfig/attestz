@@ -1,0 +1,85 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: enrollz-sut
+  annotations:
+    checkov.io/skip1: CKV_K8S_21=Namespace is dynamically injected by Monax at runtime
+    checkov.io/skip2: CKV_K8S_14=Image is built locally by Monax and loaded into kind
+    checkov.io/skip3: CKV_K8S_15=ImagePullPolicy IfNotPresent is required for local kind images
+    checkov.io/skip4: CKV_K8S_43=Local kind image does not use a remote registry digest
+    checkov.io/skip5: CKV_K8S_8=Liveness probe not required for ephemeral test SUT
+    checkov.io/skip6: CKV_K8S_9=Readiness probe not required for ephemeral test SUT
+    checkov.io/skip7: CKV_K8S_10=CPU request not required for local kind test container
+    checkov.io/skip8: CKV_K8S_11=CPU limit not required for local kind test container
+    checkov.io/skip9: CKV_K8S_12=Memory request not required for local kind test container
+    checkov.io/skip10: CKV_K8S_13=Memory limit not required for local kind test container
+    checkov.io/skip11: CKV2_K8S_6=NetworkPolicy is not required for ephemeral single-pod test SUT
+  labels:
+    app: enrollz-sut
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: enrollz-sut
+  template:
+    metadata:
+      labels:
+        app: enrollz-sut
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: custom-certs-volume
+          secret:
+            secretName: enrollz-custom-certs
+            defaultMode: 0440
+            optional: true
+      containers:
+        - name: enrollz-sut
+          image: openconfig/enrollz-sut
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          envFrom:
+            - configMapRef:
+                name: enrollz-sut-config
+                optional: true
+          volumeMounts:
+            - name: custom-certs-volume
+              mountPath: /etc/enrollz/certs
+              readOnly: true
+          args:
+            - --controller_port=9999
+            - --logtostderr
+            - --vendor_ca_cert_path=/etc/enrollz/certs/vendorca.crt
+            - --owner_ca_cert_path=/etc/enrollz/certs/ownerca.crt
+            - --owner_ca_key_path=/etc/enrollz/certs/ownerca.key
+          ports:
+            - name: grpc
+              containerPort: 9999
