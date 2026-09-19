@@ -592,7 +592,7 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
 		},
 		{
-			desc:                    "Failure: cannot extract serial number from IAK cert",
+			desc:                    "Failure: serial number not found in Subject or SAN of IAK cert",
 			wantError:               true,
 			cardID:                  cardID,
 			iakCertAsymAlgo:         eccP384Algo,
@@ -604,16 +604,16 @@ func TestVerifyIakAndIDevIDCerts(t *testing.T) {
 			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
 		},
 		{
-			desc:                    "Failure: cannot extract serial number from IDevID cert",
-			wantError:               true,
-			cardID:                  cardID,
-			iakCertAsymAlgo:         eccP384Algo,
-			iakCertSubjectSerial:    certSerial,
-			iakCertNotBefore:        time.Now(),
-			iakCertNotAfter:         time.Now().AddDate(0, 0, 10),
-			iDevIDCertAsymAlgo:      eccP384Algo,
-			iDevIDCertNotBefore:     time.Now(),
-			iDevIDCertNotAfter:      time.Now().AddDate(1, 0, 0),
+			desc:                 "Failure: serial number not found in Subject or SAN of IDevID",
+			wantError:            true,
+			cardID:               cardID,
+			iakCertAsymAlgo:      eccP384Algo,
+			iakCertSubjectSerial: certSerial,
+			iakCertNotBefore:     time.Now(),
+			iakCertNotAfter:      time.Now().AddDate(0, 0, 10),
+			iDevIDCertAsymAlgo:   eccP384Algo,
+			iDevIDCertNotBefore:  time.Now(),
+			iDevIDCertNotAfter:   time.Now().AddDate(1, 0, 0),
 		},
 	}
 
@@ -948,12 +948,12 @@ func TestVerifyTpmCert(t *testing.T) {
 			certNotAfter:      time.Now().AddDate(1, 0, 0),
 		},
 		{
-			desc:              "Success: ECC P384 cert with serial in SAN URI",
-			wantError:         false,
-			certAsymAlgo:      eccP384Algo,
-			certURIs:          parseURIs(t, "urn:serial:"+cardSerial),
-			certNotBefore:     time.Now(),
-			certNotAfter:      time.Now().AddDate(1, 0, 0),
+			desc:          "Success: ECC P384 cert with serial in SAN URI",
+			wantError:     false,
+			certAsymAlgo:  eccP384Algo,
+			certURIs:      parseURIs(t, "urn:serial:"+cardSerial),
+			certNotBefore: time.Now(),
+			certNotAfter:  time.Now().AddDate(1, 0, 0),
 		},
 		{
 			desc:              "Success: ECC P384 cert with ambiguous Subject serial but valid SAN URI",
@@ -965,11 +965,11 @@ func TestVerifyTpmCert(t *testing.T) {
 			certNotAfter:      time.Now().AddDate(1, 0, 0),
 		},
 		{
-			desc:              "Failure: cannot extract serial number from cert",
-			wantError:         true,
-			certAsymAlgo:      eccP384Algo,
-			certNotBefore:     time.Now(),
-			certNotAfter:      time.Now().AddDate(1, 0, 0),
+			desc:          "Failure: cannot extract serial number from cert in Subject or SAN likely due to being empty",
+			wantError:     true,
+			certAsymAlgo:  eccP384Algo,
+			certNotBefore: time.Now(),
+			certNotAfter:  time.Now().AddDate(1, 0, 0),
 		},
 	}
 
@@ -1314,4 +1314,3 @@ func TestGetCertSerialNumber(t *testing.T) {
 		})
 	}
 }
-
