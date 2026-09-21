@@ -79,7 +79,6 @@ To verify the switch's hardware identity (IDevID/IAK) and sign the rotated Owner
 > The test cases in this suite are **not** meant to all be run at once. Depending on your switch hardware configuration, you can either:
 >
 > 1. **Select the applicable test case(s) using the `-run` flag**.
->
 > 2. **Delete or comment out inapplicable test cases** in [`./enrollz_test.go`](./enrollz_test.go) before running `go test`.
 
 From the `attestz` repository **root** directory, run the test case corresponding to your switch chassis:
