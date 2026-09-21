@@ -9,8 +9,8 @@ We use the **Monax Auto Test Method** via the [Monax](https://github.com/opencon
 - **A DUT (Device Under Test)**: This is the switch chassis of your choice, which must be running an image that supports the **OpenConfig TPM 2.0 Enrollz** gNSI service (listening on gRPC port `9339` by default).
   - For the **IDevID enrollment flow**, the switch must be provisioned with vendor hardware identity certificates (IDevID and IAK).
 
-  > [!NOTE] 
-  > If your switch requires initial vendor certificate provisioning, you can run the [Bootz test suite](https://github.com/openconfig/bootz/tree/main/test) first. **Configure the Enrollz SUT (System Under Test) Controller with the exact same Vendor Root CA certificate that you used to provision the switch during Bootz.**
+> [!NOTE] 
+> If your switch requires initial vendor certificate provisioning, you can run the [Bootz test suite](https://github.com/openconfig/bootz/tree/main/test) first. **Configure the Enrollz SUT (System Under Test) Controller with the exact same Vendor Root CA certificate that you used to provision the switch during Bootz.**
 
 - **A Test Host**: A host environment (such as a server or VM; Linux OS is recommended for local KIND networking) with IP network reachability to the DUT's management address. This host runs the **Enrollz Controller SUT** container (listening on TCP port `9999`) and executes the test suite against the DUT's gNSI service.
 
@@ -113,8 +113,8 @@ From the `attestz` repository **root** directory, run the test case correspondin
    kind delete cluster
    ```
 
-   > [!NOTE]
-   > If you plan to run more tests later, you can skip deleting the KIND cluster so you don't need to recreate it and re-apply the secret before the next test run.
+  > [!NOTE]
+  > If you plan to run more tests later, you can skip deleting the KIND cluster so you don't need to recreate it and re-apply the secret before the next test run.
 
 ---
 
