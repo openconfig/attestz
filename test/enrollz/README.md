@@ -113,8 +113,8 @@ From the `attestz` repository **root** directory, run the test case correspondin
    kind delete cluster
    ```
 
-  > [!NOTE]
-  > If you plan to run more tests later, you can skip deleting the KIND cluster so you don't need to recreate it and re-apply the secret before the next test run.
+> [!NOTE]
+> If you plan to run more tests later, you can skip deleting the KIND cluster so you don't need to recreate it and re-apply the secret before the next test run.
 
 ---
 
