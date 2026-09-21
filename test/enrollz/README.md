@@ -6,7 +6,7 @@ We use the **Monax Auto Test Method** via the [Monax](https://github.com/opencon
 
 ## Prerequisite
 
-> [!NOTE] 
+> [!NOTE]
 > If your switch requires initial vendor certificate provisioning, you can run the [Bootz test suite](https://github.com/openconfig/bootz/tree/main/test) first. **Configure the Enrollz SUT (System Under Test) Controller with the exact same Vendor Root CA certificate that you used to provision the switch during Bootz.**
 
 - **A DUT (Device Under Test)**: This is the switch chassis of your choice, which must be running an image that supports the **OpenConfig TPM 2.0 Enrollz** gNSI service (listening on gRPC port `9339` by default).
