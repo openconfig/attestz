@@ -375,6 +375,43 @@ func TestParseKeyParmsFromReader_Success(t *testing.T) {
 	}
 }
 
+func TestParseKeyParmsFromReader_EmptySymmetricParams(t *testing.T) {
+	testCases := []struct {
+		name  string
+		algID tpm12.Algorithm
+	}{
+		{name: "AES128", algID: tpm12.AlgAES128},
+		{name: "AES192", algID: tpm12.AlgAES192},
+		{name: "AES256", algID: tpm12.AlgAES256},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			input := keyParms{
+				algID:     tc.algID,
+				encScheme: EsNone,
+				sigScheme: 0,
+			}.toBytes()
+			expected := &TPMKeyParms{
+				AlgID:     tc.algID,
+				EncScheme: EsNone,
+				SigScheme: 0,
+				Params:    TPMParams{},
+			}
+
+			u := &DefaultTPM12Utils{}
+			result, err := u.ParseKeyParmsFromReader(bytes.NewReader(input))
+			if err != nil {
+				t.Fatalf("ParseKeyParmsFromReader(%v) returned unexpected error: %v", input, err)
+			}
+
+			if diff := cmp.Diff(expected, result); diff != "" {
+				t.Errorf("ParseKeyParmsFromReader() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestParseKeyParmsFromReader_Failure(t *testing.T) {
 	testCases := []struct {
 		name          string
@@ -553,6 +590,8 @@ func (opts identityRequest) toBytes() []byte {
 }
 
 func TestParseIdentityRequestSuccess(t *testing.T) {
+	legacySymBlob := append(bytes.Repeat([]byte{0xaa}, aes.BlockSize),
+		bytes.Repeat([]byte{0xbb}, aes.BlockSize)...)
 	testCases := []struct {
 		name     string
 		input    []byte
@@ -620,6 +659,40 @@ func TestParseIdentityRequestSuccess(t *testing.T) {
 				},
 				AsymBlob: make([]byte, 10),
 				SymBlob:  make([]byte, 16),
+			},
+		},
+		{
+			name: "Valid legacy request with empty symmetric params",
+			input: identityRequest{
+				symBlobSize: ptrUint32(uint32(len(legacySymBlob))),
+				symKeyParms: keyParms{
+					algID:     tpm12.AlgAES128,
+					encScheme: EsNone,
+					sigScheme: 0,
+				}.toBytes(),
+				symBlob: legacySymBlob,
+			}.toBytes(),
+			expected: &TPMIdentityReq{
+				AsymAlgorithm: TPMKeyParms{
+					AlgID:     tpm12.AlgRSA,
+					EncScheme: EsRSAEsPKCSv15,
+					SigScheme: SsRSASaPKCS1v15SHA1,
+					Params: TPMParams{
+						RSAParams: &TPMRSAKeyParms{
+							KeyLength: 2048,
+							NumPrimes: 2,
+							Exponent:  []byte{1, 2, 3},
+						},
+					},
+				},
+				SymAlgorithm: TPMKeyParms{
+					AlgID:     tpm12.AlgAES128,
+					EncScheme: EsNone,
+					SigScheme: 0,
+					Params:    TPMParams{},
+				},
+				AsymBlob: make([]byte, 10),
+				SymBlob:  legacySymBlob,
 			},
 		},
 	}
@@ -1117,6 +1190,23 @@ func TestSerializeKeyParms_Success(t *testing.T) {
 				encScheme: EsSymCBCPKCS5,
 				sigScheme: SsNone,
 				parms:     symmetricKeyParms{}.toBytes(),
+			}.toBytes(),
+		},
+		{
+			name: "Symmetric KeyParms with nil SymParams",
+			keyParms: &TPMKeyParms{
+				AlgID:     tpm12.AlgAES128,
+				EncScheme: EsSymCBCPKCS5,
+				SigScheme: SsNone,
+				Params: TPMParams{
+					SymParams: nil,
+				},
+			},
+			expectedBytes: keyParms{
+				algID:     tpm12.AlgAES128,
+				encScheme: EsSymCBCPKCS5,
+				sigScheme: SsNone,
+				parms:     []byte{},
 			}.toBytes(),
 		},
 		{
@@ -2293,6 +2383,16 @@ func TestDecryptWithSymmetricKey_Success(t *testing.T) {
 				EncScheme: EsSymCBCPKCS5,
 				Params: TPMParams{
 					SymParams: &TPMSymmetricKeyParms{IV: nil},
+				},
+			},
+			ciphertext: append(iv, ciphertext...),
+		},
+		{
+			name: "Success with nil SymParams",
+			keyParams: &TPMKeyParms{
+				EncScheme: EsSymCBCPKCS5,
+				Params: TPMParams{
+					SymParams: nil,
 				},
 			},
 			ciphertext: append(iv, ciphertext...),

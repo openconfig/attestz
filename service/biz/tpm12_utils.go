@@ -372,6 +372,10 @@ func (u *DefaultTPM12Utils) ParseKeyParmsFromReader(reader *bytes.Reader) (*TPMK
 		}
 		result.Params.RSAParams = rsaParms
 	case tpm12.AlgAES128, tpm12.AlgAES192, tpm12.AlgAES256:
+		if paramSize == 0 {
+			log.Printf("ParseKeyParmsFromReader: Warning: no parameters provided for symmetric algorithm %v.", result.AlgID)
+			break
+		}
 		symParms, err := u.ParseSymmetricKeyParms(parms)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse Symmetric key parms: %w", err)
