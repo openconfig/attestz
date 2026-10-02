@@ -48,37 +48,37 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       volumes:
-      - name: ca-certs-volume
-        secret:
-          secretName: attestz-ca-certs
-          defaultMode: 0440
-          optional: true
-      containers:
-      - name: attestz-sut
-        image: openconfig/attestz-sut
-        imagePullPolicy: IfNotPresent
-        securityContext:
-          runAsNonRoot: true
-          runAsUser: 65532
-          runAsGroup: 65532
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
-          capabilities:
-            drop:
-            - ALL
-        envFrom:
-        - configMapRef:
-            name: attestz-sut-config
-            optional: true
-        volumeMounts:
         - name: ca-certs-volume
-          mountPath: /etc/attestz/certs
-          readOnly: true
-        args:
-        - --controller_port=9999
-        - --logtostderr
-        - --owner_ca_cert_path=/etc/attestz/certs/ownerca.crt
-        - --owner_ca_key_path=/etc/attestz/certs/ownerca.key
-        ports:
-        - name: grpc
-          containerPort: 9999
+          secret:
+            secretName: attestz-ca-certs
+            defaultMode: 0440
+            optional: true
+      containers:
+        - name: attestz-sut
+          image: openconfig/attestz-sut
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          envFrom:
+            - configMapRef:
+                name: attestz-sut-config
+                optional: true
+          volumeMounts:
+            - name: ca-certs-volume
+              mountPath: /etc/attestz/certs
+              readOnly: true
+          args:
+            - --controller_port=9999
+            - --logtostderr
+            - --owner_ca_cert_path=/etc/attestz/certs/ownerca.crt
+            - --owner_ca_key_path=/etc/attestz/certs/ownerca.key
+          ports:
+            - name: grpc
+              containerPort: 9999
