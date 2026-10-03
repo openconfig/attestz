@@ -189,26 +189,62 @@ func (opts rsaKeyParms) toBytes() []byte {
 }
 
 func TestParseRSAKeyParms_Success(t *testing.T) {
-	u := &DefaultTPM12Utils{}
-	data := rsaKeyParms{
-		keyLength: ptrUint32(2048),
-		numPrimes: ptrUint32(2),
-		exponent:  &[]byte{1, 2, 3},
-	}.toBytes()
-	result, err := u.ParseRSAKeyParms(data)
-
-	if err != nil {
-		t.Fatalf("ParseRSAKeyParms(%v) returned err: %v, want nil", data, err)
+	testCases := []struct {
+		name     string
+		params   rsaKeyParms
+		expected *TPMRSAKeyParms
+	}{
+		{
+			name: "Valid RSA key parameters",
+			params: rsaKeyParms{
+				keyLength: ptrUint32(2048),
+				numPrimes: ptrUint32(2),
+				exponent:  &[]byte{1, 2, 3},
+			},
+			expected: &TPMRSAKeyParms{
+				KeyLength: 2048,
+				NumPrimes: 2,
+				Exponent:  []byte{1, 2, 3},
+			},
+		},
+		{
+			name: "Valid RSA key parameters with default exponent",
+			params: rsaKeyParms{
+				exponent:     &[]byte{},
+				exponentSize: ptrUint32(0),
+			},
+			expected: &TPMRSAKeyParms{
+				KeyLength: 2048,
+				NumPrimes: 2,
+				Exponent:  []byte{},
+			},
+		},
+		{
+			name: "Valid legacy parameters with malformed TrouSerS exponent size",
+			params: rsaKeyParms{
+				exponent:     &[]byte{},
+				exponentSize: ptrUint32(0x03000000),
+			},
+			expected: &TPMRSAKeyParms{
+				KeyLength: 2048,
+				NumPrimes: 2,
+				Exponent:  []byte{},
+			},
+		},
 	}
 
-	expected := &TPMRSAKeyParms{
-		KeyLength: 2048,
-		NumPrimes: 2,
-		Exponent:  []byte{1, 2, 3},
-	}
-
-	if diff := cmp.Diff(expected, result); diff != "" {
-		t.Errorf("ParseRSAKeyParms(%v) returned diff (-want +got):\n%s", data, diff)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			u := &DefaultTPM12Utils{}
+			data := tc.params.toBytes()
+			result, err := u.ParseRSAKeyParms(data)
+			if err != nil {
+				t.Fatalf("ParseRSAKeyParms(%v) returned err: %v, want nil", data, err)
+			}
+			if diff := cmp.Diff(tc.expected, result); diff != "" {
+				t.Errorf("ParseRSAKeyParms(%v) returned diff (-want +got):\n%s", data, diff)
+			}
+		})
 	}
 }
 
@@ -252,6 +288,14 @@ func TestParseRSAKeyParms_Failure(t *testing.T) {
 			params: rsaKeyParms{
 				exponent:     &[]byte{1, 2, 3},
 				exponentSize: ptrUint32(4), // Larger than actual exponent
+			},
+			expectedError: "failed to read exponent",
+		},
+		{
+			name: "Malformed TrouSerS exponent size with unexpected exponent",
+			params: rsaKeyParms{
+				exponent:     &[]byte{1, 2, 3},
+				exponentSize: ptrUint32(0x03000000),
 			},
 			expectedError: "failed to read exponent",
 		},
@@ -693,6 +737,48 @@ func TestParseIdentityRequestSuccess(t *testing.T) {
 				},
 				AsymBlob: make([]byte, 10),
 				SymBlob:  legacySymBlob,
+			},
+		},
+		{
+			name: "Valid legacy request with malformed TrouSerS exponent size",
+			input: identityRequest{
+				asymKeyParms: keyParms{
+					algID:     tpm12.AlgRSA,
+					encScheme: EsRSAEsPKCSv15,
+					sigScheme: SsRSASaPKCS1v15SHA1,
+					parms: rsaKeyParms{
+						exponent:     &[]byte{},
+						exponentSize: ptrUint32(0x03000000),
+					}.toBytes(),
+				}.toBytes(),
+			}.toBytes(),
+			expected: &TPMIdentityReq{
+				AsymAlgorithm: TPMKeyParms{
+					AlgID:     tpm12.AlgRSA,
+					EncScheme: EsRSAEsPKCSv15,
+					SigScheme: SsRSASaPKCS1v15SHA1,
+					Params: TPMParams{
+						RSAParams: &TPMRSAKeyParms{
+							KeyLength: 2048,
+							NumPrimes: 2,
+							Exponent:  []byte{},
+						},
+					},
+				},
+				SymAlgorithm: TPMKeyParms{
+					AlgID:     tpm12.AlgAES128,
+					EncScheme: EsSymCBCPKCS5,
+					SigScheme: SsNone,
+					Params: TPMParams{
+						SymParams: &TPMSymmetricKeyParms{
+							KeyLength: 16,
+							BlockSize: 16,
+							IV:        make([]byte, 16),
+						},
+					},
+				},
+				AsymBlob: make([]byte, 10),
+				SymBlob:  make([]byte, 16),
 			},
 		},
 	}
