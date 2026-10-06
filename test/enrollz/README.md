@@ -34,9 +34,9 @@ func PrepareDUT() (*Target, error) {
 > [!NOTE]
 > Since `dut.go` is completely vendor-specific, you can keep your implementation private for your own testing only. You do not need to submit or publish your implementation on GitHub.
 
-### 2. Implement `caservice.PKIProvider` ([`./caservice/caservice.go`](./caservice/caservice.go))
+### 2. Implement `caservice.PKIProvider` ([`../caservice/caservice.go`](../caservice/caservice.go))
 
-Implement the `PKIProvider` interface methods (`DeviceTrustBundle`, `IssueOIAK`, `IssueOIDevID`, and `GenerateClientCredentials`) in [`./caservice/caservice.go`](./caservice/caservice.go) to load your device trust anchors and sign the rotated Owner certificates (`oIAK` and `oIDevID`).
+Implement the `PKIProvider` interface methods (`DeviceTrustBundle`, `IssueOIAK`, `IssueOIDevID`, and `GenerateClientCredentials`) in [`../caservice/caservice.go`](../caservice/caservice.go) to load your device trust anchors and sign the rotated Owner certificates (`oIAK` and `oIDevID`).
 
 ### 3. Configure Vendor & Owner CA Certificates
 
@@ -49,8 +49,8 @@ To verify the switch's hardware identity (IDevID/IAK) and sign the rotated Owner
      ```bash
      kubectl apply -f ./sut/controller/deploy/secret.yaml
      ```
-- **Option B: Baking Certificates into the Image (`./caservice/certs/`)**:
-  Place your `vendorca.crt`, `ownerca.crt`, and `ownerca.key` files directly under [`./caservice/certs/`](./caservice/certs/) before running `go test`. During the Monax Docker build, these files are copied into `/app/certs/` inside the container image and loaded by the SUT controller if no Kubernetes Secret is mounted.
+- **Option B: Baking Certificates into the Image (`../caservice/certs/`)**:
+  Place your `vendorca.crt`, `ownerca.crt`, and `ownerca.key` files directly under [`../caservice/certs/`](../caservice/certs/) before running `go test`. During the Monax Docker build, these files are copied into `/app/certs/` inside the container image and loaded by the SUT controller if no Kubernetes Secret is mounted.
 
 ---
 

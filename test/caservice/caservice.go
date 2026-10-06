@@ -11,6 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// Package caservice provides the Public Key Infrastructure (PKI) interface and skeleton for
+// Enrollz and Attestz SUT controllers.
 package caservice
 
 import (
@@ -19,7 +22,7 @@ import (
 	"fmt"
 )
 
-// PKIProvider defines the Public Key Infrastructure interface required by the Enrollz SUT controller.
+// PKIProvider defines the Public Key Infrastructure interface required by the Enrollz and Attestz SUT controllers.
 //
 // Implementations must provide two core PKI capabilities:
 //  1. Device Trust Anchors: Authoritative Root CAs to authenticate the device's factory identity (IDevID and IAK).
@@ -35,6 +38,10 @@ type PKIProvider interface {
 	//     1. The Initial Device Identifier (IDevID) certificate.
 	//     2. The Initial Attestation Key (IAK) certificate.
 	DeviceTrustBundle() *x509.CertPool
+
+	// OwnerTrustBundle returns an x509.CertPool containing the Owner Root CA certificates
+	// used to validate owner-issued device certificates (oIDevID and oIAK) during attestation.
+	OwnerTrustBundle() *x509.CertPool
 
 	// IssueOIAK generates an Owner Initial Attestation Key (oIAK) certificate.
 	//
@@ -81,6 +88,11 @@ var _ PKIProvider = (*Engine)(nil)
 
 // DeviceTrustBundle returns the authoritative Root CA certificates for the DUT.
 func (e *Engine) DeviceTrustBundle() *x509.CertPool {
+	return nil
+}
+
+// OwnerTrustBundle returns the Owner Root CA certificates used to verify oIDevID and oIAK certificates.
+func (e *Engine) OwnerTrustBundle() *x509.CertPool {
 	return nil
 }
 

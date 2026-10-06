@@ -26,7 +26,7 @@ RUN go mod download || true
 # Copy source packages
 COPY proto/ proto/
 COPY service/ service/
-COPY test/enrollz/caservice/ test/enrollz/caservice/
+COPY test/caservice/ test/caservice/
 COPY test/attestz/proto/ test/attestz/proto/
 COPY test/attestz/pcrprovider/ test/attestz/pcrprovider/
 COPY test/attestz/tpmutil/ test/attestz/tpmutil/
@@ -42,7 +42,7 @@ WORKDIR /app
 COPY --from=builder /attestz-sut ./attestz-sut
 
 # Bake in CA certificates if provided under caservice/certs/
-COPY test/enrollz/caservice/certs/ ./certs/
+COPY test/caservice/certs/ ./certs/
 
 USER nonroot
 EXPOSE 9999/tcp

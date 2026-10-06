@@ -34,6 +34,7 @@ import (
 // mockPKIProvider implements caservice.PKIProvider for unit testing.
 type mockPKIProvider struct {
 	deviceTrustBundleFn         func() *x509.CertPool
+	ownerTrustBundleFn          func() *x509.CertPool
 	issueOIAKFn                 func(iakPem string) (string, error)
 	issueOIDevIDFn              func(idevidPem string) (string, error)
 	generateClientCredentialsFn func() ([]byte, []byte, error)
@@ -42,6 +43,13 @@ type mockPKIProvider struct {
 func (m *mockPKIProvider) DeviceTrustBundle() *x509.CertPool {
 	if m.deviceTrustBundleFn != nil {
 		return m.deviceTrustBundleFn()
+	}
+	return nil
+}
+
+func (m *mockPKIProvider) OwnerTrustBundle() *x509.CertPool {
+	if m.ownerTrustBundleFn != nil {
+		return m.ownerTrustBundleFn()
 	}
 	return nil
 }

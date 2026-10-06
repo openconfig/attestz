@@ -25,7 +25,7 @@ RUN go mod download || true
 
 # Copy source packages
 COPY proto/ proto/
-COPY test/enrollz/caservice/ test/enrollz/caservice/
+COPY test/caservice/ test/caservice/
 COPY test/enrollz/proto/ test/enrollz/proto/
 COPY test/enrollz/sut/controller/ test/enrollz/sut/controller/
 
@@ -39,7 +39,7 @@ WORKDIR /app
 COPY --from=builder /enrollz-sut ./enrollz-sut
 
 # Bake in default test certificates for zero-setup fallback
-COPY test/enrollz/caservice/certs/ ./certs/
+COPY test/caservice/certs/ ./certs/
 
 USER nonroot
 EXPOSE 9999/tcp
