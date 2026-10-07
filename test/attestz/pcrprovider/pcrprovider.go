@@ -39,7 +39,7 @@ func NewTestPCRProvider() *TestPCRProvider {
 //
 // Implementation Guidance:
 //  1. Input: `device` is the management IP address or hostname of the target switch under test.
-//  2. Retrieve the authoritative ("golden") PCR digests expected for the device's hardware and
+//  2. Retrieve the reference ("golden") PCR digests expected for the device's hardware and
 //     boot software state.
 //  3. Output: Return a map[int32][][]byte where each key is a TPM 2.0 PCR index (0-23) to be
 //     queried and verified, and each value is a slice of acceptable raw binary digests expected
