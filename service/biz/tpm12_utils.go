@@ -298,6 +298,18 @@ func (u *DefaultTPM12Utils) ParseRSAKeyParms(keyParms []byte) (*TPMRSAKeyParms, 
 		return nil, fmt.Errorf("failed to read exponentSize: %w", err)
 	}
 
+	// Workaround for a bug in older versions of the TrouSerS TPM library.
+	// TrouSerS incorrectly serializes the 3-byte size of the default RSA exponent (65537)
+	// using host byte order (Little-Endian) instead of Network Byte Order (Big-Endian).
+	// This results in the parser reading 0x03000000 instead of 3. Furthermore, they also leave
+	// the parent parameter size unchanged, so no exponent bytes are included. If we encounter this
+	// exact malformed size and an empty buffer, we safely treat the exponent as omitted i.e. the
+	// default RSA exponent.
+	if exponentSize == uint32(0x03000000) && reader.Len() == 0 {
+		log.Printf("ParseRSAKeyParms: Warning: treating malformed TrouSerS exponent size as omitted.")
+		exponentSize = 0
+	}
+
 	// Read exponent.
 	exponent, err := readBytes(reader, exponentSize)
 	if err != nil {
