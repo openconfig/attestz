@@ -141,9 +141,7 @@ func TestAttestDevice_EmptyControlCardRoles(t *testing.T) {
 
 func TestAttestDevice_CredentialGenerationFailure(t *testing.T) {
 	pkiProvider := &mockPKIProvider{
-		ownerTrustBundleFn: func() *x509.CertPool {
-			return x509.NewCertPool()
-		},
+		ownerTrustBundleFn: x509.NewCertPool,
 		generateClientCredentialsFn: func() ([]byte, []byte, error) {
 			return nil, nil, fmt.Errorf("PKI client credentials generation error")
 		},
@@ -172,9 +170,7 @@ func TestAttestDevice_CredentialGenerationFailure(t *testing.T) {
 
 func TestAttestDevice_MalformedClientCertificate(t *testing.T) {
 	pkiProvider := &mockPKIProvider{
-		ownerTrustBundleFn: func() *x509.CertPool {
-			return x509.NewCertPool()
-		},
+		ownerTrustBundleFn: x509.NewCertPool,
 		generateClientCredentialsFn: func() ([]byte, []byte, error) {
 			return []byte("INVALID_CERT_PEM"), []byte("INVALID_KEY_PEM"), nil
 		},
@@ -204,11 +200,9 @@ func TestAttestDevice_MalformedClientCertificate(t *testing.T) {
 func TestAttestDevice_NoExpectedPCRs(t *testing.T) {
 	certPEM, keyPEM := generateTestClientCredentials(t)
 	pkiProvider := &mockPKIProvider{
+		ownerTrustBundleFn: x509.NewCertPool,
 		generateClientCredentialsFn: func() ([]byte, []byte, error) {
 			return certPEM, keyPEM, nil
-		},
-		ownerTrustBundleFn: func() *x509.CertPool {
-			return x509.NewCertPool()
 		},
 	}
 	pcrProvider := &mockPCRProvider{

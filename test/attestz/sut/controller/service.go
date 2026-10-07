@@ -94,7 +94,7 @@ func (s *Service) AttestDevice(ctx context.Context, req *sutpb.AttestDeviceReque
 	}
 
 	dialTarget := net.JoinHostPort(req.GetHost(), port)
-	conn, err := s.dialDUT(ctx, dialTarget)
+	conn, err := s.dialDUT(dialTarget)
 	if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "failed to dial DUT %q: %v", dialTarget, err)
 	}
@@ -205,7 +205,7 @@ func (s *Service) attestControlCard(ctx context.Context, client apb.TpmAttestzSe
 }
 
 // dialDUT establishes a gRPC connection to the DUT.
-func (s *Service) dialDUT(ctx context.Context, target string) (*grpc.ClientConn, error) {
+func (s *Service) dialDUT(target string) (*grpc.ClientConn, error) {
 	certPEM, keyPEM, err := s.pkiProvider.GenerateClientCredentials()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate client credentials: %w", err)
@@ -217,6 +217,7 @@ func (s *Service) dialDUT(ctx context.Context, target string) (*grpc.ClientConn,
 	}
 
 	tlsConfig := &tls.Config{
+		MinVersion:   tls.VersionTLS12,
 		Certificates: []tls.Certificate{clientCert},
 		RootCAs:      s.pkiProvider.OwnerTrustBundle(),
 	}
