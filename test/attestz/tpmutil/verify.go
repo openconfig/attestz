@@ -91,11 +91,14 @@ func VerifyPCRQuoteAndQuoteSignature(ctx context.Context, tpmUtils TPMCertUtils,
 }
 
 // ValidatePCRs compares received PCR values against expected PCR values.
-func ValidatePCRs(expected map[int32][]byte, received map[int32][]byte) error {
+func ValidatePCRs(expected map[int32][][]byte, received map[int32][]byte) error {
 	var mismatches []int32
-	for idx, expVal := range expected {
+	for idx, expVals := range expected {
 		recVal, ok := received[idx]
-		if !ok || !bytes.Equal(recVal, expVal) {
+		matched := ok && slices.ContainsFunc(expVals, func(expVal []byte) bool {
+			return bytes.Equal(recVal, expVal)
+		})
+		if !matched {
 			mismatches = append(mismatches, idx)
 		}
 	}
