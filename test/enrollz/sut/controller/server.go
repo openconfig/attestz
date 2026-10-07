@@ -30,7 +30,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
-	"github.com/openconfig/attestz/test/enrollz/caservice"
+	"github.com/openconfig/attestz/test/caservice"
 	sutpb "github.com/openconfig/attestz/test/enrollz/proto"
 )
 

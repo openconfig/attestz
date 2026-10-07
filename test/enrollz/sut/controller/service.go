@@ -34,7 +34,7 @@ import (
 
 	cpb "github.com/openconfig/attestz/proto/common_definitions"
 	epb "github.com/openconfig/attestz/proto/tpm_enrollz"
-	"github.com/openconfig/attestz/test/enrollz/caservice"
+	"github.com/openconfig/attestz/test/caservice"
 	sutpb "github.com/openconfig/attestz/test/enrollz/proto"
 	statuspb "google.golang.org/genproto/googleapis/rpc/status"
 )
