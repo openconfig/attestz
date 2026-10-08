@@ -38,8 +38,8 @@ FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /app
 COPY --from=builder /enrollz-sut ./enrollz-sut
 
-# Bake in default test certificates for zero-setup fallback
-COPY test/caservice/certs/ ./certs/
+# Bake in CA certificates if provided under caservice/certs/
+COPY --chown=nonroot:nonroot test/caservice/certs/ ./certs/
 
 USER nonroot
 EXPOSE 9999/tcp

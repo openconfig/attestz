@@ -48,9 +48,9 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       volumes:
-        - name: custom-certs-volume
+        - name: ca-certs-volume
           secret:
-            secretName: enrollz-custom-certs
+            secretName: enrollz-ca-certs
             defaultMode: 0440
             optional: true
       containers:
@@ -71,7 +71,7 @@ spec:
                 name: enrollz-sut-config
                 optional: true
           volumeMounts:
-            - name: custom-certs-volume
+            - name: ca-certs-volume
               mountPath: /etc/enrollz/certs
               readOnly: true
           args:

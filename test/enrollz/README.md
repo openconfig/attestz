@@ -1,8 +1,10 @@
 # Test Enrollz with Real Switch Chassis
 
-The files located in this directory are intended to test [OpenConfig TPM 2.0 Enrollz](https://github.com/openconfig/attestz#tpm-20-enrollment-for-switch-owners) with a real switch chassis of your choice.
+The files located in this directory are intended to test [OpenConfig TPM 2.0 Enrollz](https://github.com/openconfig/attestz#tpm-20-enrollment-for-switch-owners) with a real switch chassis of your choice. We support two methods for executing the test suite:
 
-We use the **Monax Auto Test Method** via the [Monax](https://github.com/openconfig/monax) test framework to automatically build the Enrollz Controller SUT (System Under Test) container image, deploy it into a local KIND (Kubernetes IN Docker) cluster, prepare the switch chassis via `dut.PrepareDUT()`, and execute the integration test suite via `go test`.
+- **Bare Metal Test Method**: Run the Enrollz Controller SUT (System Under Test) process directly on a test host (either manually in a separate terminal or via an automated test harness), and run `go test` with `-sut_addr=<host>:<port>` (no Docker or KIND required).
+
+- **Monax Auto Test Method**: Use the [Monax](https://github.com/openconfig/monax) test framework to automatically build the Enrollz Controller SUT container image, deploy it into a local KIND (Kubernetes IN Docker) cluster, prepare the switch chassis via `dut.PrepareDUT()`, and execute the integration test suite via `go test`.
 
 ## Prerequisite
 
@@ -12,7 +14,7 @@ We use the **Monax Auto Test Method** via the [Monax](https://github.com/opencon
 - **A DUT (Device Under Test)**: This is the switch chassis of your choice, which must be running an image that supports the **OpenConfig TPM 2.0 Enrollz** gNSI service (listening on gRPC port `9339` by default).
   - For the **IDevID enrollment flow**, the switch must be provisioned with vendor hardware identity certificates (IDevID and IAK).
 
-- **A Test Host**: A host environment (such as a server or VM; Linux OS is recommended for local KIND networking) with IP network reachability to the DUT's management address. This host runs the **Enrollz Controller SUT** container (listening on TCP port `9999`) and executes the test suite against the DUT's gNSI service.
+- **A Test Host**: A host environment (such as a server or VM; Linux OS is recommended) with IP network reachability to the DUT's management address. This host runs the **Enrollz Controller SUT** (listening on TCP port `9999`) and executes the test suite against the DUT's gNSI service.
 
 ---
 
@@ -40,17 +42,82 @@ Implement the `PKIProvider` interface methods (`DeviceTrustBundle`, `IssueOIAK`,
 
 ### 3. Configure Vendor & Owner CA Certificates
 
-To verify the switch's hardware identity (IDevID/IAK) and sign the rotated Owner certificate, you must provide your Vendor Root CA certificate (`vendorca.crt`), Owner Root CA certificate (`ownerca.crt`), and Owner CA private key (`ownerca.key`) using one of the following two methods:
+To verify the switch's hardware identity (IDevID/IAK) and sign the rotated Owner certificate, you must provide your Vendor Root CA certificate (`vendorca.crt`), Owner Root CA certificate (`ownerca.crt`), and Owner CA private key (`ownerca.key`):
 
-- **Option A: Kubernetes Secret**:
+- **Option A: Local Certificate Directory (Bare Metal or Monax/KIND)**:
+  Place your `vendorca.crt`, `ownerca.crt`, and `ownerca.key` files directly under [`../caservice/certs/`](../caservice/certs/).
+  - **In Bare Metal mode**, [`./run_enrollz_sut.sh`](./run_enrollz_sut.sh) passes these `../caservice/certs/` paths via `--vendor_ca_cert_path`, `--owner_ca_cert_path`, and `--owner_ca_key_path` (and you can override them by passing flags to the script).
+  - **In Monax (KIND) mode**, these files are copied into `/app/certs/` inside the container image during the Monax Docker build and used automatically if no Kubernetes Secret is mounted at `/etc/enrollz/certs/`.
+
+- **Option B: Kubernetes Secret (Monax/KIND only)**:
   1. Copy [`./sut/controller/deploy/secret.example.yaml`](./sut/controller/deploy/secret.example.yaml) to `./sut/controller/deploy/secret.yaml`.
   2. Paste your PEM-encoded `vendorca.crt` (the Vendor Root CA used in factory or Bootz provisioning), `ownerca.crt`, and `ownerca.key`.
   3. Apply the secret to your KIND cluster before running the test:
+
      ```bash
-     kubectl apply -f ./sut/controller/deploy/secret.yaml
+     kubectl apply -f ./test/enrollz/sut/controller/deploy/secret.yaml
      ```
-- **Option B: Baking Certificates into the Image (`../caservice/certs/`)**:
-  Place your `vendorca.crt`, `ownerca.crt`, and `ownerca.key` files directly under [`../caservice/certs/`](../caservice/certs/) before running `go test`. During the Monax Docker build, these files are copied into `/app/certs/` inside the container image and loaded by the SUT controller if no Kubernetes Secret is mounted.
+
+     When mounted at `/etc/enrollz/certs/`, the Kubernetes Secret takes precedence over the baked-in `/app/certs/` files.
+
+### 4. Select Applicable Test Cases ([`./enrollz_test.go`](./enrollz_test.go))
+
+Because each test case targets a specific switch hardware topology (e.g., a single-supervisor switch vs. a dual-supervisor modular chassis), not all test cases in this suite apply to a single physical DUT. Depending on your switch hardware configuration, you can either:
+
+1. **Select the applicable test case(s) using the `-run` flag**, which accepts a Go regular expression (e.g., `-run "TestCaseA|TestCaseB"` to run multiple test cases in a single invocation).
+2. **Delete or comment out inapplicable test cases** in [`./enrollz_test.go`](./enrollz_test.go) and omit `-run` to run all remaining test cases together.
+
+---
+
+## Bare Metal Test Method
+
+### Bare Metal Setup (a one-time effort)
+
+1. Ensure IP network connectivity between the test host and the management address of your switch chassis.
+2. Update `PrepareDUT()` in [`../dut/dut.go`](../dut/dut.go) with your switch's management IP and gNSI port.
+3. Place your `vendorca.crt`, `ownerca.crt`, and `ownerca.key` files in [`../caservice/certs/`](../caservice/certs/) (or pass their paths via flags when starting the SUT controller).
+
+### Bare Metal Run
+
+1. **Build and Start the Enrollz Controller SUT**
+
+   From the `attestz` repository **root** directory, run the Bash script below to build and start the SUT controller (either in a dedicated terminal or as a background process in your test harness):
+
+   ```bash
+   ./test/enrollz/run_enrollz_sut.sh
+   ```
+
+   By default, the SUT controller listens on port `9999` and loads certificates from `./test/caservice/certs/`.
+
+   > [!NOTE]
+   > To override these defaults, pass additional flags:
+   >
+   > ```bash
+   > ./test/enrollz/run_enrollz_sut.sh \
+   >   --controller_port=9999 \
+   >   --vendor_ca_cert_path=./test/caservice/certs/vendorca.crt \
+   >   --owner_ca_cert_path=./test/caservice/certs/ownerca.crt \
+   >   --owner_ca_key_path=./test/caservice/certs/ownerca.key
+   > ```
+
+2. **Run the Test Suite**
+
+   From the `attestz` repository **root** directory (e.g., in a second terminal or from your test runner), run `go test` with `-args -sut_addr=localhost:9999` so `TestMain` connects directly to your running SUT controller instead of starting a KIND cluster:
+   - For Single Control Card / Fixed Switch:
+
+     ```bash
+     go test -v -count=1 -run TestEnrollz_InitialEnrollment_TPM20_IDevID_SingleControlCard ./test/enrollz -args -sut_addr=localhost:9999 -logtostderr -v=2
+     ```
+
+   - For Dual / Multiple Control Cards (Active + Standby):
+
+     ```bash
+     go test -v -count=1 -run TestEnrollz_InitialEnrollment_TPM20_IDevID_MultipleControlCards ./test/enrollz -args -sut_addr=localhost:9999 -logtostderr -v=2
+     ```
+
+### Bare Metal Cleanup
+
+Stop the running SUT controller process (e.g., press `Ctrl+C` in the terminal running `./test/enrollz/run_enrollz_sut.sh`).
 
 ---
 
@@ -65,23 +132,20 @@ To verify the switch's hardware identity (IDevID/IAK) and sign the rotated Owner
 ### Monax Preparation
 
 1. Create a KIND virtual cluster (if not already running):
+
    ```bash
    kind create cluster
    ```
-2. Apply your custom Vendor and Owner CA certificates secret to the KIND cluster:
+
+2. _(Optional)_ If using a Kubernetes Secret (Option B in [Configure Vendor & Owner CA Certificates](#3-configure-vendor--owner-ca-certificates)), apply it to the KIND cluster:
+
    ```bash
-   kubectl apply -f ./sut/controller/deploy/secret.yaml
+   kubectl apply -f ./test/enrollz/sut/controller/deploy/secret.yaml
    ```
 
 ### Monax Run
 
-> [!IMPORTANT]
-> The test cases in this suite are **not** meant to all be run at once. Depending on your switch hardware configuration, you can either:
->
-> 1. **Select the applicable test case(s) using the `-run` flag**.
-> 2. **Delete or comment out inapplicable test cases** in [`./enrollz_test.go`](./enrollz_test.go) before running `go test`.
-
-From the `attestz` repository **root** directory, run the test case corresponding to your switch chassis:
+From the `attestz` repository **root** directory, run the test case corresponding to your switch chassis (without `-sut_addr`):
 
 - For Single Control Card / Fixed Switch:
 
@@ -119,7 +183,7 @@ From the `attestz` repository **root** directory, run the test case correspondin
 
 ## Test Case Summary
 
-| Test Case                                                         | Description                                                                                                                             | Target Topology                       | Expected Result                                                                                                      |
-| :---------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------ | :------------------------------------------------------------------------------------------------------------------- |
-| `TestEnrollz_InitialEnrollment_TPM20_IDevID_SingleControlCard`    | Validates initial TPM 2.0 enrollment of an active control card (`CONTROL_CARD_ROLE_ACTIVE`) on a single-processor DUT.                  | Single Route Processor / Fixed Switch | SUT validates vendor certificates (IDevID & IAK), rotates owner certificates, and returns `OK`.                      |
-| `TestEnrollz_InitialEnrollment_TPM20_IDevID_MultipleControlCards` | Validates batch initial TPM 2.0 enrollment across redundant control cards (`CONTROL_CARD_ROLE_ACTIVE` and `CONTROL_CARD_ROLE_STANDBY`). | Modular Chassis / Dual Supervisor     | Both control cards complete certificate validation, rotate owner certificates in a single workflow, and return `OK`. |
+| Test Case                                                                           | Description                                                                                                                             | Target Topology                          | Expected Result                                                                                                      |
+| :---------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------- | :------------------------------------------------------------------------------------------------------------------- |
+| `TestEnrollz_`<br>`InitialEnrollment_`<br>`TPM20_IDevID_`<br>`SingleControlCard`    | Validates initial TPM 2.0 enrollment of an active control card (`CONTROL_CARD_ROLE_ACTIVE`) on a single-processor DUT.                  | Single Route Processor /<br>Fixed Switch | SUT validates vendor certificates (IDevID & IAK), rotates owner certificates, and returns `OK`.                      |
+| `TestEnrollz_`<br>`InitialEnrollment_`<br>`TPM20_IDevID_`<br>`MultipleControlCards` | Validates batch initial TPM 2.0 enrollment across redundant control cards (`CONTROL_CARD_ROLE_ACTIVE` and `CONTROL_CARD_ROLE_STANDBY`). | Modular Chassis /<br>Dual Supervisor     | Both control cards complete certificate validation, rotate owner certificates in a single workflow, and return `OK`. |

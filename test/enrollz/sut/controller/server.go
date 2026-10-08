@@ -42,7 +42,7 @@ type Config struct {
 	OwnerCAKey   string
 }
 
-// loadConfig parses CLI flags and resolves paths with fallback to built-in default test certificates.
+// loadConfig parses CLI flags and resolves certificate paths from a mounted K8s Secret with fallback to the container image.
 func loadConfig() *Config {
 	cfg := &Config{}
 	flag.IntVar(&cfg.Port, "controller_port", 9999, "Port for serving RPC requests")
@@ -51,7 +51,7 @@ func loadConfig() *Config {
 	flag.StringVar(&cfg.OwnerCAKey, "owner_ca_key_path", "/etc/enrollz/certs/ownerca.key", "Path to Owner CA private key")
 	flag.Parse()
 
-	// Resolve paths: Check custom/mounted Secret paths first, fall back to baked-in test certs
+	// Resolve paths: Check mounted K8s Secret paths first, fall back to baked-in image certs
 	cfg.VendorCACert = resolveCertPath(cfg.VendorCACert, "/app/certs/vendorca.crt")
 	cfg.OwnerCACert = resolveCertPath(cfg.OwnerCACert, "/app/certs/ownerca.crt")
 	cfg.OwnerCAKey = resolveCertPath(cfg.OwnerCAKey, "/app/certs/ownerca.key")
@@ -96,12 +96,12 @@ func main() {
 	glog.Infof("Enrollz SUT Server shut down cleanly")
 }
 
-// resolveCertPath checks if a custom mounted path exists; if not, falls back to the default image path.
-func resolveCertPath(customPath, defaultFallback string) string {
-	if _, err := os.Stat(customPath); err == nil {
-		glog.Infof("Using custom certificate path: %s", customPath)
-		return customPath
+// resolveCertPath checks if an optional K8s Secret mount path exists; if not, falls back to the default image path.
+func resolveCertPath(secretMountPath, defaultFallback string) string {
+	if _, err := os.Stat(secretMountPath); err == nil {
+		glog.Infof("Using mounted secret certificate path: %s", secretMountPath)
+		return secretMountPath
 	}
-	glog.Infof("Certificate %s not found. Falling back to default: %s", customPath, defaultFallback)
+	glog.Infof("Mounted secret certificate %s not found. Falling back to default: %s", secretMountPath, defaultFallback)
 	return defaultFallback
 }

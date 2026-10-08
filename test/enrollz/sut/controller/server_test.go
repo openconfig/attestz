@@ -24,7 +24,7 @@ import (
 
 func TestResolveCertPath(t *testing.T) {
 	tempDir := t.TempDir()
-	existingFile := filepath.Join(tempDir, "custom_cert.crt")
+	existingFile := filepath.Join(tempDir, "secret_cert.crt")
 	if err := os.WriteFile(existingFile, []byte("CERT_DATA"), 0644); err != nil {
 		t.Fatalf("Failed to create temporary cert file: %v", err)
 	}
@@ -33,36 +33,36 @@ func TestResolveCertPath(t *testing.T) {
 	defaultFallback := "/app/certs/vendorca.crt"
 
 	tests := []struct {
-		name       string
-		custom     string
-		fallback   string
-		wantResult string
+		name            string
+		secretMountPath string
+		fallback        string
+		wantResult      string
 	}{
 		{
-			name:       "Custom certificate exists",
-			custom:     existingFile,
-			fallback:   defaultFallback,
-			wantResult: existingFile,
+			name:            "Mounted secret certificate exists",
+			secretMountPath: existingFile,
+			fallback:        defaultFallback,
+			wantResult:      existingFile,
 		},
 		{
-			name:       "Custom certificate does not exist, falls back",
-			custom:     nonExistentFile,
-			fallback:   defaultFallback,
-			wantResult: defaultFallback,
+			name:            "Mounted secret certificate does not exist, falls back",
+			secretMountPath: nonExistentFile,
+			fallback:        defaultFallback,
+			wantResult:      defaultFallback,
 		},
 		{
-			name:       "Empty custom path, falls back",
-			custom:     "",
-			fallback:   defaultFallback,
-			wantResult: defaultFallback,
+			name:            "Empty secret mount path, falls back",
+			secretMountPath: "",
+			fallback:        defaultFallback,
+			wantResult:      defaultFallback,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := resolveCertPath(tc.custom, tc.fallback)
+			got := resolveCertPath(tc.secretMountPath, tc.fallback)
 			if got != tc.wantResult {
-				t.Errorf("resolveCertPath(%q, %q) = %q, want %q", tc.custom, tc.fallback, got, tc.wantResult)
+				t.Errorf("resolveCertPath(%q, %q) = %q, want %q", tc.secretMountPath, tc.fallback, got, tc.wantResult)
 			}
 		})
 	}
