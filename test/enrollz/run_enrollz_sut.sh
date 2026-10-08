@@ -20,8 +20,8 @@ ROOT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." &>/dev/null && pwd)
 
 go build -o "${ROOT_DIR}/test/enrollz/sut/controller/main" "${ROOT_DIR}/test/enrollz/sut/controller"
 "${ROOT_DIR}/test/enrollz/sut/controller/main" \
-  --alsologtostderr \
-  --vendor_ca_cert_path="${ROOT_DIR}/test/caservice/certs/vendorca.crt" \
-  --owner_ca_cert_path="${ROOT_DIR}/test/caservice/certs/ownerca.crt" \
-  --owner_ca_key_path="${ROOT_DIR}/test/caservice/certs/ownerca.key" \
-  "$@"
+	--alsologtostderr \
+	--vendor_ca_cert_path="${ROOT_DIR}/test/caservice/certs/vendorca.crt" \
+	--owner_ca_cert_path="${ROOT_DIR}/test/caservice/certs/ownerca.crt" \
+	--owner_ca_key_path="${ROOT_DIR}/test/caservice/certs/ownerca.key" \
+	"$@"
