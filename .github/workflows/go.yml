@@ -32,10 +32,11 @@ jobs:
     uses: openconfig/common-ci/.github/workflows/go.yml@49fc521890a243722b1fd43d70d170e46602a787
     with:
       go-versions: "['1.x']"
-      # Exclude the top-level Monax integration test runner (test/enrollz) from unit
-      # test runs, as it requires a live Kubernetes cluster (kind), a physical/virtual
-      # DUT switch, and a vendor-specific caservice PKI implementation.
-      # Unit tests under test/enrollz/sut/controller still run.
-      coverage-excludes-regex: "github.com/openconfig/attestz/test/enrollz$"
-      tests-excludes-regex: "github.com/openconfig/attestz/test/enrollz$"
-      race-tests-excludes-regex: "github.com/openconfig/attestz/test/enrollz$"
+      # Exclude the top-level integration test runners (test/enrollz and
+      # test/attestz) from unit test runs, as they require a running SUT
+      # (Monax/Kubernetes or bare metal), a physical/virtual DUT switch, and a
+      # vendor-specific caservice PKI implementation.
+      # Unit tests under subpackages (e.g. sut/controller, pcrprovider, tpmutil) still run.
+      coverage-excludes-regex: "github.com/openconfig/attestz/test/(enrollz|attestz)$"
+      tests-excludes-regex: "github.com/openconfig/attestz/test/(enrollz|attestz)$"
+      race-tests-excludes-regex: "github.com/openconfig/attestz/test/(enrollz|attestz)$"
