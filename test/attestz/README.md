@@ -4,7 +4,7 @@ The files located in this directory are intended to test [OpenConfig TPM 2.0 Att
 
 We use the **Monax Auto Test Method** via the [Monax](https://github.com/openconfig/monax) test framework to automatically build the Attestz Controller SUT (System Under Test) container image, deploy it into a local KIND (Kubernetes IN Docker) cluster, prepare the switch chassis via `dut.PrepareDUT()`, and execute the integration test suite via `go test`.
 
-Please note that all example commands in this README are shown from the `attestz` repository **root** directory.
+Please note that all example commands in this readme are shown from the `attestz` repository **root** directory.
 
 ## Prerequisites
 
