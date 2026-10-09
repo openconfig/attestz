@@ -4,16 +4,15 @@ The files located in this directory are intended to test [OpenConfig TPM 2.0 Att
 
 We use the **Monax Auto Test Method** via the [Monax](https://github.com/openconfig/monax) test framework to automatically build the Attestz Controller SUT (System Under Test) container image, deploy it into a local KIND (Kubernetes IN Docker) cluster, prepare the switch chassis via `dut.PrepareDUT()`, and execute the integration test suite via `go test`.
 
-> [!NOTE]
-> All example commands in this README are shown from the `attestz` repository **root** directory.
+Please note that all example commands in this README are shown from the `attestz` repository **root** directory.
 
 ## Prerequisites
 
+> [!NOTE]
+> If your switch has not yet been provisioned with Owner certificates, you can run the [Enrollz test suite](../enrollz/README.md) first. **Configure the Attestz SUT (System Under Test) Controller with the exact same Owner Root CA certificate (`ownerca.crt`) and private key (`ownerca.key`) that you used to enroll the switch during Enrollz.**
+
 - **A DUT (Device Under Test)**: This is the switch chassis of your choice, which must be running an image that supports the **OpenConfig TPM 2.0 Attestz** gNSI service (listening on gRPC port `9339` by default).
   - The switch must already be enrolled with Owner certificates (`oIDevID` for mTLS server authentication and `oIAK` for signing TPM 2.0 quotes).
-
-  > [!NOTE]
-  > If your switch has not yet been provisioned with Owner certificates, you can run the [Enrollz test suite](../enrollz/README.md) first. **Configure the Attestz SUT (System Under Test) Controller with the exact same Owner Root CA certificate (`ownerca.crt`) and private key (`ownerca.key`) that you used to enroll the switch during Enrollz.**
 
 - **A Test Host**: A host environment (such as a server or VM; Linux OS is recommended for local KIND networking) with IP network reachability to the DUT's management address. This host runs the **Attestz Controller SUT** container (listening on TCP port `9999`) and executes the test suite against the DUT's gNSI service.
 
@@ -126,8 +125,8 @@ Run the test case corresponding to your switch chassis:
    kind delete cluster
    ```
 
-   > [!NOTE]
-   > If you plan to run more tests later, you can skip deleting the KIND cluster so you don't need to recreate it and re-apply the secret before the next test run.
+> [!NOTE]
+> If you plan to run more tests later, you can skip deleting the KIND cluster so you don't need to recreate it and re-apply the secret before the next test run.
 
 ---
 
