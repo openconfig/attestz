@@ -6,6 +6,8 @@ The files located in this directory are intended to test [OpenConfig TPM 2.0 Enr
 
 - **Monax Auto Test Method**: Use the [Monax](https://github.com/openconfig/monax) test framework to automatically build the Enrollz Controller SUT container image, deploy it into a local KIND (Kubernetes IN Docker) cluster, prepare the switch chassis via `dut.PrepareDUT()`, and execute the integration test suite via `go test`.
 
+Please note that all example commands in this README are shown from the `attestz` repository **root** directory.
+
 ## Prerequisite
 
 > [!NOTE]
