@@ -42,7 +42,7 @@ WORKDIR /app
 COPY --from=builder /attestz-sut ./attestz-sut
 
 # Bake in CA certificates if provided under caservice/certs/
-COPY test/caservice/certs/ ./certs/
+COPY --chown=nonroot:nonroot test/caservice/certs/ ./certs/
 
 USER nonroot
 EXPOSE 9999/tcp

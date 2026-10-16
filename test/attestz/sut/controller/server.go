@@ -43,7 +43,7 @@ type Config struct {
 	OwnerCAKey  string
 }
 
-// loadConfig parses CLI flags and resolves certificate paths from a mounted K8s Secret or the container image.
+// loadConfig parses CLI flags and resolves certificate paths from a mounted K8s Secret with fallback to the container image.
 func loadConfig() *Config {
 	cfg := &Config{}
 	flag.IntVar(&cfg.Port, "controller_port", 9999, "Port for serving RPC requests")
