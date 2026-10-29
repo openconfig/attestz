@@ -169,12 +169,17 @@ func TestValidateCerts(t *testing.T) {
 	trustedPool.AppendCertsFromPEM([]byte(testCertPEMWithDiffSN))
 	trustedPool.AppendCertsFromPEM([]byte(certPEMWithoutSN))
 	trustedPool.AppendCertsFromPEM([]byte(noServerAuthIDevIDCertPEM))
+	validCardID := &cpb.ControlCardVendorId{
+		ControlCardRole:   cpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE,
+		ControlCardSerial: "12345678",
+	}
 	s := &Service{}
 
 	tests := []struct {
 		name              string
 		idevid            string
 		iak               string
+		controlCardID     *cpb.ControlCardVendorId
 		deviceTrustBundle *x509.CertPool
 		wantErrSub        string
 	}{
@@ -182,6 +187,7 @@ func TestValidateCerts(t *testing.T) {
 			name:              "Missing idevid cert",
 			idevid:            "",
 			iak:               dummyPEM,
+			controlCardID:     validCardID,
 			deviceTrustBundle: fakePool,
 			wantErrSub:        "missing certificate or trust bundle",
 		},
@@ -189,6 +195,7 @@ func TestValidateCerts(t *testing.T) {
 			name:              "Missing iak cert",
 			idevid:            dummyPEM,
 			iak:               "",
+			controlCardID:     validCardID,
 			deviceTrustBundle: fakePool,
 			wantErrSub:        "missing certificate or trust bundle",
 		},
@@ -196,13 +203,23 @@ func TestValidateCerts(t *testing.T) {
 			name:              "Nil trust bundle",
 			idevid:            dummyPEM,
 			iak:               dummyPEM,
+			controlCardID:     validCardID,
 			deviceTrustBundle: nil,
 			wantErrSub:        "missing certificate or trust bundle",
+		},
+		{
+			name:              "Nil control card ID",
+			idevid:            validTestCertPEMWithSN,
+			iak:               validTestCertPEMWithSN,
+			controlCardID:     nil,
+			deviceTrustBundle: trustedPool,
+			wantErrSub:        "missing control card ID",
 		},
 		{
 			name:              "Malformed idevid PEM",
 			idevid:            "NOT-A-PEM-STRING",
 			iak:               dummyPEM,
+			controlCardID:     validCardID,
 			deviceTrustBundle: fakePool,
 			wantErrSub:        "failed to decode IDevID PEM",
 		},
@@ -210,6 +227,7 @@ func TestValidateCerts(t *testing.T) {
 			name:              "Malformed iak PEM",
 			idevid:            validTestCertPEMWithSN,
 			iak:               "NOT-A-PEM-STRING",
+			controlCardID:     validCardID,
 			deviceTrustBundle: fakePool,
 			wantErrSub:        "failed to decode IAK PEM",
 		},
@@ -217,6 +235,7 @@ func TestValidateCerts(t *testing.T) {
 			name:              "Invalid cert DER bytes in IDevID",
 			idevid:            invalidDERPEM,
 			iak:               validTestCertPEMWithSN,
+			controlCardID:     validCardID,
 			deviceTrustBundle: fakePool,
 			wantErrSub:        "failed to parse IDevID cert",
 		},
@@ -224,6 +243,7 @@ func TestValidateCerts(t *testing.T) {
 			name:              "Invalid cert DER bytes in IAK",
 			idevid:            validTestCertPEMWithSN,
 			iak:               invalidDERPEM,
+			controlCardID:     validCardID,
 			deviceTrustBundle: fakePool,
 			wantErrSub:        "failed to parse IAK cert",
 		},
@@ -231,6 +251,7 @@ func TestValidateCerts(t *testing.T) {
 			name:              "Untrusted IDevID cert",
 			idevid:            validTestCertPEMWithSN,
 			iak:               validTestCertPEMWithSN,
+			controlCardID:     validCardID,
 			deviceTrustBundle: fakePool,
 			wantErrSub:        "failed to verify IDevID",
 		},
@@ -238,20 +259,46 @@ func TestValidateCerts(t *testing.T) {
 			name:              "Empty serial number in certificates",
 			idevid:            certPEMWithoutSN,
 			iak:               certPEMWithoutSN,
+			controlCardID:     validCardID,
 			deviceTrustBundle: trustedPool,
 			wantErrSub:        "certificate missing subject serial number",
 		},
 		{
-			name:              "Serial number mismatch",
+			name:              "Serial number mismatch between IAK and IDevID",
 			idevid:            validTestCertPEMWithSN,
 			iak:               testCertPEMWithDiffSN,
+			controlCardID:     validCardID,
 			deviceTrustBundle: trustedPool,
 			wantErrSub:        "serial number mismatch",
 		},
 		{
-			name:              "Valid certificates with matching serial numbers",
+			name:   "Serial number mismatch with control card ID",
+			idevid: validTestCertPEMWithSN,
+			iak:    validTestCertPEMWithSN,
+			controlCardID: &cpb.ControlCardVendorId{
+				ControlCardRole:     cpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE,
+				ControlCardSerial:   "99999999",
+				ChassisSerialNumber: "88888888",
+			},
+			deviceTrustBundle: trustedPool,
+			wantErrSub:        "does not match control card serial",
+		},
+		{
+			name:              "Valid certificates with matching control card serial",
 			idevid:            validTestCertPEMWithSN,
 			iak:               validTestCertPEMWithSN,
+			controlCardID:     validCardID,
+			deviceTrustBundle: trustedPool,
+			wantErrSub:        "",
+		},
+		{
+			name:   "Valid certificates with matching chassis serial number",
+			idevid: validTestCertPEMWithSN,
+			iak:    validTestCertPEMWithSN,
+			controlCardID: &cpb.ControlCardVendorId{
+				ControlCardRole:     cpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE,
+				ChassisSerialNumber: "12345678",
+			},
 			deviceTrustBundle: trustedPool,
 			wantErrSub:        "",
 		},
@@ -259,6 +306,7 @@ func TestValidateCerts(t *testing.T) {
 			name:              "Valid IDevID without ServerAuth EKU",
 			idevid:            noServerAuthIDevIDCertPEM,
 			iak:               validTestCertPEMWithSN,
+			controlCardID:     validCardID,
 			deviceTrustBundle: trustedPool,
 			wantErrSub:        "",
 		},
@@ -266,7 +314,7 @@ func TestValidateCerts(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			err := s.validateCerts(tc.idevid, tc.iak, tc.deviceTrustBundle)
+			err := s.validateCerts(tc.idevid, tc.iak, tc.controlCardID, tc.deviceTrustBundle)
 			if tc.wantErrSub == "" {
 				if err != nil {
 					t.Fatalf("validateCerts() unexpected error: %v", err)
@@ -435,6 +483,10 @@ func TestFetchAndValidateControlCardCerts_AtomicCertRotationSupported(t *testing
 				getIakCertFn: func(ctx context.Context, in *epb.GetIakCertRequest, opts ...grpc.CallOption) (*epb.GetIakCertResponse, error) {
 					role := in.GetControlCardSelection().GetRole()
 					return &epb.GetIakCertResponse{
+						ControlCardId: &cpb.ControlCardVendorId{
+							ControlCardRole:   role,
+							ControlCardSerial: "12345678",
+						},
 						IakCert:                     validTestCertPEMWithSN,
 						IdevidCert:                  validTestCertPEMWithSN,
 						AtomicCertRotationSupported: tc.dutRespAtomicByCard[role],
