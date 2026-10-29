@@ -18,11 +18,18 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
+	"math/big"
 	"strings"
 	"testing"
+	"time"
 
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -30,6 +37,15 @@ import (
 	epb "github.com/openconfig/attestz/proto/tpm_enrollz"
 	sutpb "github.com/openconfig/attestz/test/enrollz/proto"
 )
+
+type mockEnrollzClient struct {
+	epb.TpmEnrollzServiceClient
+	getIakCertFn func(ctx context.Context, in *epb.GetIakCertRequest, opts ...grpc.CallOption) (*epb.GetIakCertResponse, error)
+}
+
+func (m *mockEnrollzClient) GetIakCert(ctx context.Context, in *epb.GetIakCertRequest, opts ...grpc.CallOption) (*epb.GetIakCertResponse, error) {
+	return m.getIakCertFn(ctx, in, opts...)
+}
 
 // mockPKIProvider implements caservice.PKIProvider for unit testing.
 type mockPKIProvider struct {
@@ -118,12 +134,41 @@ func TestGetSerialNumber(t *testing.T) {
 	}
 }
 
+func generateTestCertPEMWithEKU(t *testing.T, extKeyUsage []x509.ExtKeyUsage) string {
+	t.Helper()
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("rsa.GenerateKey() error: %v", err)
+	}
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			CommonName:   "Test Device",
+			SerialNumber: "SN: 12345678",
+		},
+		NotBefore:             time.Now().Add(-1 * time.Hour),
+		NotAfter:              time.Now().Add(1 * time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+		ExtKeyUsage:           extKeyUsage,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &priv.PublicKey, priv)
+	if err != nil {
+		t.Fatalf("x509.CreateCertificate() error: %v", err)
+	}
+	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))
+}
+
 func TestValidateCerts(t *testing.T) {
+	// Verify that validateCerts (using ExtKeyUsageAny) accepts an IDevID cert without ServerAuth.
+	noServerAuthIDevIDCertPEM := generateTestCertPEMWithEKU(t, []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth})
 	fakePool := x509.NewCertPool()
 	trustedPool := x509.NewCertPool()
 	trustedPool.AppendCertsFromPEM([]byte(validTestCertPEMWithSN))
 	trustedPool.AppendCertsFromPEM([]byte(testCertPEMWithDiffSN))
 	trustedPool.AppendCertsFromPEM([]byte(certPEMWithoutSN))
+	trustedPool.AppendCertsFromPEM([]byte(noServerAuthIDevIDCertPEM))
 	s := &Service{}
 
 	tests := []struct {
@@ -206,6 +251,13 @@ func TestValidateCerts(t *testing.T) {
 		{
 			name:              "Valid certificates with matching serial numbers",
 			idevid:            validTestCertPEMWithSN,
+			iak:               validTestCertPEMWithSN,
+			deviceTrustBundle: trustedPool,
+			wantErrSub:        "",
+		},
+		{
+			name:              "Valid IDevID without ServerAuth EKU",
+			idevid:            noServerAuthIDevIDCertPEM,
 			iak:               validTestCertPEMWithSN,
 			deviceTrustBundle: trustedPool,
 			wantErrSub:        "",
@@ -320,5 +372,82 @@ func TestIssueOwnerCerts_PKIFailure(t *testing.T) {
 	}
 	if status.Code(err) != codes.Internal {
 		t.Errorf("issueOwnerCerts() error code = %v, want %v", status.Code(err), codes.Internal)
+	}
+}
+
+func TestFetchAndValidateControlCardCerts_AtomicCertRotationSupported(t *testing.T) {
+	trustedPool := x509.NewCertPool()
+	trustedPool.AppendCertsFromPEM([]byte(validTestCertPEMWithSN))
+	s := New(&mockPKIProvider{
+		deviceTrustBundleFn: func() *x509.CertPool { return trustedPool },
+	})
+
+	active := cpb.ControlCardRole_CONTROL_CARD_ROLE_ACTIVE
+	standby := cpb.ControlCardRole_CONTROL_CARD_ROLE_STANDBY
+
+	tests := []struct {
+		name                string
+		roles               []cpb.ControlCardRole
+		dutRespAtomicByCard map[cpb.ControlCardRole]bool
+		wantCodes           map[cpb.ControlCardRole]codes.Code
+	}{
+		{
+			name:                "Single control card with atomic_cert_rotation_supported=false succeeds",
+			roles:               []cpb.ControlCardRole{active},
+			dutRespAtomicByCard: map[cpb.ControlCardRole]bool{active: false},
+			wantCodes:           map[cpb.ControlCardRole]codes.Code{active: codes.OK},
+		},
+		{
+			name:                "Single control card with atomic_cert_rotation_supported=true succeeds",
+			roles:               []cpb.ControlCardRole{active},
+			dutRespAtomicByCard: map[cpb.ControlCardRole]bool{active: true},
+			wantCodes:           map[cpb.ControlCardRole]codes.Code{active: codes.OK},
+		},
+		{
+			name:                "Multiple control cards with atomic_cert_rotation_supported=true on both cards succeeds",
+			roles:               []cpb.ControlCardRole{active, standby},
+			dutRespAtomicByCard: map[cpb.ControlCardRole]bool{active: true, standby: true},
+			wantCodes:           map[cpb.ControlCardRole]codes.Code{active: codes.OK, standby: codes.OK},
+		},
+		{
+			name:                "Multiple control cards with atomic_cert_rotation_supported=false on both cards fails",
+			roles:               []cpb.ControlCardRole{active, standby},
+			dutRespAtomicByCard: map[cpb.ControlCardRole]bool{active: false, standby: false},
+			wantCodes: map[cpb.ControlCardRole]codes.Code{
+				active:  codes.FailedPrecondition,
+				standby: codes.FailedPrecondition,
+			},
+		},
+		{
+			name:                "Multiple control cards with mismatched atomic_cert_rotation_supported fails",
+			roles:               []cpb.ControlCardRole{active, standby},
+			dutRespAtomicByCard: map[cpb.ControlCardRole]bool{active: true, standby: false},
+			wantCodes: map[cpb.ControlCardRole]codes.Code{
+				active:  codes.OK,
+				standby: codes.FailedPrecondition,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := &mockEnrollzClient{
+				getIakCertFn: func(ctx context.Context, in *epb.GetIakCertRequest, opts ...grpc.CallOption) (*epb.GetIakCertResponse, error) {
+					role := in.GetControlCardSelection().GetRole()
+					return &epb.GetIakCertResponse{
+						IakCert:                     validTestCertPEMWithSN,
+						IdevidCert:                  validTestCertPEMWithSN,
+						AtomicCertRotationSupported: tc.dutRespAtomicByCard[role],
+					}, nil
+				},
+			}
+			requireAtomic := len(tc.roles) > 1
+			for _, role := range tc.roles {
+				_, err := s.fetchAndValidateControlCardCerts(context.Background(), client, role, requireAtomic)
+				if status.Code(err) != tc.wantCodes[role] {
+					t.Errorf("fetchAndValidateControlCardCerts(%v) code = %v, want %v (err: %v)", role, status.Code(err), tc.wantCodes[role], err)
+				}
+			}
+		})
 	}
 }

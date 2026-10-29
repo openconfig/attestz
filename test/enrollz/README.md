@@ -167,7 +167,7 @@ From the `attestz` repository **root** directory, run the test case correspondin
 
 1. `TestMain` automatically builds the `openconfig/enrollz-sut:latest` Docker image from the repository root, loads it into KIND, deploys the SUT controller pod and service into the `default` namespace, and establishes a gRPC client connection (`enrollzSUTClient`).
 2. `TestMain` calls `dut.PrepareDUT()` to prepare the switch and obtain `dutTarget.Host` and `dutTarget.Port`.
-3. Each test case invokes `enrollzSUTClient.EnrollDevice()`, instructing the SUT controller to dial the switch over gNSI, verify its hardware identity certificates against the Vendor CA bundle, verify the TPM 2.0 quote, and rotate/install the new Owner certificate.
+3. Each test case invokes `enrollzSUTClient.EnrollDevice()`, instructing the SUT controller to dial the switch over gNSI, verify its hardware identity and attestation key certificates against the Vendor CA bundle, and rotate/install the new Owner certificates.
 
 ### Monax Cleanup
 

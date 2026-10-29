@@ -70,10 +70,11 @@ func (s *Service) EnrollDevice(ctx context.Context, req *sutpb.EnrollDeviceReque
 
 	gnsiClient := epb.NewTpmEnrollzServiceClient(conn)
 
+	requireAtomic := len(roles) > 1
 	cardGetCertResps := make(map[cpb.ControlCardRole]*epb.GetIakCertResponse)
 	var cardResults []*sutpb.ControlCardEnrollmentResult
 	for _, role := range roles {
-		resp, err := s.fetchAndValidateControlCardCerts(ctx, gnsiClient, role)
+		resp, err := s.fetchAndValidateControlCardCerts(ctx, gnsiClient, role, requireAtomic)
 		if err != nil {
 			cardResults = append(cardResults, &sutpb.ControlCardEnrollmentResult{
 				ControlCardRole: role,
@@ -98,27 +99,28 @@ func (s *Service) EnrollDevice(ctx context.Context, req *sutpb.EnrollDeviceReque
 		updates = append(updates, update)
 	}
 
-	// Rotate each card individually.
-	for _, u := range updates {
-		role := u.GetControlCardSelection().GetRole()
-		rotateReq := &epb.RotateOIakCertRequest{
-			SslProfileId: req.GetSslProfileId(),
-			Updates:      []*epb.ControlCardCertUpdate{u},
-		}
-		if _, err := gnsiClient.RotateOIakCert(ctx, rotateReq); err != nil {
+	// Rotate all selected control cards atomically in a single request.
+	rotateReq := &epb.RotateOIakCertRequest{
+		SslProfileId: req.GetSslProfileId(),
+		Updates:      updates,
+	}
+	if _, err := gnsiClient.RotateOIakCert(ctx, rotateReq); err != nil {
+		for _, u := range updates {
 			cardResults = append(cardResults, &sutpb.ControlCardEnrollmentResult{
-				ControlCardRole: role,
+				ControlCardRole: u.GetControlCardSelection().GetRole(),
 				Status: &statuspb.Status{
 					Code:    int32(codes.Aborted),
 					Message: fmt.Sprintf("RotateOIakCert failed: %v", err),
 				},
 			})
-			continue
 		}
-		cardResults = append(cardResults, &sutpb.ControlCardEnrollmentResult{
-			ControlCardRole: role,
-			Status:          &statuspb.Status{Code: int32(codes.OK)},
-		})
+	} else {
+		for _, u := range updates {
+			cardResults = append(cardResults, &sutpb.ControlCardEnrollmentResult{
+				ControlCardRole: u.GetControlCardSelection().GetRole(),
+				Status:          &statuspb.Status{Code: int32(codes.OK)},
+			})
+		}
 	}
 
 	glog.Infof("Completed EnrollDevice for ControlCardRoles=%v", roles)
@@ -146,7 +148,7 @@ func (s *Service) dialDUT(ctx context.Context, target string) (*grpc.ClientConn,
 }
 
 // fetchAndValidateControlCardCerts retrieves and validates certificates for a single control card from the DUT.
-func (s *Service) fetchAndValidateControlCardCerts(ctx context.Context, gnsiClient epb.TpmEnrollzServiceClient, role cpb.ControlCardRole) (*epb.GetIakCertResponse, error) {
+func (s *Service) fetchAndValidateControlCardCerts(ctx context.Context, gnsiClient epb.TpmEnrollzServiceClient, role cpb.ControlCardRole, requireAtomic bool) (*epb.GetIakCertResponse, error) {
 	iakReq := &epb.GetIakCertRequest{
 		ControlCardSelection: &cpb.ControlCardSelection{
 			ControlCardId: &cpb.ControlCardSelection_Role{Role: role},
@@ -157,6 +159,14 @@ func (s *Service) fetchAndValidateControlCardCerts(ctx context.Context, gnsiClie
 		return nil, status.Errorf(codes.Unavailable, "GetIakCert failed: %v", err)
 	}
 	glog.Infof("Received GetIakCert response for ControlCardRole=%v from DUT", role)
+
+	if requireAtomic && !iakResp.GetAtomicCertRotationSupported() {
+		return nil, status.Errorf(
+			codes.FailedPrecondition,
+			"atomic_cert_rotation_supported must be true for role %v when enrolling multiple control cards",
+			role,
+		)
+	}
 
 	if err := s.validateCerts(iakResp.GetIdevidCert(), iakResp.GetIakCert(), s.pkiProvider.DeviceTrustBundle()); err != nil {
 		return nil, status.Errorf(codes.FailedPrecondition, "failed to validate certificates: %v", err)
@@ -189,7 +199,14 @@ func (s *Service) validateCerts(idevidPem, iakPem string, deviceTrustBundle *x50
 		return fmt.Errorf("failed to parse IAK cert: %w", err)
 	}
 
-	opts := x509.VerifyOptions{Roots: deviceTrustBundle}
+	// To support TCG-compliant IDevID certificates provisioned with id-kp-clientAuth per
+	// TCG TPM 2.0 Keys for Device Identity and Attestation Section 8.1 ("Extended Key Usage"):
+	// https://trustedcomputinggroup.org/wp-content/uploads/TPM-2.0-Keys-for-Device-Identity-and-Attestation-v1.10r9_pub.pdf
+	// set ExtKeyUsageAny so certificates with or without ServerAuth are accepted.
+	opts := x509.VerifyOptions{
+		Roots:     deviceTrustBundle,
+		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+	}
 	if _, err := idevidCert.Verify(opts); err != nil {
 		return fmt.Errorf("failed to verify IDevID: %w", err)
 	}
