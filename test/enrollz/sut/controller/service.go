@@ -168,7 +168,7 @@ func (s *Service) fetchAndValidateControlCardCerts(ctx context.Context, gnsiClie
 		)
 	}
 
-	if err := s.validateCerts(iakResp.GetIdevidCert(), iakResp.GetIakCert(), s.pkiProvider.DeviceTrustBundle()); err != nil {
+	if err := s.validateCerts(iakResp.GetIdevidCert(), iakResp.GetIakCert(), iakResp.GetControlCardId(), s.pkiProvider.DeviceTrustBundle()); err != nil {
 		return nil, status.Errorf(codes.FailedPrecondition, "failed to validate certificates: %v", err)
 	}
 	glog.Infof("Validated certificates for ControlCardRole=%v", role)
@@ -176,9 +176,12 @@ func (s *Service) fetchAndValidateControlCardCerts(ctx context.Context, gnsiClie
 	return iakResp, nil
 }
 
-func (s *Service) validateCerts(idevidPem, iakPem string, deviceTrustBundle *x509.CertPool) error {
+func (s *Service) validateCerts(idevidPem, iakPem string, controlCardID *cpb.ControlCardVendorId, deviceTrustBundle *x509.CertPool) error {
 	if idevidPem == "" || iakPem == "" || deviceTrustBundle == nil {
 		return fmt.Errorf("missing certificate or trust bundle")
+	}
+	if controlCardID == nil {
+		return fmt.Errorf("missing control card ID")
 	}
 
 	idevidBlock, _ := pem.Decode([]byte(idevidPem))
@@ -214,7 +217,7 @@ func (s *Service) validateCerts(idevidPem, iakPem string, deviceTrustBundle *x50
 		return fmt.Errorf("failed to verify IAK: %w", err)
 	}
 
-	// Verify serial numbers match across IDevID and IAK
+	// Verify serial numbers match across IDevID, IAK, and control_card_id.
 	iakSN := getSerialNumber(iakCert.Subject.SerialNumber)
 	idevidSN := getSerialNumber(idevidCert.Subject.SerialNumber)
 	if iakSN == "" || idevidSN == "" {
@@ -222,6 +225,14 @@ func (s *Service) validateCerts(idevidPem, iakPem string, deviceTrustBundle *x50
 	}
 	if iakSN != idevidSN {
 		return fmt.Errorf("serial number mismatch: IAK=%q, IDevID=%q", iakSN, idevidSN)
+	}
+	if iakSN != controlCardID.GetControlCardSerial() && iakSN != controlCardID.GetChassisSerialNumber() {
+		return fmt.Errorf(
+			"certificate serial number %q does not match control card serial %q or chassis serial %q",
+			iakSN,
+			controlCardID.GetControlCardSerial(),
+			controlCardID.GetChassisSerialNumber(),
+		)
 	}
 	return nil
 }
