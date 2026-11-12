@@ -331,7 +331,13 @@ func createMockRSATPMTPublic(pub *rsa.PublicKey) *tpm2.TPMTPublic {
 	}
 }
 
-func createMockECDSATPMTPublic(pub *ecdsa.PublicKey) *tpm2.TPMTPublic {
+func createMockECDSATPMTPublic(t *testing.T, pub *ecdsa.PublicKey) *tpm2.TPMTPublic {
+	t.Helper()
+	coordLen := (pub.Curve.Params().BitSize + 7) / 8
+	pubBytes, err := pub.Bytes()
+	if err != nil || len(pubBytes) != 2*coordLen+1 {
+		t.Fatalf("pub.Bytes() len = %d, err = %v", len(pubBytes), err)
+	}
 	return &tpm2.TPMTPublic{
 		Type:    tpm2.TPMAlgECC,
 		NameAlg: tpm2.TPMAlgSHA384,
@@ -348,8 +354,8 @@ func createMockECDSATPMTPublic(pub *ecdsa.PublicKey) *tpm2.TPMTPublic {
 		Unique: tpm2.NewTPMUPublicID(
 			tpm2.TPMAlgECC,
 			&tpm2.TPMSECCPoint{
-				X: tpm2.TPM2BECCParameter{Buffer: pub.X.Bytes()},
-				Y: tpm2.TPM2BECCParameter{Buffer: pub.Y.Bytes()},
+				X: tpm2.TPM2BECCParameter{Buffer: pubBytes[1 : 1+coordLen]},
+				Y: tpm2.TPM2BECCParameter{Buffer: pubBytes[1+coordLen:]},
 			},
 		),
 	}
@@ -484,7 +490,7 @@ func TestAttestControlCard_OIAKVerification(t *testing.T) {
 		},
 	}
 	rsaTPMPublic := createMockRSATPMTPublic(&rsaPriv.PublicKey)
-	ecdsaTPMPublic := createMockECDSATPMTPublic(&ecdsaPriv.PublicKey)
+	ecdsaTPMPublic := createMockECDSATPMTPublic(t, &ecdsaPriv.PublicKey)
 
 	tests := []struct {
 		name       string
