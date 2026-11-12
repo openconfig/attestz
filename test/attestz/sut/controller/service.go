@@ -159,8 +159,12 @@ func (s *Service) attestControlCard(ctx context.Context, client apb.TpmAttestzSe
 		}
 	}
 
+	// Explicitly set ExtKeyUsageAny because oIAK is a TPM attestation signing key rather than a
+	// TLS server certificate, and Go's x509.VerifyOptions defaults to requiring ExtKeyUsageServerAuth
+	// when KeyUsages is unset.
 	certVerificationOpts := x509.VerifyOptions{
-		Roots: s.pkiProvider.OwnerTrustBundle(),
+		Roots:     s.pkiProvider.OwnerTrustBundle(),
+		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
 	}
 	leafCert, err := biz.VerifyAndParsePemCert(ctx, attestResp.GetAttestationCert().GetOiakCert(), certVerificationOpts)
 	if err != nil {
