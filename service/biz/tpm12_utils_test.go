@@ -3366,3 +3366,115 @@ func TestSerializeSymCAAttestation(t *testing.T) {
 		}
 	})
 }
+
+// TestTPM12Parsers_SizeExceedsInput checks that the TPM 1.2 parsers reject a size field larger than
+// the rest of the input. The expected error comes from the length check in readBytes, which runs
+// before a buffer is allocated for the field.
+func TestTPM12Parsers_SizeExceedsInput(t *testing.T) {
+	const maxSize = math.MaxUint32 // Largest value a 4-byte size field can hold.
+
+	// keyParms.toBytes() derives paramSize from parms, and identityRequest.toBytes() allocates blobs
+	// of the given sizes. For these two structures a valid encoding is built first and the size
+	// field is overwritten afterwards.
+	keyParmsBytes := keyParms{
+		algID:     tpm12.AlgRSA,
+		encScheme: EsRSAEsPKCSv15,
+		sigScheme: SsRSASaPKCS1v15SHA1,
+		parms:     rsaKeyParms{}.toBytes(),
+	}.toBytes()
+	binary.BigEndian.PutUint32(keyParmsBytes[8:12], maxSize) // paramSize
+	asymBlobRequestBytes := identityRequest{}.toBytes()
+	binary.BigEndian.PutUint32(asymBlobRequestBytes[0:4], maxSize) // asymBlobSize
+	symBlobRequestBytes := identityRequest{}.toBytes()
+	binary.BigEndian.PutUint32(symBlobRequestBytes[4:8], maxSize) // symBlobSize
+
+	parseSymmetricKeyParms := func(u *DefaultTPM12Utils, input []byte) error {
+		_, err := u.ParseSymmetricKeyParms(input)
+		return err
+	}
+	parseRSAKeyParms := func(u *DefaultTPM12Utils, input []byte) error {
+		_, err := u.ParseRSAKeyParms(input)
+		return err
+	}
+	parseKeyParms := func(u *DefaultTPM12Utils, input []byte) error {
+		_, err := u.ParseKeyParmsFromReader(bytes.NewReader(input))
+		return err
+	}
+	parseIdentityRequest := func(u *DefaultTPM12Utils, input []byte) error {
+		_, err := u.ParseIdentityRequest(input)
+		return err
+	}
+	parseIdentityProof := func(u *DefaultTPM12Utils, input []byte) error {
+		_, err := u.ParseIdentityProof(input)
+		return err
+	}
+	parseStorePubKey := func(u *DefaultTPM12Utils, input []byte) error {
+		_, err := u.ParseStorePubKeyFromReader(bytes.NewReader(input))
+		return err
+	}
+
+	testCases := []struct {
+		name          string
+		parse         func(u *DefaultTPM12Utils, input []byte) error
+		input         []byte
+		expectedError string
+	}{
+		{
+			name:          "ParseSymmetricKeyParms ivSize",
+			parse:         parseSymmetricKeyParms,
+			input:         symmetricKeyParms{ivSize: ptrUint32(maxSize)}.toBytes(),
+			expectedError: "failed to read IV (size 4294967295): size 4294967295 exceeds the 16 bytes remaining in the input",
+		},
+		{
+			name:          "ParseRSAKeyParms exponentSize",
+			parse:         parseRSAKeyParms,
+			input:         rsaKeyParms{exponentSize: ptrUint32(maxSize)}.toBytes(),
+			expectedError: "failed to read exponent: size 4294967295 exceeds the 3 bytes remaining in the input",
+		},
+		{
+			name:          "ParseRSAKeyParms malformed TrouSerS exponentSize followed by an exponent",
+			parse:         parseRSAKeyParms,
+			input:         rsaKeyParms{exponentSize: ptrUint32(0x03000000)}.toBytes(),
+			expectedError: "failed to read exponent: size 50331648 exceeds the 3 bytes remaining in the input",
+		},
+		{
+			name:          "ParseKeyParmsFromReader paramSize",
+			parse:         parseKeyParms,
+			input:         keyParmsBytes,
+			expectedError: "failed to read parms (size 4294967295): size 4294967295 exceeds the 15 bytes remaining in the input",
+		},
+		{
+			name:          "ParseIdentityRequest asymBlobSize",
+			parse:         parseIdentityRequest,
+			input:         asymBlobRequestBytes,
+			expectedError: "failed to read asymBlob: size 4294967295 exceeds the 26 bytes remaining in the input",
+		},
+		{
+			name:          "ParseIdentityRequest symBlobSize",
+			parse:         parseIdentityRequest,
+			input:         symBlobRequestBytes,
+			expectedError: "failed to read symBlob: size 4294967295 exceeds the 16 bytes remaining in the input",
+		},
+		{
+			name:          "ParseIdentityProof LabelArea size",
+			parse:         parseIdentityProof,
+			input:         buildIdentityProofBytes(t, identityProof{LabelAreaSize: ptrUint32(maxSize)}),
+			expectedError: "failed to read LabelArea: size 4294967295 exceeds the 34 bytes remaining in the input",
+		},
+		{
+			name:          "ParseStorePubKeyFromReader keyLength",
+			parse:         parseStorePubKey,
+			input:         storePubkey{keyLength: ptrUint32(maxSize)}.toBytes(),
+			expectedError: "failed to read key: size 4294967295 exceeds the 10 bytes remaining in the input",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.parse(&DefaultTPM12Utils{}, tc.input)
+			if err == nil || !strings.Contains(err.Error(), tc.expectedError) {
+				t.Errorf("got error %v, want error containing %q", err, tc.expectedError)
+			}
+		})
+	}
+}
