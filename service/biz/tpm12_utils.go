@@ -66,6 +66,8 @@ var (
 	ErrInvalidPadding = errors.New("invalid padding")
 	// ErrEmptyCiphertext is returned when the ciphertext is empty.
 	ErrEmptyCiphertext = errors.New("ciphertext is empty")
+	// ErrInvalidIVLength is returned when the IV length does not match the cipher block size.
+	ErrInvalidIVLength = errors.New("invalid IV length")
 )
 
 // Note: All the uint values in TPM_* structures in this file use big endian (network byte order).
@@ -826,6 +828,11 @@ func (u *DefaultTPM12Utils) DecryptWithSymmetricKey(ctx context.Context, symKey 
 		ciphertext = ciphertext[cipherBlock.BlockSize():]
 	}
 
+	// The IV must be exactly one block long: cipher.NewCBCDecrypter panics otherwise.
+	if len(iv) != cipherBlock.BlockSize() {
+		return nil, fmt.Errorf("%w: got %d bytes, want %d", ErrInvalidIVLength, len(iv), cipherBlock.BlockSize())
+	}
+
 	// The ciphertext must be a non-empty multiple of the block size.
 	if len(ciphertext) == 0 {
 		return nil, ErrEmptyCiphertext
@@ -841,9 +848,10 @@ func (u *DefaultTPM12Utils) DecryptWithSymmetricKey(ctx context.Context, symKey 
 	plaintext := make([]byte, len(ciphertext))
 	decrypter.CryptBlocks(plaintext, ciphertext)
 
-	// Unpad the decrypted plaintext using PKCS#5/PKCS#7.
+	// Unpad the decrypted plaintext using PKCS#5/PKCS#7. A valid padding value is between 1 and
+	// the block size.
 	padding := int(plaintext[len(plaintext)-1])
-	if padding > len(plaintext) || padding == 0 {
+	if padding > len(plaintext) || padding > cipherBlock.BlockSize() || padding == 0 {
 		return nil, fmt.Errorf("PKCS#5: %w: invalid value %d", ErrInvalidPadding, padding)
 	}
 	// Verify that all padding bytes are correct.
