@@ -2586,6 +2586,201 @@ func TestDecryptWithSymmetricKey_Failure(t *testing.T) {
 	}
 }
 
+func TestDecryptWithSymmetricKey_InvalidIVLength(t *testing.T) {
+	u := &DefaultTPM12Utils{}
+	ctx := context.Background()
+	keyBytes := bytes.Repeat([]byte{0x11}, 32) // 32 bytes for AES-256
+	plaintext := []byte("This is a secret message.")
+
+	// The ciphertext is valid, so the IV length is the only thing wrong with each input.
+	validCiphertext, _ := encryptWithAESCBC(t, keyBytes, plaintext)
+
+	testCases := []struct {
+		name  string
+		ivLen int
+	}{
+		{name: "Single byte IV", ivLen: 1},
+		{name: "Short IV", ivLen: 5},
+		{name: "IV one byte shorter than block size", ivLen: aes.BlockSize - 1},
+		{name: "IV one byte longer than block size", ivLen: aes.BlockSize + 1},
+		{name: "IV of two blocks", ivLen: 2 * aes.BlockSize},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			symKey := &TPMSymmetricKey{
+				Key: keyBytes,
+			}
+			keyParams := &TPMKeyParms{
+				EncScheme: EsSymCBCPKCS5,
+				Params: TPMParams{
+					SymParams: &TPMSymmetricKeyParms{IV: make([]byte, tc.ivLen)},
+				},
+			}
+
+			_, err := u.DecryptWithSymmetricKey(ctx, symKey, keyParams, validCiphertext)
+
+			if err == nil {
+				t.Fatalf("DecryptWithSymmetricKey() expected an error for a %d-byte IV, but got nil", tc.ivLen)
+			}
+			if !errors.Is(err, ErrInvalidIVLength) {
+				t.Errorf("DecryptWithSymmetricKey() error = %v, want error to wrap %v", err, ErrInvalidIVLength)
+			}
+		})
+	}
+}
+
+func TestDecryptWithSymmetricKey_InvalidIVLengthFromIdentityRequest(t *testing.T) {
+	// An identity request whose symmetric key parameters carry an IV of the wrong length still
+	// parses, so the IV length has to be rejected when the symmetric blob is decrypted.
+	u := &DefaultTPM12Utils{}
+	ctx := context.Background()
+	keyBytes := bytes.Repeat([]byte{0x11}, 16) // 16 bytes for AES-128
+	symBlob, _ := encryptWithAESCBC(t, keyBytes, []byte("This is a secret message."))
+
+	testCases := []struct {
+		name   string
+		ivSize uint32
+	}{
+		{name: "IV shorter than block size", ivSize: 5},
+		{name: "IV longer than block size", ivSize: aes.BlockSize + 1},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			iv := make([]byte, tc.ivSize)
+			input := identityRequest{
+				symBlobSize: ptrUint32(uint32(len(symBlob))),
+				symKeyParms: keyParms{
+					algID:     tpm12.AlgAES128,
+					encScheme: EsSymCBCPKCS5,
+					sigScheme: SsNone,
+					parms: symmetricKeyParms{
+						ivSize: ptrUint32(tc.ivSize),
+						iv:     &iv,
+					}.toBytes(),
+				}.toBytes(),
+				symBlob: symBlob,
+			}.toBytes()
+
+			identityReq, err := u.ParseIdentityRequest(input)
+			if err != nil {
+				t.Fatalf("ParseIdentityRequest() returned an unexpected error: %v", err)
+			}
+
+			symKey := &TPMSymmetricKey{
+				Key: keyBytes,
+			}
+			_, err = u.DecryptWithSymmetricKey(ctx, symKey, &identityReq.SymAlgorithm, identityReq.SymBlob)
+
+			if err == nil {
+				t.Fatalf("DecryptWithSymmetricKey() expected an error for a %d-byte IV, but got nil", tc.ivSize)
+			}
+			if !errors.Is(err, ErrInvalidIVLength) {
+				t.Errorf("DecryptWithSymmetricKey() error = %v, want error to wrap %v", err, ErrInvalidIVLength)
+			}
+		})
+	}
+}
+
+func TestDecryptWithSymmetricKey_PaddingLargerThanBlockSize(t *testing.T) {
+	u := &DefaultTPM12Utils{}
+	ctx := context.Background()
+	keyBytes := bytes.Repeat([]byte{0x11}, 32) // 32 bytes for AES-256
+
+	testCases := []struct {
+		name string
+		// paddedPlaintext is block-aligned and ends in a consistent run of padding bytes whose
+		// value is larger than the block size.
+		paddedPlaintext []byte
+	}{
+		{
+			name: "Padding one byte longer than block size",
+			paddedPlaintext: append(
+				bytes.Repeat([]byte{0xaa}, aes.BlockSize-1),
+				bytes.Repeat([]byte{aes.BlockSize + 1}, aes.BlockSize+1)...),
+		},
+		{
+			name:            "Padding of two blocks",
+			paddedPlaintext: bytes.Repeat([]byte{2 * aes.BlockSize}, 2*aes.BlockSize),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// encryptWithAESCBC appends a full block of padding to block-aligned input. Dropping
+			// that last ciphertext block leaves a ciphertext that decrypts to exactly
+			// tc.paddedPlaintext, so the padding under test is the one that gets validated.
+			ciphertext, iv := encryptWithAESCBC(t, keyBytes, tc.paddedPlaintext)
+			ciphertext = ciphertext[:len(tc.paddedPlaintext)]
+
+			symKey := &TPMSymmetricKey{
+				Key: keyBytes,
+			}
+			keyParams := &TPMKeyParms{
+				EncScheme: EsSymCBCPKCS5,
+				Params: TPMParams{
+					SymParams: &TPMSymmetricKeyParms{IV: iv},
+				},
+			}
+
+			_, err := u.DecryptWithSymmetricKey(ctx, symKey, keyParams, ciphertext)
+
+			if err == nil {
+				t.Fatalf("DecryptWithSymmetricKey() expected an error for test '%s', but got nil", tc.name)
+			}
+			if !errors.Is(err, ErrInvalidPadding) {
+				t.Errorf("DecryptWithSymmetricKey() error = %v, want error to wrap %v", err, ErrInvalidPadding)
+			}
+		})
+	}
+}
+
+func TestDecryptWithSymmetricKey_EncryptWithAESRoundTrip(t *testing.T) {
+	u := &DefaultTPM12Utils{}
+	ctx := context.Background()
+	symKey, err := u.NewAESCBCKey(tpm12.AlgAES256)
+	if err != nil {
+		t.Fatalf("NewAESCBCKey() failed: %v", err)
+	}
+
+	testCases := []struct {
+		name string
+		data []byte
+	}{
+		{
+			name: "Data size slightly less than block size",
+			data: bytes.Repeat([]byte{0x01}, aes.BlockSize-1),
+		},
+		{
+			// The padding is a full block, which is the largest valid padding value.
+			name: "Data size equals block size",
+			data: bytes.Repeat([]byte{0x02}, aes.BlockSize),
+		},
+		{
+			name: "Data size slightly more than block size",
+			data: bytes.Repeat([]byte{0x03}, aes.BlockSize+1),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ciphertext, keyParms, err := u.EncryptWithAES(symKey, tc.data)
+			if err != nil {
+				t.Fatalf("EncryptWithAES() returned an unexpected error: %v", err)
+			}
+
+			decrypted, err := u.DecryptWithSymmetricKey(ctx, symKey, keyParms, ciphertext)
+			if err != nil {
+				t.Fatalf("DecryptWithSymmetricKey() returned an unexpected error: %v", err)
+			}
+			if !bytes.Equal(decrypted, tc.data) {
+				t.Errorf("DecryptWithSymmetricKey() got = %v, want = %v", decrypted, tc.data)
+			}
+		})
+	}
+}
+
 func TestConstructAsymCAContentsSuccess(t *testing.T) {
 	u := &DefaultTPM12Utils{}
 
