@@ -13,6 +13,8 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"errors"
+	"io"
+	"math"
 	"math/big"
 	"strings"
 	"testing"
@@ -1060,6 +1062,143 @@ func TestParseTCGCSRIDevIDContent(t *testing.T) {
 
 			if diff := cmp.Diff(tc.expectedResult, result, cmpopts.IgnoreUnexported(tpm20.TPMTPublic{}, tpm20.TPMSAttest{}, tpm20.TPMTSignature{}, tpm20.TPMAObject{}, tpm20.TPM2BDigest{}, tpm20.TPMUPublicParms{}, tpm20.TPMUPublicID{}, tpm20.TPM2BName{}, tpm20.TPM2BData{}, tpm20.TPMSClockInfo{}, tpm20.TPMUAttest{}, tpm20.TPMUSignature{})); diff != "" {
 				t.Errorf("ParseTCGCSRIDevIDContent returned an unexpected result: diff (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// TestParseTCGCSRIDevIDContent_SizeExceedsInput checks that a size field larger than the rest of
+// the CSR is rejected. The expected error comes from the length check in readBytes, which runs
+// before a buffer is allocated for the field.
+func TestParseTCGCSRIDevIDContent_SizeExceedsInput(t *testing.T) {
+	tests := []struct {
+		name          string
+		csrBytes      []byte
+		expectedError string
+	}{
+		{
+			name: "hashSize in a CSR that ends after its first three fields",
+			csrBytes: []byte{
+				0x00, 0x00, 0x00, 0x01, // structVer
+				0x00, 0x00, 0x00, 0x0B, // hashAlgoId
+				0xFF, 0xFF, 0xFF, 0xFF, // hashSize
+			},
+			expectedError: "failed to read TCG_CSR_IDEVID_CONTENT.hash (size 4294967295): size 4294967295 exceeds the 0 bytes remaining in the input",
+		},
+		{
+			// The number of bytes left when attestPub is read depends on how the default test
+			// structures are encoded, so it is not part of the expected error.
+			name:          "attestPubSize in an otherwise valid CSR",
+			csrBytes:      generateCsrBytes(CsrOptions{AttestPubSize: ptrUint32(math.MaxUint32)}),
+			expectedError: "failed to read TCG_CSR_IDEVID_CONTENT.attestPub (size 4294967295): size 4294967295 exceeds the",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			u := DefaultTPM20Utils{}
+			_, err := u.ParseTCGCSRIDevIDContent(tc.csrBytes)
+			if err == nil || !strings.Contains(err.Error(), tc.expectedError) {
+				t.Errorf("ParseTCGCSRIDevIDContent got error %v, want error containing %q", err, tc.expectedError)
+			}
+		})
+	}
+}
+
+func TestReadBytes(t *testing.T) {
+	tests := []struct {
+		name       string
+		input      []byte
+		offset     int // Number of input bytes consumed before readBytes is called.
+		size       uint32
+		want       []byte
+		wantUnread int // Number of input bytes still unread after the call.
+		wantErr    string
+	}{
+		{
+			name:  "Zero size on empty input",
+			input: []byte{},
+			size:  0,
+			want:  []byte{},
+		},
+		{
+			name:       "Zero size leaves the input unread",
+			input:      []byte{1, 2, 3, 4},
+			size:       0,
+			want:       []byte{},
+			wantUnread: 4,
+		},
+		{
+			name:  "Size equal to the remaining input",
+			input: []byte{1, 2, 3, 4},
+			size:  4,
+			want:  []byte{1, 2, 3, 4},
+		},
+		{
+			name:   "Size equal to the remaining input after earlier reads",
+			input:  []byte{1, 2, 3, 4},
+			offset: 1,
+			size:   3,
+			want:   []byte{2, 3, 4},
+		},
+		{
+			name:       "Size smaller than the remaining input",
+			input:      []byte{1, 2, 3, 4},
+			size:       3,
+			want:       []byte{1, 2, 3},
+			wantUnread: 1,
+		},
+		{
+			name:       "Size one byte larger than the remaining input",
+			input:      []byte{1, 2, 3, 4},
+			size:       5,
+			wantUnread: 4,
+			wantErr:    "size 5 exceeds the 4 bytes remaining in the input",
+		},
+		{
+			name:       "Size within the whole input but larger than what remains",
+			input:      []byte{1, 2, 3, 4},
+			offset:     3,
+			size:       2,
+			wantUnread: 1,
+			wantErr:    "size 2 exceeds the 1 bytes remaining in the input",
+		},
+		{
+			name:    "Non-zero size on empty input",
+			input:   []byte{},
+			size:    1,
+			wantErr: "size 1 exceeds the 0 bytes remaining in the input",
+		},
+		{
+			name:       "Largest possible size on a short input",
+			input:      []byte{1, 2, 3, 4},
+			size:       math.MaxUint32,
+			wantUnread: 4,
+			wantErr:    "size 4294967295 exceeds the 4 bytes remaining in the input",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			reader := bytes.NewReader(tc.input)
+			if _, err := reader.Seek(int64(tc.offset), io.SeekStart); err != nil {
+				t.Fatalf("Seek(%d) returned an unexpected error: %v", tc.offset, err)
+			}
+
+			got, err := readBytes(reader, tc.size)
+
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("readBytes(size %d) returned an unexpected error: %v", tc.size, err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("readBytes(size %d) got error %v, want error containing %q", tc.size, err, tc.wantErr)
+			}
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Errorf("readBytes(size %d) returned an unexpected result: diff (-want +got):\n%s", tc.size, diff)
+			}
+			if unread := reader.Len(); unread != tc.wantUnread {
+				t.Errorf("readBytes(size %d) left %d bytes unread, want %d", tc.size, unread, tc.wantUnread)
 			}
 		})
 	}

@@ -142,6 +142,11 @@ func readBytes(r *bytes.Reader, size uint32) ([]byte, error) {
 	if size == 0 {
 		return []byte{}, nil // Return empty slice for size 0
 	}
+	// size usually comes from a length field in the data being parsed, so make
+	// sure the reader actually holds that many bytes before allocating for them.
+	if remaining := r.Len(); int64(size) > int64(remaining) {
+		return nil, fmt.Errorf("size %d exceeds the %d bytes remaining in the input", size, remaining)
+	}
 	buf := make([]byte, size)
 	n, err := r.Read(buf)
 	if err != nil {
