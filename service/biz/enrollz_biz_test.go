@@ -32,8 +32,6 @@ import (
 	tpm12 "github.com/google/go-tpm/tpm"
 	tpm20 "github.com/google/go-tpm/tpm2"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	cpb "github.com/openconfig/attestz/proto/common_definitions"
@@ -1374,6 +1372,7 @@ func TestRotateAIKCert(t *testing.T) {
 	}
 	aikCert := "Some AIK cert PEM"
 	errorResp := errors.New("Some error")
+	finalizeErr := errors.New("failed to store AIK cert")
 
 	// Define the default responses for a successful stream.
 	defaultRecvResponses := []*epb.RotateAIKCertResponse{
@@ -1639,8 +1638,8 @@ func TestRotateAIKCert(t *testing.T) {
 		},
 		{
 			desc:            "Device returns error after finalize",
-			wantErrResp:     status.Error(codes.Internal, "failed to store AIK cert"),
-			finalizeRecvErr: status.Error(codes.Internal, "failed to store AIK cert"),
+			wantErrResp:     finalizeErr,
+			finalizeRecvErr: finalizeErr,
 			recvResponses:   defaultRecvResponses,
 		},
 		{
