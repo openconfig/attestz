@@ -880,24 +880,17 @@ func RotateAIKCert(ctx context.Context, req *RotateAIKCertReq) error {
 		log.ErrorContext(ctx, err)
 		return err
 	}
+	// Tell the device we're done sending, then wait for it to end the stream.
 	// The device acknowledges the finalize message by ending the stream, which
 	// Recv reports as io.EOF. Any other error means the device did not finalize
-	// the enrollment (for example, it failed to store the AIK cert), so it must
-	// not be reported as success.
-	_, err = stream.Recv()
-	if err != nil && !errors.Is(err, io.EOF) {
+	// the enrollment, so it must not be reported as success.
+	if err := stream.CloseSend(); err != nil {
+		log.WarningContextf(ctx, "Failed to close the RotateAIKCert stream: %v", err)
+	}
+	if _, err := stream.Recv(); err != nil && !errors.Is(err, io.EOF) {
 		err = fmt.Errorf("device failed to finalize the enrollment: %w", err)
 		log.ErrorContext(ctx, err)
 		return err
-	}
-	if err == nil {
-		// The device sent a message instead of ending the stream. Close our side
-		// of the stream.
-		if err := stream.CloseSend(); err != nil {
-			err = fmt.Errorf("failed to finalize the enrollment: %w", err)
-			log.ErrorContext(ctx, err)
-			return err
-		}
 	}
 	log.InfoContext(ctx, "Successfully finalized TPM 1.2 enrollment")
 	return nil
