@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"slices"
 	"strings"
 	"testing"
 
@@ -31,6 +32,8 @@ import (
 	tpm12 "github.com/google/go-tpm/tpm"
 	tpm20 "github.com/google/go-tpm/tpm2"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	cpb "github.com/openconfig/attestz/proto/common_definitions"
@@ -1328,6 +1331,9 @@ type stubRotateAIKCertClient struct {
 	recvError       error
 	closeSendError  error
 	recvResponseIdx int
+	// endOfStreamError is returned by Recv once all recvResponses have been
+	// returned. If nil, Recv returns io.EOF.
+	endOfStreamError error
 }
 
 func (c *stubRotateAIKCertClient) Send(req *epb.RotateAIKCertRequest) error {
@@ -1339,6 +1345,9 @@ func (c *stubRotateAIKCertClient) Recv() (*epb.RotateAIKCertResponse, error) {
 		return nil, c.recvError
 	}
 	if c.recvResponseIdx >= len(c.recvResponses) {
+		if c.endOfStreamError != nil {
+			return nil, c.endOfStreamError
+		}
 		return nil, io.EOF
 	}
 	resp := c.recvResponses[c.recvResponseIdx]
@@ -1405,6 +1414,8 @@ func TestRotateAIKCert(t *testing.T) {
 		constructIdentityContentsErr error
 		serializeIdentityContentsErr error
 		rotateAikCertStreamError     error
+		// Error the device returns instead of ending the stream after finalize.
+		finalizeRecvErr error
 		// Optional: Custom receive responses for the stubbed client.
 		recvResponses []*epb.RotateAIKCertResponse
 		// Optional: Custom return values for specific success scenarios.
@@ -1626,6 +1637,22 @@ func TestRotateAIKCert(t *testing.T) {
 			},
 			// closeSendError is handled directly in the stub's CloseSend method.
 		},
+		{
+			desc:            "Device returns error after finalize",
+			wantErrResp:     status.Error(codes.Internal, "failed to store AIK cert"),
+			finalizeRecvErr: status.Error(codes.Internal, "failed to store AIK cert"),
+			recvResponses:   defaultRecvResponses,
+		},
+		{
+			desc:            "Device ends stream with wrapped EOF after finalize",
+			finalizeRecvErr: fmt.Errorf("stream closed: %w", io.EOF),
+			recvResponses:   defaultRecvResponses,
+		},
+		{
+			desc: "Device sends a message after finalize",
+			recvResponses: append(slices.Clone(defaultRecvResponses),
+				&epb.RotateAIKCertResponse{}),
+		},
 	}
 
 	for _, tc := range tests {
@@ -1656,6 +1683,13 @@ func TestRotateAIKCert(t *testing.T) {
 			}
 			if tc.desc == "Error closing stream after finalize" {
 				stubClient.closeSendError = errorResp
+			}
+			if tc.finalizeRecvErr != nil {
+				// Only the Recv after the finalize message fails.
+				stubClient.sendError = nil
+				stubClient.recvError = nil
+				stubClient.closeSendError = nil
+				stubClient.endOfStreamError = tc.finalizeRecvErr
 			}
 
 			deps := &stubRotateAIKCertInfraDeps{
