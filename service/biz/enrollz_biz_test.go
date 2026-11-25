@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"slices"
 	"strings"
 	"testing"
 
@@ -1328,6 +1329,15 @@ type stubRotateAIKCertClient struct {
 	recvError       error
 	closeSendError  error
 	recvResponseIdx int
+	// endOfStreamError is returned by Recv once all recvResponses have been
+	// returned. If nil, Recv returns io.EOF.
+	endOfStreamError error
+	// recvCalls counts calls to Recv.
+	recvCalls int
+	// closeSendCalls counts calls to CloseSend.
+	closeSendCalls int
+	// recvCallsAtCloseSend is the value of recvCalls at the first CloseSend.
+	recvCallsAtCloseSend int
 }
 
 func (c *stubRotateAIKCertClient) Send(req *epb.RotateAIKCertRequest) error {
@@ -1335,10 +1345,14 @@ func (c *stubRotateAIKCertClient) Send(req *epb.RotateAIKCertRequest) error {
 }
 
 func (c *stubRotateAIKCertClient) Recv() (*epb.RotateAIKCertResponse, error) {
+	c.recvCalls++
 	if c.recvError != nil {
 		return nil, c.recvError
 	}
 	if c.recvResponseIdx >= len(c.recvResponses) {
+		if c.endOfStreamError != nil {
+			return nil, c.endOfStreamError
+		}
 		return nil, io.EOF
 	}
 	resp := c.recvResponses[c.recvResponseIdx]
@@ -1347,6 +1361,10 @@ func (c *stubRotateAIKCertClient) Recv() (*epb.RotateAIKCertResponse, error) {
 }
 
 func (c *stubRotateAIKCertClient) CloseSend() error {
+	if c.closeSendCalls == 0 {
+		c.recvCallsAtCloseSend = c.recvCalls
+	}
+	c.closeSendCalls++
 	return c.closeSendError
 }
 
@@ -1365,6 +1383,7 @@ func TestRotateAIKCert(t *testing.T) {
 	}
 	aikCert := "Some AIK cert PEM"
 	errorResp := errors.New("Some error")
+	finalizeErr := errors.New("failed to store AIK cert")
 
 	// Define the default responses for a successful stream.
 	defaultRecvResponses := []*epb.RotateAIKCertResponse{
@@ -1405,6 +1424,13 @@ func TestRotateAIKCert(t *testing.T) {
 		constructIdentityContentsErr error
 		serializeIdentityContentsErr error
 		rotateAikCertStreamError     error
+		// Error the device returns instead of ending the stream after finalize.
+		finalizeRecvErr error
+		// Error CloseSend returns after finalize.
+		finalizeCloseSendErr error
+		// Whether CloseSend must be called after the finalize message and before
+		// the final Recv.
+		wantCloseSend bool
 		// Optional: Custom receive responses for the stubbed client.
 		recvResponses []*epb.RotateAIKCertResponse
 		// Optional: Custom return values for specific success scenarios.
@@ -1608,23 +1634,42 @@ func TestRotateAIKCert(t *testing.T) {
 			// sendError is handled directly in the stub's Send method.
 		},
 		{
-			desc:        "Error closing stream after finalize",
-			wantErrResp: errorResp,
-			recvResponses: []*epb.RotateAIKCertResponse{
-				{
-					Value: &epb.RotateAIKCertResponse_ApplicationIdentityRequest{
-						ApplicationIdentityRequest: []byte("dummy identity request"),
-					},
-					ControlCardId: vendorID,
-				},
-				{
-					Value: &epb.RotateAIKCertResponse_AikCert{
-						AikCert: aikCert,
-					},
-				},
-				{}, // Simulate a non-EOF response after finalize send
-			},
-			// closeSendError is handled directly in the stub's CloseSend method.
+			desc:                 "CloseSend error after finalize is only logged",
+			finalizeCloseSendErr: errorResp,
+			recvResponses:        defaultRecvResponses,
+			wantCloseSend:        true,
+		},
+		{
+			desc:            "Device returns error after finalize",
+			wantErrResp:     finalizeErr,
+			finalizeRecvErr: finalizeErr,
+			recvResponses:   defaultRecvResponses,
+			wantCloseSend:   true,
+		},
+		{
+			desc:                 "Device error after finalize is returned even if CloseSend fails",
+			wantErrResp:          finalizeErr,
+			finalizeRecvErr:      finalizeErr,
+			finalizeCloseSendErr: errorResp,
+			recvResponses:        defaultRecvResponses,
+			wantCloseSend:        true,
+		},
+		{
+			desc:          "Device ends stream after finalize",
+			recvResponses: defaultRecvResponses,
+			wantCloseSend: true,
+		},
+		{
+			desc:            "Device ends stream with wrapped EOF after finalize",
+			finalizeRecvErr: fmt.Errorf("stream closed: %w", io.EOF),
+			recvResponses:   defaultRecvResponses,
+			wantCloseSend:   true,
+		},
+		{
+			desc: "Device sends a message after finalize",
+			recvResponses: append(slices.Clone(defaultRecvResponses),
+				&epb.RotateAIKCertResponse{}),
+			wantCloseSend: true,
 		},
 	}
 
@@ -1654,8 +1699,12 @@ func TestRotateAIKCert(t *testing.T) {
 			if tc.desc == "Error sending finalize message" {
 				stubClient.sendError = errorResp
 			}
-			if tc.desc == "Error closing stream after finalize" {
-				stubClient.closeSendError = errorResp
+			if tc.finalizeRecvErr != nil || tc.finalizeCloseSendErr != nil {
+				// Only the calls after the finalize message fail.
+				stubClient.sendError = nil
+				stubClient.recvError = nil
+				stubClient.closeSendError = tc.finalizeCloseSendErr
+				stubClient.endOfStreamError = tc.finalizeRecvErr
 			}
 
 			deps := &stubRotateAIKCertInfraDeps{
@@ -1692,6 +1741,16 @@ func TestRotateAIKCert(t *testing.T) {
 				}
 			} else if err != nil {
 				t.Errorf("RotateAIKCert() returned unexpected error: %v", err)
+			}
+			if tc.wantCloseSend {
+				// Two Recv calls precede finalize: the application identity request
+				// and the AIK cert.
+				const recvsBeforeFinalize = 2
+				if stubClient.closeSendCalls == 0 {
+					t.Errorf("RotateAIKCert() did not call CloseSend after finalize")
+				} else if stubClient.recvCallsAtCloseSend != recvsBeforeFinalize {
+					t.Errorf("RotateAIKCert() called CloseSend after %d Recv calls, want %d (before the final Recv)", stubClient.recvCallsAtCloseSend, recvsBeforeFinalize)
+				}
 			}
 		})
 	}
